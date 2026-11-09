@@ -1,0 +1,10 @@
+#!/bin/sh
+# Strip AI co-author trailers / footers from commit messages (backup in case a tool adds them).
+# Enable once per clone:  git config core.hooksPath scripts/git-hooks
+MSG_FILE="$1"
+sed -i.bak \
+  -e '/^Co-[Aa]uthored-[Bb]y:.*[Cc]laude/d' \
+  -e '/^Co-[Aa]uthored-[Bb]y:.*anthropic\.com/d' \
+  -e '/Generated with \[\{0,1\}Claude Code/d' \
+  -e '/^Claude-Session:/d' \
+  "$MSG_FILE" && rm -f "$MSG_FILE.bak"
