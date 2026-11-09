@@ -20,12 +20,12 @@ import time
 from pathlib import Path
 
 from . import normalize as nz
+from .config import VOCAB_MIN  # PRD 4.5 coverage target: canonical with recipe frequency >= 5
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 RAW = ROOT / "data" / "raw"
 DB = ROOT / "data" / "recipes.db"
 BATCH = 5000
-VOCAB_MIN = 5  # PRD 4.5 coverage target: canonical with recipe frequency >= 5
 SOURCES = {"ar": "recipes_raw_nosource_ar.json", "epi": "recipes_raw_nosource_epi.json",
            "fn": "recipes_raw_nosource_fn.json"}
 

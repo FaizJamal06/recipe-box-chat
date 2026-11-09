@@ -13,7 +13,7 @@
   },
   "epi": {
     "e01": {"title": "Rice Three Ways", "ingredients": ["1 cup rice", "2 tablespoons rice vinegar", "1/2 cup rice flour", "1 teaspoon garlic powder", "3 garlic cloves, minced"], "instructions": "Cook rice.\nMix the rest.", "picture_link": null},
-    "e02": {"title": "Onion Board", "ingredients": ["1 large onion, diced", "2 green onions", "1 teaspoon onion powder", "1 spring onion", "1 red onion"], "instructions": "Slice.\nArrange.", "picture_link": null},
+    "e02": {"title": "Onion Board", "ingredients": ["1 large onion, diced", "2 green onions", "1 teaspoon onion powder", "1 spring onion", "1 red onion", "2 cloves garlic"], "instructions": "Slice.\nArrange.", "picture_link": null},
     "e03": {"title": "Lemon Tart", "ingredients": ["For the crust:", "1 1/4 cups all-purpose flour", "1 stick (1/2 cup) cold unsalted butter, cut into bits", "For the filling:", "3 large egg yolks", "2 large egg whites", "1/2 teaspoon cream of tartar", "⅓ cup sugar"], "instructions": "Make crust.\nMake filling.\nBake.", "picture_link": null},
     "e04": {"title": "Only Headers", "ingredients": ["For the sauce:", "For the topping:"], "instructions": "Mix.", "picture_link": null},
     "e05": {"title": "No Instructions", "ingredients": ["1 cup milk"], "instructions": "", "picture_link": null},

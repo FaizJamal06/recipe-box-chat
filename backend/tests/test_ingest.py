@@ -1,29 +1,23 @@
 """ingest.py end to end on tests/fixtures/mini.json (30 records across ar/epi/fn)."""
-import json
 import sqlite3
 from pathlib import Path
 
 import pytest
+from conftest import fixture_files
 
 from app.ingest import build
 
-FIXTURE = Path(__file__).parent / "fixtures" / "mini.json"
-
 
 def _build(d: Path, vocab_min: int = 5) -> sqlite3.Connection:
-    """Build a DB from the fixture (one JSON file per source, like data/raw/)."""
-    files = {}
-    for source, recs in json.loads(FIXTURE.read_text(encoding="utf-8")).items():
-        files[source] = d / f"{source}.json"
-        files[source].write_text(json.dumps(recs), encoding="utf-8")
-    build(d / "t.db", files, vocab_min)
+    """Build a DB from the fixture with a custom VOCAB_MIN."""
+    build(d / "t.db", fixture_files(d), vocab_min)
     return sqlite3.connect(d / "t.db")
 
 
 @pytest.fixture(scope="module")
-def con(tmp_path_factory):
-    """The fixture DB with the real VOCAB_MIN (5)."""
-    c = _build(tmp_path_factory.mktemp("mini"))
+def con(mini):
+    """The shared fixture DB (real VOCAB_MIN)."""
+    c = sqlite3.connect(mini[0])
     yield c
     c.close()
 
