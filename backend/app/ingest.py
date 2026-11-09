@@ -159,9 +159,13 @@ def finalize(con: sqlite3.Connection, vocab_min: int) -> None:
 
 
 def build(db: Path, files: dict[str, Path], vocab_min: int = VOCAB_MIN) -> None:
-    """Build `db` from scratch from {source: json_path}, one file in memory at a time."""
+    """Build `db` from scratch from {source: json_path}, one file in memory at a time.
+
+    Writes to `<db>.tmp` and swaps it in only at the end, so an interrupted run (journaling is off)
+    never leaves a half-written file under the real name."""
     t0 = time.time()
-    db.parent.mkdir(exist_ok=True)
+    final, db = db, db.with_name(db.name + ".tmp")
+    final.parent.mkdir(exist_ok=True)
     db.unlink(missing_ok=True)
     con = sqlite3.connect(db)
     con.executescript("PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;" + SCHEMA)
@@ -186,6 +190,7 @@ def build(db: Path, files: dict[str, Path], vocab_min: int = VOCAB_MIN) -> None:
     n, v = con.execute("SELECT COUNT(*), SUM(valid) FROM recipes").fetchone()
     con.commit()
     con.close()
+    db = db.replace(final)
     print(f"recipes={n:,} valid={v:,} db={db.stat().st_size / 2**20:.0f} MB "
           f"time={time.time() - t0:.0f}s PEAK RSS={peak_rss_mb():.0f} MB")
 
