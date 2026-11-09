@@ -12,22 +12,15 @@ Each `make` target is one command you can run directly (no `make` needed; PowerS
 | `make data` | `python scripts/download.py` | download + unzip the dataset into `data/raw/` |
 | `make peek` | `python scripts/peek.py --n 3` | print 3 truncated records per file (never open `data/raw/` directly) |
 | `make profile` | `python scripts/profile_data.py` | write `docs/DATA_PROFILE.md` |
-| `make run` | `python -m uvicorn app.api:app --app-dir backend --port 7860 --reload` | serve the API; try http://127.0.0.1:7860/api/health |
-| `make docker` | `docker build -t recipe-box . ; docker run --rm -p 7860:7860 recipe-box` | the image Hugging Face builds |
+| `make run` | `python -m uvicorn app.api:app --app-dir backend --port 8000 --reload` | serve the API; try http://127.0.0.1:8000/api/health |
+| `make docker` | `docker build -t recipe-box . ; docker run --rm -p 8000:8000 recipe-box` | the image Koyeb builds (listens on `$PORT`, default 8000) |
 
 Activate the venv before `run`: `.\.venv\Scripts\Activate.ps1` (Windows) or `. .venv/bin/activate`.
 More targets (db, test, cli, eval) arrive with their milestones.
 
-## Deploy to Hugging Face
+## Deploy to Koyeb
 
-New Space → SDK **Docker** → `git remote add space https://huggingface.co/spaces/<you>/recipe-box-chat` → `git push space main`.
-The build downloads the dataset; `/api/health` returning record counts proves it worked.
-Hugging Face needs this YAML at the top of the Space's README (add it to the copy you push, or here):
-
-```
----
-title: Recipe Box
-sdk: docker
-app_port: 7860
----
-```
+Push the repo to GitHub → Koyeb → Create Service → GitHub → Builder **Dockerfile** → exposed port **8000** (HTTP),
+health check path `/api/health`. Koyeb sets `$PORT`; the container honours it (default 8000, one worker).
+The image build downloads the dataset and writes `data/counts.json`; `/api/health` returning record counts proves it worked.
+Dataset parsing needs RAM (M1+): pick an instance with more than 512 MB if the build/runtime gets OOM-killed.

@@ -16,7 +16,7 @@ profile:
 	python scripts/profile_data.py
 
 run:
-	python -m uvicorn app.api:app --app-dir backend --port 7860 --reload
+	python -m uvicorn app.api:app --app-dir backend --port 8000 --reload
 
 docker:
-	docker build -t recipe-box . && docker run --rm -p 7860:7860 recipe-box
+	docker build -t recipe-box . && docker run --rm -p 8000:8000 recipe-box
