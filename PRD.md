@@ -33,7 +33,7 @@ Non-goals: inventing recipes (T2), nutrition/cook-time facts, user accounts, mob
 Vector search / FAISS is **out of the shipping scope**: optional post-launch milestone M7 only (§9 D3).
 
 **Main goal: a live, working chatbot at a public URL.** A working core deployed on Day 3 beats a
-polished app on localhost on Day 4. The Space goes live at the end of M4 and gets redeployed after.
+polished app on localhost on Day 4. The Railway service goes live at the end of M4 and gets redeployed after.
 
 ## 2. Constraints that shape every decision
 
@@ -65,7 +65,8 @@ polished app on localhost on Day 4. The Space goes live at the end of M4 and get
 - **Storage:** one SQLite file (`data/recipes.db`), stdlib `sqlite3`, FTS5 for keyword search.
 - **Backend:** Python 3.11, FastAPI, `google-genai`, `pyyaml`, `pytest`. That's it (plus uvicorn).
 - **Frontend:** Vite + React + TypeScript + Tailwind, built to static files and served by FastAPI.
-- **Deploy:** single Docker image → Hugging Face Spaces (Docker SDK, free CPU). DB built at image build.
+- **Deploy:** single multi-stage Docker image → Railway (Trial, 0.5 GB RAM, injects `$PORT`). DB is built in the
+  builder stage; the final image holds only code + `recipes.db`. **Runtime budget: <400 MB RSS** (one uvicorn worker).
 - **CLI:** `python -m app.cli` uses the same engine (the assignment accepts CLI; it's our fallback demo).
 
 ## 4. Data and normalization (the foundation — most bugs live here)
@@ -345,7 +346,7 @@ Layout (desktop first, responsive to tablet):
 
 | # | When | Scope | Done when |
 |---|---|---|---|
-| M0 | Day 1, 1–2h | Scaffold repo (§12), `scripts/download.py`, `scripts/peek.py` (prints N sample records, truncated), `scripts/profile_data.py` → `docs/DATA_PROFILE.md` (records per file, empty/invalid counts, ADVERTISEMENT freq, n_steps distribution per source, top 300 cleaned ingredient names). **De-risk deploy:** a Dockerfile whose build downloads the zip, plus a FastAPI `/api/health` returning record counts, pushed to the HF Space | Faiz reviews profile; §4.1 confirmed or PRD amended; Space URL shows health JSON (proves HF can download the data) |
+| M0 | Day 1, 1–2h | Scaffold repo (§12), `scripts/download.py`, `scripts/peek.py` (prints N sample records, truncated), `scripts/profile_data.py` → `docs/DATA_PROFILE.md` (records per file, empty/invalid counts, ADVERTISEMENT freq, n_steps distribution per source, top 300 cleaned ingredient names). **De-risk deploy:** a Dockerfile whose build downloads the zip, plus a FastAPI `/api/health` returning record counts, deployed to Railway | Faiz reviews profile; §4.1 confirmed or PRD amended; Railway URL shows health JSON (proves HF can download the data) |
 | M1 | Day 1 | `normalize.py`, `lexicon/*.yaml`, `ingest.py`, DB build; tests with a 30-recipe fixture (`tests/fixtures/mini.json`) incl. every tricky case in §4.5 | `make db` builds in <10 min; coverage number in DATA_PROFILE; `pytest -q` green |
 | M2 | Day 2 AM | `search.py`, `stats.py`, rule planner, `cli.py` | Demo convs 2 & 3 (§11) correct in CLI; stats cross-checked by `eval/oracle.py` (pure Python over parsed JSON, **not** SQL) |
 | M3 | Day 2 PM | `llm.py`, `planner.py` (+cache), `session.py`, `match.py`, unsupported guard | Demo convs 1, 4, 5, 6 correct in CLI incl. follow-ups |

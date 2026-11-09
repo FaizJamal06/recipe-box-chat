@@ -59,9 +59,9 @@ is separate from that disclosure.
 > Read CLAUDE.md and PRD §0–§4 and §10–§12. Do milestone M0 only: scaffold the repo layout from §12
 > (empty modules with docstrings), Makefile, requirements.txt, .env.example, scripts/download.py,
 > scripts/peek.py, scripts/profile_data.py. Run download + profile and write docs/DATA_PROFILE.md.
-> Also write a Dockerfile (python:3.11-slim, port 7860) whose build runs scripts/download.py, and a
-> minimal FastAPI app with GET /api/health returning record counts per file, so I can push it to my
-> Hugging Face Space today. Then tell me which assumptions in PRD §4.1 were wrong. Don't build M1 yet.
+> Also write a Dockerfile (python:3.12-slim, listens on $PORT default 8000, one uvicorn worker) whose build
+> runs scripts/download.py, and a minimal FastAPI app with GET /api/health returning record counts per
+> file, so I can deploy it to Railway today. Then tell me which assumptions in PRD §4.1 were wrong. Don't build M1 yet.
 
 **M1**
 > Milestone M1 (PRD §4, §10). Build normalize.py, lexicon/*.yaml, ingest.py and the DB. First write
@@ -90,7 +90,7 @@ is separate from that disclosure.
 
 **M6**
 > Milestone M6 (PRD §13–§15). eval cases + runner + baseline_oneshot, REPORT.md, README, DECISIONS.md,
-> Dockerfile for Hugging Face Spaces (port 7860, DB built at image build), then I'll deploy.
+> final Dockerfile check for Railway (DB built at image build, runtime <400 MB RAM), then I'll redeploy.
 > Finally run /ponytail-debt and put the ledger in README "Known limitations".
 
 **M7 (optional, only after you've submitted)**
@@ -98,17 +98,22 @@ is separate from that disclosure.
 > FAISS IndexFlatIP built in the Docker image, reciprocal rank fusion with BM25 in search.py. Hard
 > filters stay in SQL after fusion; stats untouched. Add 5 vague-query eval cases; all old cases must still pass.
 
-## Deploy (first push at the end of M0, redeploy after M4, M5, M6; ~30 min the first time)
-1. huggingface.co → New Space → SDK **Docker** → CPU basic (free).
-2. Space settings → Secrets: `GEMINI_API_KEY`, `GEMINI_MODEL`.
-3. `git remote add space https://huggingface.co/spaces/<you>/recipe-box-chat && git push space main`
-4. Wait for the build to finish, open the URL, run all 9 demo conversations. Free Spaces sleep when idle,
-   so open the URL ~5 minutes before the interview.
+## Deploy to Railway (first deploy at the end of M0; it then redeploys on every push)
+1. Push to GitHub (public repo `recipe-box-chat`).
+2. railway.com → sign up with GitHub → you start on the Trial (one-time $5 credit, no card, 30 days).
+3. New Project → Deploy from GitHub repo → pick `recipe-box-chat`. Railway finds the Dockerfile itself.
+4. Service → Variables: `GEMINI_API_KEY`, `GEMINI_MODEL`. Railway injects `PORT`, and the app already reads it.
+5. Service → Settings → Networking → **Generate Domain** → open `https://<name>.up.railway.app/api/health`.
+6. Settings → Healthcheck path `/api/health`. Every `git push` to main redeploys.
+7. Budget: at ~0.3–0.4 GB RAM the $5 lasts roughly the 30 days. Check Usage once a day. If the interview is
+   after the trial ends, either upgrade to Hobby ($5/month, card) or move to Render's free tier.
+8. **If Railway fails:** Render → New Web Service → same repo → Docker → Free (card check; sleeps after
+   15 min, so open the URL a minute before the interview).
 
 ## Day plan
 | Day | Milestones | Checkpoint you verify yourself |
 |---|---|---|
-| 1 (today/Tue) | M0, M1 | Space URL shows health JSON; DATA_PROFILE.md makes sense; tricky-case tests pass |
+| 1 (today/Tue) | M0, M1 | Railway URL shows health JSON; DATA_PROFILE.md makes sense; tricky-case tests pass |
 | 2 | M2, M3 | All CLI demos 1–6 correct; oracle numbers match |
 | 3 | M4, M5 | **Live URL** runs demos 1–6 (morning) and 7–9 (evening) |
 | 4 | M6 + buffer | Fresh-clone install works; authorship check clean; submit |

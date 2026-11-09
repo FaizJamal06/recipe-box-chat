@@ -4,7 +4,6 @@ Stdlib only so it runs before any `pip install` (Docker build, fresh clone).
 Manual fallback: place recipes_raw_nosource_{ar,epi,fn}.json into data/raw/ yourself.
 """
 import io
-import json
 import time
 import urllib.request
 import zipfile
@@ -14,18 +13,10 @@ URL = "https://eightportions.com/recipes_raw.zip"
 RAW = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 
-def write_counts() -> None:
-    """Write data/counts.json ({file: n_records}) so /api/health needn't parse ~200 MB on a small host."""
-    counts = {p.name: len(json.loads(p.read_text(encoding="utf-8"))) for p in sorted(RAW.glob("*.json"))}
-    (RAW.parent / "counts.json").write_text(json.dumps(counts), encoding="utf-8")
-    print("counts:", counts)
-
-
 def main() -> None:
-    """Fetch the zip with retries, extract the JSON files flat into data/raw/, then write counts."""
+    """Fetch the zip with retries and extract the JSON files flat into data/raw/."""
     if len(list(RAW.glob("*.json"))) >= 3:
         print(f"already present in {RAW}")
-        write_counts()
         return
     RAW.mkdir(parents=True, exist_ok=True)
     for attempt in range(1, 5):
@@ -44,7 +35,6 @@ def main() -> None:
             if info.filename.endswith(".json"):  # flatten: ignore any folder in the zip
                 (RAW / Path(info.filename).name).write_bytes(z.read(info))
                 print("extracted", Path(info.filename).name)
-    write_counts()
 
 
 if __name__ == "__main__":

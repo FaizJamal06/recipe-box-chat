@@ -1,29 +1,33 @@
-"""FastAPI app. M0: only GET /api/health (record counts per raw file) to prove the host can download the data.
+"""FastAPI app. M0/M1: only GET /api/health (record counts per source, from data/recipes.db).
 
-Counts come straight from the raw JSON so the deploy check does not depend on the DB (built in M1).
+The runtime image ships recipes.db only (no raw JSON), so health reads the DB read-only.
 """
-import json
+import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI
 
-DATA = Path(__file__).resolve().parent.parent.parent / "data"
+DB = Path(__file__).resolve().parent.parent.parent / "data" / "recipes.db"
 app = FastAPI(title="Recipe Box")
 
 
 @lru_cache(maxsize=1)
-def raw_counts() -> dict[str, int]:
-    """Record count per raw file. Reads data/counts.json written at build time (download.py);
-    falls back to parsing the raw files, which can exceed 512 MB RAM on a small host."""
-    cached = DATA / "counts.json"
-    if cached.exists():
-        return json.loads(cached.read_text(encoding="utf-8"))
-    return {p.name: len(json.loads(p.read_text(encoding="utf-8"))) for p in sorted((DATA / "raw").glob("*.json"))}
+def counts() -> dict[str, dict[str, int]]:
+    """{source: {records, valid}} computed once; empty dict if the DB is missing."""
+    if not DB.exists():
+        return {}
+    con = sqlite3.connect(f"{DB.as_uri()}?mode=ro", uri=True)
+    try:
+        rows = con.execute("SELECT source, COUNT(*), SUM(valid) FROM recipes GROUP BY source").fetchall()
+    finally:
+        con.close()
+    return {s: {"records": n, "valid": v} for s, n, v in rows}
 
 
 @app.get("/api/health")
 def health() -> dict:
-    """Return status plus per-file record counts; status is 'error' if the data is missing."""
-    counts = raw_counts()
-    return {"status": "ok" if counts else "error", "records": counts, "total": sum(counts.values())}
+    """Return status plus per-source counts; status is 'error' if the DB is missing."""
+    c = counts()
+    return {"status": "ok" if c else "error", "sources": c,
+            "total": sum(x["records"] for x in c.values()), "valid": sum(x["valid"] for x in c.values())}

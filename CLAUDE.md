@@ -28,4 +28,4 @@ the current milestone names. Don't re-read the whole PRD.
 
 ## Stack
 Python 3.11, FastAPI, sqlite3 (FTS5), google-genai, pyyaml, pytest · Vite + React + TS + Tailwind ·
-Docker → Hugging Face Spaces (port 7860). Env: `GEMINI_API_KEY`, `GEMINI_MODEL`, `EXTERNAL_SEARCH=off`.
+Docker (multi-stage, DB built in builder) → Railway Trial (0.5 GB RAM, listens on `$PORT`; runtime <400 MB). Env: `GEMINI_API_KEY`, `GEMINI_MODEL`, `EXTERNAL_SEARCH=off`.
