@@ -11,7 +11,7 @@ Each `make` target is one command you can run directly (no `make` needed; PowerS
 | `make setup` | `python scripts/setup.py` | create `.venv`, install `requirements.txt` (+ `npm ci` once `frontend/` exists) |
 | `make data` | `python scripts/download.py` | download + unzip the dataset into `data/raw/` |
 | `make db` | `python -m backend.app.ingest` | build `data/recipes.db` (~2.5 min, peak RSS ~300 MB; prints peak memory) |
-| `make test` | `pytest -q -x` | unit tests + a DB build from `backend/tests/fixtures/mini.json` |
+| `make test` | `python -m pytest -q -x` | unit tests + a DB build from `backend/tests/fixtures/mini.json` |
 | `make coverage` | `python scripts/coverage.py` | normalization report; rewrites the coverage section of `docs/DATA_PROFILE.md` |
 | `make peek` | `python scripts/peek.py --n 3` | print 3 truncated records per file (never open `data/raw/` directly) |
 | `make profile` | `python scripts/profile_data.py` | write `docs/DATA_PROFILE.md` |

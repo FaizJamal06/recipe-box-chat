@@ -13,7 +13,7 @@ db:
 	python -m backend.app.ingest
 
 test:
-	pytest -q -x
+	python -m pytest -q -x
 
 coverage:
 	python scripts/coverage.py
