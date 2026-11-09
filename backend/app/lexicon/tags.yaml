@@ -7,11 +7,15 @@
 # "meat" = any land-animal flesh incl. poultry; pork and poultry are also tagged separately.
 # vegetarian = no meat, fish, shellfish.
 
-# not_food: equipment and similar lines; they never get any tag ("cookie cutter" is not gluten).
+# not_food: equipment and serving notes. normalize masks them out of the line (hyphen-aware, so "pan-fried"
+# stays) before parsing and tagging: "cookie cutter" is not gluten, "1 9-inch skillet" names nothing.
+# A line labelled "Special equipment:" is dropped entirely.
 not_food: [cookie cutter, custard cup, muffin cup, muffin tin, muffin pan, cupcake liner, paper liner, pastry bag,
-           pastry brush, cake pan, pie plate, pie dish, baking sheet, baking dish, skewer, toothpick, parchment,
-           cheesecloth, kitchen twine, butcher twine, foil, plastic wrap, thermometer, ramekin, springform pan,
-           loaf pan, tart pan, piping bag, candy thermometer, ice cream maker]
+           pastry brush, cake pan, pie plate, pie dish, baking sheet, baking dish, baking pan, sheet pan,
+           jelly roll pan, roasting pan, pan, skillet, sheet, skewer, toothpick, parchment, parchment paper,
+           wax paper, waxed paper, paper towel, cheesecloth, kitchen twine, butcher twine, kitchen string, twine,
+           foil, plastic wrap, thermometer, ramekin, springform pan, loaf pan, tart pan, piping bag,
+           candy thermometer, ice cream maker, wire rack, cooling rack, for serving, to serve]
 
 dairy:
   free_if: [dairy-free, dairy free, non-dairy, nondairy, vegan, plant-based, lactose-free milk substitute]
@@ -19,7 +23,7 @@ dairy:
            cashew milk, hemp milk, peanut butter, almond butter, cashew butter, sunflower butter, nut butter,
            apple butter, pumpkin butter, cocoa butter, shea butter, butter bean, butter lettuce, butterhead,
            cream of tartar, coconut milk powder, coconut yogurt, cream soda, milk thistle, bread flour,
-           pastry flour]
+           pastry flour, butter flavored, butter-flavored, butter flavor, cream-style, cream style]
   contains: [milk, cream, butter, cheese, yogurt, yoghurt, ghee, whey, casein, buttermilk, sour cream,
              half and half, half-and-half, creme fraiche, kefir, quark, mascarpone, ricotta, parmesan,
              parmigiano-reggiano, parmigiano, mozzarella, cheddar, feta, gruyere, brie, camembert, pecorino,
@@ -59,7 +63,8 @@ gluten:
   except: [rice flour, corn flour, almond flour, coconut flour, chickpea flour, garbanzo flour, garbanzo bean flour,
            tapioca flour, potato flour, sorghum flour, millet flour, quinoa flour, cassava flour, arrowroot flour,
            buckwheat flour, masa harina, rice noodle, rice paper, rice cracker, rice cake, corn tortilla,
-           tortilla chip, corn chip, rice bread, rice paper wrapper, ginger ale]
+           tortilla chip, corn chip, rice bread, rice paper wrapper, ginger ale, ginger beer, root beer,
+           spaghetti sauce, pasta sauce, spaghetti squash]
   contains: [flour, wheat, whole wheat, bread, breadcrumb, bread crumb, panko, crouton, pasta, spaghetti,
              macaroni, noodle, couscous, bulgur, barley, rye, semolina, farro, spelt, seitan, orzo, penne,
              linguine, fettuccine, fettuccini, lasagna, lasagne, tortellini, ravioli, rigatoni, ziti, rotini,
@@ -76,7 +81,8 @@ gluten:
 meat:
   free_if: [vegetarian, vegan, meatless, meat-free, plant-based, veggie, soy-based, imitation,
             textured vegetable protein]
-  except: [celery rib, rib of celery, coconut meat, crab meat, lobster meat, crabmeat, hamburger bun,
+  except: [celery rib, rib of celery, ribs celery, ribs of celery, stems and ribs, center rib, ribs removed,
+           goats cheese, grey goose, coconut meat, crab meat, lobster meat, crabmeat, hamburger bun,
            hot dog bun, hamburger roll, hot dog roll, duck sauce, hen of the woods, chicken of the woods,
            vegetable broth, vegetable stock, mushroom broth, chickpea, goat cheese, goat milk,
            goats milk, goat yogurt, poultry seasoning, quail egg, duck egg, vegetable bouillon, mushroom stock,
@@ -105,7 +111,7 @@ pork:
 
 poultry:
   free_if: [vegetarian, vegan, meatless, plant-based]
-  except: [chickpea, hen of the woods, chicken of the woods, duck sauce, poultry seasoning, quail egg, duck egg,
+  except: [grey goose, chickpea, hen of the woods, chicken of the woods, duck sauce, poultry seasoning, quail egg, duck egg,
            beef broth, beef stock, beef bouillon, beef gravy, veal stock, lamb stock, pork stock, vegetable broth,
            vegetable stock, vegetable bouillon, mushroom stock, mushroom broth, fish stock, fish broth, seafood stock,
            shrimp stock, lobster stock, clam broth]

@@ -73,6 +73,7 @@ oil:
   members: [olive oil, vegetable oil, canola oil, peanut oil, sesame oil, coconut oil, grapeseed oil,
             sunflower oil, safflower oil, corn oil, avocado oil, walnut oil, truffle oil]
   broad: [cooking spray, shortening]
+  exclude: [in oil]  # 'sun-dried tomatoes in oil', 'tuna in oil' are not oils
 vinegar:
   members: [apple cider vinegar, white vinegar, red wine vinegar, white wine vinegar, balsamic vinegar,
             rice vinegar, sherry vinegar, champagne vinegar, malt vinegar]

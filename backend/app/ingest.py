@@ -34,7 +34,7 @@ CREATE TABLE recipes(id TEXT PRIMARY KEY, source TEXT, title TEXT, ingredients_r
     instructions_raw TEXT, n_ingredients INT, n_steps INT, n_sentences INT, valid INT, invalid_reason TEXT,
     n_steps_newline INT, is_paragraph_format INT);
 CREATE TABLE ingredient_lines(recipe_id TEXT, line_no INT, raw TEXT, name_clean TEXT, canonical TEXT,
-    family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT, is_alt INT);
+    family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT, is_alt INT, is_not_food INT);
 CREATE TABLE recipe_tags(recipe_id TEXT, tag TEXT, level TEXT, evidence_line_no INT);
 CREATE TABLE vocab(canonical TEXT PRIMARY KEY, family TEXT, recipe_count INT);
 CREATE VIRTUAL TABLE recipes_fts USING fts5(id UNINDEXED, title, ingredients, tokenize='porter');
@@ -129,8 +129,8 @@ def recipe_tags(rid: str, parsed: list[tuple[int, list, tuple]]) -> list[tuple]:
 def line_rows(rid: str, n: int, s: str, items: list) -> list[tuple]:
     """ingredient_lines rows for one real line: one per option; a line naming nothing keeps canonical NULL."""
     if not items:
-        return [(rid, n, s, None, None, None, None, None, None, None, 0, 0)]
-    return [(rid, n, s, o.clean, o.canonical, None, it.qty, it.unit, it.unit_family, g, 0, int(k > 0))
+        return [(rid, n, s, None, None, None, None, None, None, None, 0, 0, 0)]
+    return [(rid, n, s, o.clean, o.canonical, None, it.qty, it.unit, it.unit_family, g, 0, int(k > 0), 0)
             for g, it in enumerate(items) for k, o in enumerate(it.options)]
 
 
@@ -146,8 +146,9 @@ def convert(source: str, key: str, rec: dict) -> tuple:
         if not s:
             continue
         items = nz.parse_line(s)
-        if items and items[0].is_header:
-            rows.append((rid, n, s, None, None, None, None, None, None, None, 1, 0))
+        if items and (items[0].is_header or items[0].not_food):  # kept, but not an ingredient
+            rows.append((rid, n, s, None, None, None, None, None, None, None, int(items[0].is_header), 0,
+                         int(items[0].not_food)))
             continue
         real.append(s)
         parsed.append((n, items, nz.line_tags(s)))
@@ -163,7 +164,7 @@ def convert(source: str, key: str, rec: dict) -> tuple:
 def flush(con: sqlite3.Connection, recs: list, lines: list, fts: list, tags: list) -> None:
     """Write one batch with executemany and clear the buffers."""
     con.executemany("INSERT INTO recipes VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", recs)
-    con.executemany("INSERT INTO ingredient_lines VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", lines)
+    con.executemany("INSERT INTO ingredient_lines VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", lines)
     con.executemany("INSERT INTO recipes_fts(id,title,ingredients) VALUES (?,?,?)", fts)
     con.executemany("INSERT INTO recipe_tags VALUES (?,?,?,?)", tags)
     recs.clear(), lines.clear(), fts.clear(), tags.clear()
@@ -182,7 +183,7 @@ def resplit(con: sqlite3.Connection, vocab: set) -> int:
         "SELECT DISTINCT recipe_id, line_no, raw FROM ingredient_lines WHERE is_header = 0 AND raw LIKE '%,%'"
     ).fetchall() if (sp := nz.comma_split(s, vocab))]
     con.executemany("DELETE FROM ingredient_lines WHERE recipe_id = ? AND line_no = ?", [t[:2] for t in todo])
-    con.executemany("INSERT INTO ingredient_lines VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    con.executemany("INSERT INTO ingredient_lines VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     [row for rid, n, s, sp in todo for row in line_rows(rid, n, s, sp)])
     return len(todo)
 

@@ -79,6 +79,7 @@ class ParsedLine:
     name: Name | None = None
     alternatives: tuple = ()
     is_header: bool = False
+    not_food: bool = False  # equipment / serving note ('1 9-inch skillet', 'Special equipment: ...')
 
     @property
     def options(self) -> tuple:
@@ -160,25 +161,21 @@ def tags_for(name: str) -> tuple:
     return tuple(out)
 
 
-def _word_re(words) -> re.Pattern | None:
+def _word_re(words, edge=(r"\b", r"\b")) -> re.Pattern | None:
     """Whole-word regex for the words and their singulars, allowing a plural s/es; None for an empty list."""
     words = set(words) | {singular(w) for w in words}
-    return re.compile(rf"\b(?:{_alt(words)})(?:e?s)?\b") if words else None
+    return re.compile(rf"{edge[0]}(?:{_alt(words)})(?:e?s)?{edge[1]}") if words else None
 
 
-_NOT_FOOD = _word_re(_TAGS.pop("not_food"))
+_NOT_FOOD = _word_re(_TAGS.pop("not_food"), (r"(?<![\w-])", r"(?![\w-])"))  # hyphen-aware: 'pan-fried' stays
 _TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain"))
            for t, d in _TAGS.items()}
 # families.yaml -> {name suffix: family}. Family names and members map to the family, `broad` entries to
 # themselves (their own group), `exclude` entries to None (the canonical stands alone). Names singularized.
-_GROUP: dict[str, str | None] = {}
-for _f, _d in _FAM.items():
-    _GROUP.update({singular(m): singular(_f) for m in [_f, *(_d.get("members") or [])]})
-for _d in _FAM.values():
-    for _b in _d.get("broad") or []:
-        _GROUP.setdefault(singular(_b), singular(_b))
-for _d in _FAM.values():
-    _GROUP.update({singular(x): None for x in _d.get("exclude") or []})
+_GROUP = {singular(m): singular(f) for f, d in _FAM.items() for m in [f, *(d.get("members") or [])]}
+for _b in (b for d in _FAM.values() for b in d.get("broad") or []):
+    _GROUP.setdefault(singular(_b), singular(_b))
+_GROUP.update({singular(x): None for d in _FAM.values() for x in d.get("exclude") or []})
 BROAD = {singular(f): sorted({singular(b) for b in d.get("broad") or []}) for f, d in _FAM.items()}
 
 
@@ -239,8 +236,11 @@ def _parse(raw: str) -> tuple:
     if is_header(s):
         return (ParsedLine(raw, is_header=True),), (), None
     if ":" in s:  # 'Garnish: chopped parsley' -> parse the part after the label
-        s = s.split(":", 1)[1].strip()
-    qty = qty_range = unit = None
+        label, s = s.split(":", 1)
+        if "equipment" in label:  # 'Special equipment: ...'
+            return (ParsedLine(raw, not_food=True),), (), None
+    s, masked = _NOT_FOOD.subn(" ", s)  # equipment and serving notes never name an ingredient
+    s, qty, qty_range, unit = s.strip(), None, None, None
     m = _QTY.match(s)
     if m:
         lo, hi = _num(m.group(1)), (_num(m.group(2)) if m.group(2) else None)
@@ -261,11 +261,12 @@ def _parse(raw: str) -> tuple:
             qty, unit, qty_range = (qty or 1.0) * _num(size.group(1)), su, None
     line_tags = tags_for(f"{s} {notes}")  # keyword scan of everything after the amount (all comma parts)
     s = _PUNCT.sub(" ", _DIGIT_TOKEN.sub(" ", s))
-    head = (qty, qty_range, unit, UNIT_FAMILY.get(unit))
-    # only the first item owns the leading amount; the others' amounts are unknown (NULL), not shared
+    head = (qty, qty_range, unit, UNIT_FAMILY.get(unit))  # first item only; the others' amounts are unknown
     mk = lambda items: tuple(ParsedLine(raw, *(head if i == 0 else (None,) * 4), o[0], tuple(o[1:]))
                              for i, o in enumerate(items))
     default, split = _items(s)
+    if masked and not default:  # '1 9-inch skillet', 'Toothpicks', 'Optional, for serving'
+        return (ParsedLine(raw, not_food=True),), (), None
     return mk(default), line_tags, (mk(split) if split else None)
 
 
@@ -284,10 +285,9 @@ def parse_line(raw: str, vocab=None) -> list[ParsedLine]:
     """Raw ingredient line -> one ParsedLine per required item ([] for empty/ADVERTISEMENT-only lines).
     With a vocab (known canonicals), comma lists of known canonicals are split and an unknown canonical falls
     back to its longest safe in-vocab suffix ('heritage pork loin' -> 'pork loin'); tags stay as parsed."""
-    out = list(_parse(raw)[0])
     if vocab is None:
-        return out
-    out = comma_split(raw, vocab) or out
+        return list(_parse(raw)[0])
+    out = comma_split(raw, vocab) or list(_parse(raw)[0])
     fix = lambda n: n if n.canonical in vocab or not (c := suffix_match(n.canonical, vocab)) \
         else Name(n.clean, c, family_for(c), n.tags)
     return [ParsedLine(p.raw, p.qty, p.qty_range, p.unit, p.unit_family, fix(p.name),

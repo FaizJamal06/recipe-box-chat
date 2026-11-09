@@ -67,6 +67,10 @@ def test_headers_compounds_alternatives(con):
                        "AND line_no = 2 ORDER BY is_alt").fetchall()
     assert rows == [(0, 0, "butter"), (0, 1, "margarine")]
     assert one(con, "SELECT COUNT(*) FROM ingredient_lines WHERE recipe_id = 'ar:a05'") == (4,)  # kept whole
+    # equipment line: stored, flagged, not an ingredient
+    assert one(con, "SELECT is_not_food, canonical FROM ingredient_lines WHERE recipe_id = 'fn:f07' AND line_no = 3") \
+        == (1, None)
+    assert one(con, "SELECT n_ingredients FROM recipes WHERE id = 'fn:f07'") == (3,)
 
 
 def tags(con, rid: str) -> dict:

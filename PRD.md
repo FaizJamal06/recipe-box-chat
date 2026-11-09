@@ -146,9 +146,11 @@ recipes(id TEXT PRIMARY KEY, source TEXT, title TEXT, ingredients_raw TEXT /*JSO
         instructions_raw TEXT, n_ingredients INT, n_steps INT, n_sentences INT,
         valid INT, invalid_reason TEXT, n_steps_newline INT, is_paragraph_format INT)
 ingredient_lines(recipe_id TEXT, line_no INT, raw TEXT, name_clean TEXT, canonical TEXT,
-        family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT, is_alt INT)
+        family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT, is_alt INT,
+        is_not_food INT)
         -- one row per option: rows sharing (recipe_id, line_no, alt_group) are alternatives ("butter or
         -- margarine"); different alt_group on one line = separate items ("salt and pepper"); is_alt=0 = primary
+        -- is_not_food=1: equipment / serving-note line ("1 9-inch skillet"), kept but not an ingredient
 recipe_tags(recipe_id TEXT, tag TEXT, level TEXT, evidence_line_no INT)   -- one row per (recipe, tag)
         -- level: contains | may_contain | alt (tag only in options that have a tag-free alternative)
 vocab(canonical TEXT PRIMARY KEY, family TEXT, recipe_count INT)

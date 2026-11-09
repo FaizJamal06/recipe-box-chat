@@ -30,7 +30,7 @@
     "f04": {"title": "Paragraph Rice", "ingredients": ["1 cup rice", "2 cups water", "Salt", "1 tablespoon salt, pepper and butter"], "instructions": "In a heavy saucepan combine the rice, water, and salt. Bring to a boil at 212 F. and reduce the heat. Cook 15 to 20 minutes. Fluff with a fork.", "picture_link": null},
     "f05": {"title": "Meringue Cookies", "ingredients": ["4 egg whites", "1 cup superfine sugar", "1/4 teaspoon cream of tartar"], "instructions": "Beat.\nBake.", "picture_link": null},
     "f06": {"title": "Chicken Pot Pie", "ingredients": ["2 boneless, skinless chicken breast halves", "1 (10.75 ounce) can cream of chicken soup", "1 cup frozen peas", "1 refrigerated pie crust"], "instructions": "Fill.\nBake.", "picture_link": null},
-    "f07": {"title": "Butter Lettuce Salad", "ingredients": ["1 head butter lettuce", "1/2 cup pine nuts, toasted", "2 tablespoons coconut cream"], "instructions": "Toss.", "picture_link": null},
+    "f07": {"title": "Butter Lettuce Salad", "ingredients": ["1 head butter lettuce", "1/2 cup pine nuts, toasted", "2 tablespoons coconut cream", "Toothpicks"], "instructions": "Toss.", "picture_link": null},
     "f08": {"title": "Gluten-Free Muffins", "ingredients": ["2 cups gluten-free flour blend", "1 cup almond flour", "2 eggs"], "instructions": "Mix.\nBake.", "picture_link": null},
     "f09": {"title": "Margarine Toast", "ingredients": ["2 slices bread", "1 tablespoon margarine"], "instructions": "Toast.\nSpread.", "picture_link": null},
     "f10": {"title": "Bacon Mac", "ingredients": ["4 slices bacon or turkey bacon", "2 cups macaroni and cheese"], "instructions": "Fry.\nStir in.", "picture_link": null}

@@ -22,7 +22,7 @@ MARK = "## Normalization coverage"
 LINES = """SELECT l.recipe_id, l.line_no, MIN(COALESCE(v.recipe_count, 0) >= 5) AS ok
 FROM ingredient_lines l JOIN recipes r ON r.id = l.recipe_id AND r.valid = 1
 LEFT JOIN vocab v ON v.canonical = l.canonical
-WHERE l.is_header = 0 AND l.is_alt = 0 GROUP BY l.recipe_id, l.line_no"""
+WHERE l.is_header = 0 AND l.is_alt = 0 AND l.is_not_food = 0 GROUP BY l.recipe_id, l.line_no"""
 
 
 def report(con: sqlite3.Connection, samples: int, seed: int) -> list[str]:
@@ -39,6 +39,8 @@ def report(con: sqlite3.Connection, samples: int, seed: int) -> list[str]:
         tot, fb = tot + n, fb + n * (synonym(clean) != can)
     out.append(f"- of which via the suffix fallback (`normalize.suffix_match`): {fb / tot:.1%} of item rows "
                f"(so roughly {ok / total - fb / tot:.1%} map by their own name)")
+    (nf,), = q("SELECT COUNT(*) FROM ingredient_lines WHERE is_not_food = 1")
+    out.append(f"- equipment / serving-note lines set aside as not food: {nf:,}")
     (n_voc, n5), = q("SELECT COUNT(*), SUM(recipe_count >= 5) FROM vocab")
     out.append(f"- vocab: {n_voc:,} canonicals, {n5:,} with recipe_count >= 5")
     (para, valid), = q("SELECT SUM(is_paragraph_format), COUNT(*) FROM recipes WHERE valid = 1")
@@ -58,7 +60,7 @@ def report(con: sqlite3.Connection, samples: int, seed: int) -> list[str]:
     out += ["", "Top 30 unmapped names (canonical with < 5 recipes, or nothing parsed), by line count:", ""]
     unm = q("SELECT COALESCE(l.canonical, '<none> ' || lower(l.raw)), COUNT(*) FROM ingredient_lines l "
             "JOIN recipes r ON r.id = l.recipe_id AND r.valid = 1 LEFT JOIN vocab v ON v.canonical = l.canonical "
-            "WHERE l.is_header = 0 AND l.is_alt = 0 AND COALESCE(v.recipe_count, 0) < 5 "
+            "WHERE l.is_header = 0 AND l.is_alt = 0 AND l.is_not_food = 0 AND COALESCE(v.recipe_count, 0) < 5 "
             "GROUP BY 1 ORDER BY 2 DESC LIMIT 30")
     out.append("; ".join(f"{c[:60]} ({n})" for c, n in unm))
     out += ["", "Top 10 canonicals by recipe count:", ""]

@@ -106,6 +106,45 @@ def test_line_tags_scan_whole_line():
     assert dict(line_tags("1 tablespoon butter, for the baking dish")) == {"dairy": "contains"}
 
 
+@pytest.mark.parametrize("raw, tag", [  # false positives seen in the M1 fixes rebuild
+    ("1/2 cup butter flavored shortening", "dairy"),
+    ("1/3 cup prepared white cream-style horseradish", "dairy"),
+    ("A few ribs celery and leafy tops, chopped", "meat"),
+    ("3 pounds kale, stems and ribs removed, coarsely chopped", "meat"),
+    ("12 large Tuscan kale leaves, rinsed, center ribs removed", "meat"),
+    ("1/2 cup grated cheese, such as Parmesan, goat's cheese", "meat"),
+    ("3/4 ounce Grey Goose Orange", "meat"),
+    ("3/4 ounce Grey Goose Orange", "poultry"),
+    ("3 cups bottled spaghetti sauce (use your favorite brand)", "gluten"),
+    ("2 bottles, 12 ounces each, ginger beer or all-natural ginger soda", "gluten"),
+    ("A heavy-duty rimmed baking sheet, a.k.a. half sheet pan or jelly roll pan", "gluten"),
+])
+def test_tag_false_positives(raw, tag):
+    assert tag not in dict(line_tags(raw))
+    assert all(tag not in dict(o.tags) for p in parse_line(raw) for o in p.options)
+
+
+def test_false_positive_fixes_keep_real_tags():
+    assert dict(line_tags("1/2 cup grated cheese, such as Parmesan, goat's cheese"))["dairy"] == "contains"
+    assert dict(line_tags("4 beef short ribs"))["meat"] == "contains"
+    assert dict(line_tags("1 pound spaghetti"))["gluten"] == "contains"
+
+
+@pytest.mark.parametrize("raw", ["1 9-inch skillet", "Toothpicks", "Parchment paper", "1 (9x13 inch) baking pan",
+                                 "Kitchen string", "Optional, for serving",
+                                 "Special equipment: a 9-inch tart pan with removable bottom"])
+def test_equipment_and_notes_are_not_food(raw):
+    p, = parse_line(raw)
+    assert p.not_food and p.name is None and line_tags(raw) == ()
+
+
+def test_food_next_to_equipment_words_survives():
+    assert canon("2 sheets puff pastry") == ["puff pastry"]
+    assert canon("1 cup butter, plus more for the pan") == ["butter"]
+    assert canon("8 ounces pan-fried noodles") == ["pan-fried noodle"]
+    assert not parse_line("Assorted crackers, for serving")[0].not_food
+
+
 V = {"salt", "black pepper", "paprika", "onion", "garlic", "egg", "water"}
 
 
@@ -136,6 +175,7 @@ def test_singular_everywhere():
     ("heavy cream", "cream"), ("half and half", "cream"), ("sour cream", "sour cream"),
     ("vanilla ice cream", "vanilla ice cream"), ("penne", "pasta"), ("penne pasta", "pasta"),
     ("vanilla bean", "vanilla bean"), ("black bean", "bean"), ("extra lean ground beef", "beef"),
+    ("sun-dried tomatoes in oil", "sun-dried tomatoes in oil"), ("olive oil", "oil"), ("tuna steak", "tuna steak"),
 ])
 def test_families(canonical, family):
     assert family_for(canonical) == family
