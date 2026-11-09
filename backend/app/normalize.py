@@ -203,7 +203,9 @@ def _items(rest: str) -> list[list[Name]]:
     """'salt and pepper, to taste' -> [[salt], [black pepper]]; 'butter or margarine' -> [[butter, margarine]]."""
     rest = _KEEP.sub(lambda m: re.sub(r"\s+", "_", m.group(0)), rest)
     rest = rest.replace("and/or", " or ")
-    for seg in rest.split(","):  # first comma segment that still names something ('boneless, skinless chicken')
+    # First comma segment that still names something ('boneless, skinless chicken'). shortcut: comma lists
+    # ('salt, pepper and paprika') keep only 'salt'; split on commas when the tail ends in ' and X' if it matters.
+    for seg in rest.split(","):
         items = []
         for part in _AND.split(seg):
             # '1 egg + 1 tablespoon water': digits are gone already, drop the part's own leading unit
@@ -238,13 +240,14 @@ def _parse(raw: str) -> tuple[ParsedLine, ...]:
     m = _UNIT.match(s)
     if m and s[m.end():].strip():  # '4 ribs' alone: keep 'ribs' as the name, not as a unit
         unit, s = _UNIT_OF[re.sub(r"\s+", " ", m.group(1))], s[m.end():]
-    s = _PLUS.sub("", s)  # '1 cup plus 2 tablespoons flour' (ponytail: the 'plus' amount is ignored)
+    s = _PLUS.sub("", s)  # '1 cup plus 2 tablespoons flour' (shortcut: the 'plus' amount is ignored)
     if size:  # 2 x (15 ounce) cans -> 30 ounce
         su = _UNIT_OF[re.sub(r"\s+", " ", size.group(2))]
         if UNIT_FAMILY[su] in ("mass", "volume"):
             qty, unit, qty_range = (qty or 1.0) * _num(size.group(1)), su, None
     s = _PUNCT.sub(" ", _DIGIT_TOKEN.sub(" ", s))
     uf = UNIT_FAMILY.get(unit)
+    # shortcut: every item on a compound line shares the line's leading qty/unit ('1 egg + 1 tablespoon water')
     return tuple(ParsedLine(raw, qty, qty_range, unit, uf, opts[0], tuple(opts[1:])) for opts in _items(s))
 
 
