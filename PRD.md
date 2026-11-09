@@ -95,9 +95,14 @@ section header like `"For the sauce:"`), non-empty instructions. Invalid records
 
 ### 4.4 Counting rules (must be stated in answers)
 - `n_ingredients` = number of real ingredient lines (rule above).
-- `n_steps` = number of non-empty newline-separated segments of `instructions` after strip.
-  Also store `n_sentences` (secondary). M0 profiles per-source formatting; if a ranking is dominated by
-  1-step paragraph-style recipes, the answer adds a caveat line (P1: show sentence-rule ranking too).
+- `n_steps_newline` = number of non-empty newline-separated segments of `instructions` after strip.
+- `n_sentences` = sentences, split on `. ! ?` + whitespace and on newlines, but never after an abbreviation
+  (tsp., tbsp., oz., lb., approx., F., C., …) or a bare step number ("1."); decimals never split.
+- `is_paragraph_format` = `n_steps_newline == 1 and n_sentences >= 2` (one block of text; ~12% of valid
+  recipes, all ar/fn).
+- `n_steps` (effective, used by stats) = `n_sentences` if paragraph-format else `n_steps_newline`.
+  Answers that rank by steps state the rule; if a ranking is dominated by paragraph-format recipes, the
+  answer adds a caveat line (P1: show the pure newline-rule ranking too).
 
 ### 4.5 Ingredient line → structured
 `normalize.parse_line(raw) -> ParsedLine(raw, qty, unit, name_clean, canonical, family, alternatives[], is_header)`
@@ -139,10 +144,13 @@ tail, committed as a reviewed CSV — disclose if used.)
 ```sql
 recipes(id TEXT PRIMARY KEY, source TEXT, title TEXT, ingredients_raw TEXT /*JSON list*/,
         instructions_raw TEXT, n_ingredients INT, n_steps INT, n_sentences INT,
-        valid INT, invalid_reason TEXT)
+        valid INT, invalid_reason TEXT, n_steps_newline INT, is_paragraph_format INT)
 ingredient_lines(recipe_id TEXT, line_no INT, raw TEXT, name_clean TEXT, canonical TEXT,
-        family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT)
+        family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT, is_alt INT)
+        -- one row per option: rows sharing (recipe_id, line_no, alt_group) are alternatives ("butter or
+        -- margarine"); different alt_group on one line = separate items ("salt and pepper"); is_alt=0 = primary
 recipe_tags(recipe_id TEXT, tag TEXT, level TEXT, evidence_line_no INT)   -- one row per (recipe, tag)
+        -- level: contains | may_contain | alt (tag only in options that have a tag-free alternative)
 vocab(canonical TEXT PRIMARY KEY, family TEXT, recipe_count INT)
 recipes_fts USING fts5(id UNINDEXED, title, ingredients, tokenize='porter')  -- title weighted 3x in bm25()
 ```

@@ -1,1 +1,131 @@
-# tags.yaml - filled in M1/M5 (see PRD 4.5 / 6.4)
+# "What it contains" tags for hard constraints (PRD 4.5). Matched as whole words against the ingredient
+# name (an optional plural s/es is allowed). Per tag, in this order:
+#   free_if:     any of these words present -> tag does NOT apply ("vegan cheese", "dairy-free milk").
+#   except:      phrases masked out before matching ("coconut milk" hides "milk").
+#   contains:    -> level "contains" (hard filters exclude it).
+#   may_contain: -> level "may_contain" (shown with a "check label" badge; strict mode excludes it).
+# "meat" = any land-animal flesh incl. poultry; pork and poultry are also tagged separately.
+# vegetarian = no meat, fish, shellfish.
+
+# not_food: equipment and similar lines; they never get any tag ("cookie cutter" is not gluten).
+not_food: [cookie cutter, custard cup, muffin cup, muffin tin, muffin pan, cupcake liner, paper liner, pastry bag,
+           pastry brush, cake pan, pie plate, pie dish, baking sheet, baking dish, skewer, toothpick, parchment,
+           cheesecloth, kitchen twine, butcher twine, foil, plastic wrap, thermometer, ramekin, springform pan,
+           loaf pan, tart pan, piping bag, candy thermometer, ice cream maker]
+
+dairy:
+  free_if: [dairy-free, dairy free, non-dairy, nondairy, vegan, plant-based, lactose-free milk substitute]
+  except: [coconut milk, coconut cream, cream of coconut, almond milk, soy milk, soymilk, oat milk, rice milk,
+           cashew milk, hemp milk, peanut butter, almond butter, cashew butter, sunflower butter, nut butter,
+           apple butter, pumpkin butter, cocoa butter, shea butter, butter bean, butter lettuce, butterhead,
+           cream of tartar, coconut milk powder, coconut yogurt, cream soda, milk thistle, bread flour,
+           pastry flour]
+  contains: [milk, cream, butter, cheese, yogurt, yoghurt, ghee, whey, casein, buttermilk, sour cream,
+             half and half, half-and-half, creme fraiche, kefir, quark, mascarpone, ricotta, parmesan,
+             parmigiano-reggiano, parmigiano, mozzarella, cheddar, feta, gruyere, brie, camembert, pecorino,
+             romano, asiago, provolone, gouda, fontina, gorgonzola, emmental, emmentaler, havarti, manchego,
+             burrata, halloumi, cotija, colby, monterey jack, queso, paneer, neufchatel, roquefort, stilton,
+             gelato, custard, eggnog, alfredo, bechamel, tzatziki, ranch dressing, lassi, dulce de leche,
+             condensed milk, evaporated milk, powdered milk, nonfat dry milk, lactose]
+  may_contain: [margarine, chocolate, bread, cake mix, brownie mix, biscuit mix, pancake mix, bisquick,
+                cookie, cracker, pastry, pie crust, croissant, brioche, caramel, toffee, butterscotch,
+                coffee creamer, creamer, whipped topping, cool whip, pesto, ranch, cream of mushroom soup,
+                mashed potato flake, nougat, frosting, icing, pudding mix]
+
+egg:
+  free_if: [egg-free, eggless, vegan, egg replacer]
+  except: [eggplant, rice noodle, bread flour, pastry flour]
+  contains: [egg, egg white, egg yolk, yolk, mayonnaise, mayo, egg noodle, meringue, aioli, eggnog,
+             hollandaise, egg substitute, egg beater, custard, challah, brioche]
+  may_contain: [fresh pasta, cake mix, brownie mix, pancake mix, biscuit mix, cookie, bread, tartar sauce,
+                caesar dressing, ladyfinger, puff pastry, pastry, wonton wrapper, egg roll wrapper, marshmallow]
+
+peanut:
+  free_if: [peanut-free]
+  except: []
+  contains: [peanut, peanut butter, peanut oil, groundnut, goober]
+  may_contain: [satay sauce, mixed nuts, nut butter, chocolate candy, granola, trail mix]
+
+tree_nut:
+  free_if: [nut-free]
+  except: [water chestnut, butternut, nutmeg, coconut, doughnut, donut]
+  contains: [almond, cashew, walnut, pecan, pistachio, hazelnut, filbert, macadamia, brazil nut, pine nut,
+             pignoli, chestnut, praline, marzipan, almond paste, nutella, gianduja, frangelico, amaretto,
+             almond extract, almond flour, almond meal, almond milk]
+  may_contain: [pesto, mixed nuts, nut, granola, trail mix, nougat, baklava, biscotti]
+
+gluten:
+  free_if: [gluten-free, gluten free]
+  except: [rice flour, corn flour, almond flour, coconut flour, chickpea flour, garbanzo flour, garbanzo bean flour,
+           tapioca flour, potato flour, sorghum flour, millet flour, quinoa flour, cassava flour, arrowroot flour,
+           buckwheat flour, masa harina, rice noodle, rice paper, rice cracker, rice cake, corn tortilla,
+           tortilla chip, corn chip, rice bread, rice paper wrapper, ginger ale]
+  contains: [flour, wheat, whole wheat, bread, breadcrumb, bread crumb, panko, crouton, pasta, spaghetti,
+             macaroni, noodle, couscous, bulgur, barley, rye, semolina, farro, spelt, seitan, orzo, penne,
+             linguine, fettuccine, fettuccini, lasagna, lasagne, tortellini, ravioli, rigatoni, ziti, rotini,
+             fusilli, farfalle, vermicelli, angel hair, tortilla, pita, bagel, bun, baguette, croissant,
+             cracker, graham, cookie, cake, pie crust, pastry, phyllo, filo, biscuit, pretzel, beer, ale,
+             lager, stout, malt, soy sauce, teriyaki, cake mix, brownie mix, matzo, matzoh, wonton, wrapper,
+             pizza dough, dough, english muffin, muffin, waffle, pancake mix, bisquick, stuffing,
+             roll, brioche, challah, ciabatta, focaccia, sourdough, naan, udon, ramen, soba, gnocchi,
+             wheat germ, cream of wheat, cereal, crust, pie shell, pasta shell, ladyfinger]
+  may_contain: [oat, oats, rolled oats, oatmeal, granola, worcestershire, bouillon, gravy, seasoning mix,
+                licorice, imitation crab, hoisin, miso, cornbread, tamari, cream of mushroom soup,
+                cream of chicken soup, sausage, meatball]
+
+meat:
+  free_if: [vegetarian, vegan, meatless, meat-free, plant-based, veggie, soy-based, imitation,
+            textured vegetable protein]
+  except: [celery rib, rib of celery, coconut meat, crab meat, lobster meat, crabmeat, hamburger bun,
+           hot dog bun, hamburger roll, hot dog roll, duck sauce, hen of the woods, chicken of the woods,
+           vegetable broth, vegetable stock, mushroom broth, chickpea, goat cheese, goat milk,
+           goats milk, goat yogurt, poultry seasoning, quail egg, duck egg, vegetable bouillon, mushroom stock,
+           fish stock, fish broth, seafood stock, shrimp stock, lobster stock, clam broth, clam juice]
+  contains: [meat, beef, steak, sirloin, brisket, chuck, flank, skirt steak, veal, lamb, mutton, goat,
+             venison, bison, elk, rabbit, pork, bacon, ham, prosciutto, pancetta, guanciale,
+             salami, pepperoni, chorizo, sausage, kielbasa, bratwurst, andouille, hot dog, frankfurter,
+             wiener, hamburger, meatball, meatloaf, rib, short rib, spare rib, tenderloin, loin, pork chop,
+             lamb chop, oxtail, liver, giblet, gizzard, tripe, marrow, corned beef, pastrami, capicola,
+             mortadella, jerky, spam, lard, suet, bone broth, beef broth, beef stock, beef bouillon,
+             chicken, turkey, duck, goose, quail, cornish hen, game hen, poultry, pheasant, squab,
+             chicken broth, chicken stock, chicken bouillon, ground round, roast beef, pot roast,
+             foie gras, gelatin]
+  may_contain: [broth, stock, bouillon, gravy, demi-glace, consomme, stuffing, jell-o,
+                marshmallow, refried beans, baked beans, pork and beans]
+
+pork:
+  free_if: [vegetarian, vegan, meatless, turkey bacon, turkey ham, turkey sausage, chicken sausage,
+            beef bacon, beef sausage]
+  except: [hamburger, graham, hot dog bun, hot dog roll]
+  contains: [pork, bacon, ham, prosciutto, pancetta, guanciale, lard, chorizo, capicola, mortadella,
+             kielbasa, bratwurst, andouille, spare rib, baby back rib, pork rind, chicharron, hog, ham hock,
+             salt pork, fatback, italian sausage, breakfast sausage, pork sausage, pork and beans]
+  may_contain: [sausage, salami, pepperoni, hot dog, frankfurter, wiener, meatball, meatloaf, gelatin,
+                refried beans, baked beans, spam]
+
+poultry:
+  free_if: [vegetarian, vegan, meatless, plant-based]
+  except: [chickpea, hen of the woods, chicken of the woods, duck sauce, poultry seasoning, quail egg, duck egg,
+           beef broth, beef stock, beef bouillon, beef gravy, veal stock, lamb stock, pork stock, vegetable broth,
+           vegetable stock, vegetable bouillon, mushroom stock, mushroom broth, fish stock, fish broth, seafood stock,
+           shrimp stock, lobster stock, clam broth]
+  contains: [chicken, turkey, duck, goose, quail, cornish hen, game hen, hen, poultry, pheasant, squab,
+             foie gras, chicken broth, chicken stock, chicken bouillon, turkey bacon, turkey sausage]
+  may_contain: [broth, stock, bouillon, gravy, stuffing]
+
+fish:
+  free_if: [vegan, vegetarian, fish-free]
+  except: [fish sauce substitute]
+  contains: [fish, salmon, tuna, cod, halibut, tilapia, trout, anchovy, anchovies, sardine, mackerel, snapper,
+             sea bass, striped bass, haddock, sole, swordfish, catfish, mahi, mahi-mahi, flounder, herring,
+             fish sauce, worcestershire, bonito, caviar, roe, lox, smoked salmon, pollock, grouper, perch,
+             branzino, monkfish, arctic char, whitefish, pike, carp, eel, nam pla, imitation crab]
+  may_contain: [caesar dressing, dashi, kimchi, shrimp paste, oyster sauce, furikake]
+
+shellfish:
+  free_if: [vegan, vegetarian]
+  except: [oyster mushroom, oyster cracker, oyster sauce substitute]
+  contains: [shrimp, prawn, crab, crabmeat, lobster, scallop, clam, mussel, oyster, crawfish, crayfish,
+             langoustine, squid, calamari, octopus, shellfish, oyster sauce, shrimp paste, cockle, conch,
+             abalone, sea urchin, uni, imitation crab]
+  may_contain: [fish sauce, seafood seasoning, bouillabaisse, seafood]

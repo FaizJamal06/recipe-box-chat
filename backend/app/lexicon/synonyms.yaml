@@ -1,1 +1,624 @@
-# synonyms.yaml - filled in M1/M5 (see PRD 4.5 / 6.4)
+# Name canonicalization data (PRD 4.5 steps 4-6). Everything lowercase, accents already stripped.
+
+# keep_whole: phrases that stay intact. Never split on "and"/"or", never stripped of descriptor words.
+# (ground beef keeps "ground"; hot sauce keeps "hot"; half and half is one product, not two.)
+keep_whole:
+  - half and half
+  - half-and-half
+  - macaroni and cheese
+  - mac and cheese
+  - sweet and sour sauce
+  - sweet and sour mix
+  - sweet and sour
+  - salt and vinegar
+  - cream of mushroom soup
+  - cream of chicken soup
+  - cream of celery soup
+  - cream of potato soup
+  - cream of tartar
+  - cream of wheat
+  - cream of coconut
+  - pork and beans
+  - franks and beans
+  - spaghetti and meatballs
+  - ground beef
+  - ground pork
+  - ground turkey
+  - ground chicken
+  - ground lamb
+  - ground veal
+  - ground bison
+  - ground sausage
+  - ground round
+  - ground chuck
+  - hot sauce
+  - hot pepper sauce
+  - hot pepper
+  - hot chili
+  - hot dog
+  - whole wheat
+  - whole grain
+  - baby back
+  - lime leaves
+  - lime leaf
+  - curry leaves
+  - curry leaf
+  - banana leaves
+  - grape leaves
+  - hot chocolate
+  - dried apricots
+  - dried cherries
+  - dried figs
+  - dried mango
+  - dried porcini
+  - dried mushrooms
+  - dried shrimp
+  - dried chiles
+  - dried chilies
+  - fresh coriander
+
+# descriptors: size/prep/state words dropped from names (whole words only; hyphenated words are one word).
+descriptors:
+  - large
+  - extra-large
+  - extra large
+  - jumbo
+  - small
+  - medium
+  - medium-size
+  - medium-sized
+  - large-size
+  - small-size
+  - fresh
+  - freshly
+  - chopped
+  - finely
+  - coarsely
+  - roughly
+  - thinly
+  - thickly
+  - minced
+  - diced
+  - cubed
+  - sliced
+  - shredded
+  - grated
+  - crumbled
+  - crushed
+  - mashed
+  - julienned
+  - halved
+  - quartered
+  - trimmed
+  - cored
+  - pitted
+  - stemmed
+  - deveined
+  - shelled
+  - beaten
+  - lightly
+  - well
+  - softened
+  - melted
+  - chilled
+  - cold
+  - warm
+  - hot
+  - lukewarm
+  - boiling
+  - cooled
+  - frozen
+  - thawed
+  - divided
+  - to taste
+  - as needed
+  - if desired
+  - optional
+  - for garnish
+  - for serving
+  - for frying
+  - room temperature
+  - at room temperature
+  - peeled
+  - seeded
+  - unpeeled
+  - rinsed
+  - drained
+  - cooked
+  - uncooked
+  - packed
+  - firmly
+  - loosely
+  - lightly packed
+  - firmly packed
+  - sifted
+  - unsifted
+  - toasted
+  - roasted
+  - ground
+  - pure
+  - extra-virgin
+  - extra virgin
+  - virgin
+  - unsalted
+  - salted
+  - all-purpose
+  - all purpose
+  - unbleached
+  - bleached
+  - plain
+  - kosher
+  - coarse
+  - fine
+  - table
+  - granulated
+  - superfine
+  - low-sodium
+  - low sodium
+  - reduced-sodium
+  - reduced sodium
+  - low-salt
+  - no-salt-added
+  - fat-free
+  - low-fat
+  - lowfat
+  - nonfat
+  - non-fat
+  - reduced-fat
+  - reduced fat
+  - part-skim
+  - skim
+  - lean
+  - extra-lean
+  - boneless
+  - skinless
+  - bone-in
+  - skin-on
+  - organic
+  - good-quality
+  - good quality
+  - high-quality
+  - best-quality
+  - store-bought
+  - homemade
+  - prepared
+  - canned
+  - bottled
+  - jarred
+  - dried
+  - dry
+  - whole
+  - squeezed
+  - zested
+  - juiced
+  - baby
+  - ripe
+  - firm
+  - very
+  - about
+  - plus
+  - more
+  - extra
+  - additional
+  - other
+  - each
+  - inch
+  - inches
+  - thick
+  - thin
+  - pieces
+  - piece
+  - chunks
+  - wedges
+  - rounds
+  - cubes
+  - cut
+  - into
+  - with
+  - of
+  - the
+  - a
+  - an
+  - your
+  - favorite
+  - such as
+  - preferably
+  - quality
+  - mild
+  - sweetened
+  - unsweetened
+  - heaping
+  - level
+  - scant
+  - generous
+  - leaves
+  - leaf
+  - sprigs
+  - sprig
+  - square
+  - round
+  - skin
+  - skins
+  - halves
+  - dozen
+  - one
+  - loaf
+  - loaves
+  - slices
+  - sheet
+  - sheets
+  - cube
+  - bulk
+  - link
+  - links
+  - granule
+  - granules
+  - fillet
+  - fillets
+  - recipe
+
+# synonyms: alias -> canonical. Applied to the singularized name (last word singular).
+# Distinct products stay distinct (tomato paste != tomato, garlic powder != garlic, PRD 4.5).
+# An exact match is tried before descriptors are dropped, so identity entries protect a word
+# that is normally a descriptor ('ground ginger' stays distinct from 'ginger').
+synonyms:
+  ground ginger: ground ginger
+  active dry yeast: active dry yeast
+  dry vermouth: dry vermouth
+  whole wheat flour: whole wheat flour
+  scallion: green onion
+  spring onion: green onion
+  green onion top: green onion
+  garbanzo bean: chickpea
+  garbanzo: chickpea
+  chick pea: chickpea
+  coriander leaf: cilantro
+  coriander leaves: cilantro
+  cilantro leaf: cilantro
+  fresh coriander: cilantro
+  small curd cottage cheese: cottage cheese
+  large curd cottage cheese: cottage cheese
+  pepper: black pepper
+  peppercorn: black peppercorn
+  sea salt: salt
+  white sugar: sugar
+  cane sugar: sugar
+  caster sugar: sugar
+  castor sugar: sugar
+  confectioners sugar: powdered sugar
+  icing sugar: powdered sugar
+  10x sugar: powdered sugar
+  light brown sugar: brown sugar
+  dark brown sugar: brown sugar
+  golden brown sugar: brown sugar
+  vanilla: vanilla extract
+  vanilla essence: vanilla extract
+  white flour: flour
+  wheat flour: flour
+  whole-wheat flour: whole wheat flour
+  whole wheat pastry flour: whole wheat flour
+  cornflour: cornstarch
+  corn starch: cornstarch
+  bicarbonate of soda: baking soda
+  yolk: egg yolk
+  white: egg white
+  garlic clove: garlic
+  clove garlic: garlic
+  clove of garlic: garlic
+  garlic cloves: garlic
+  head garlic: garlic
+  celery stalk: celery
+  celery rib: celery
+  stalk celery: celery
+  bay: bay leaf
+  flat-leaf parsley: parsley
+  italian parsley: parsley
+  flat leaf parsley: parsley
+  curly parsley: parsley
+  chive: chives
+  heavy whipping cream: heavy cream
+  whipping cream: heavy cream
+  double cream: heavy cream
+  light whipping cream: heavy cream
+  half-and-half: half and half
+  half & half: half and half
+  whole milk: milk
+  2% milk: milk
+  skim milk: milk
+  low-fat milk: milk
+  parmesan: parmesan cheese
+  parmigiano-reggiano: parmesan cheese
+  parmigiano reggiano: parmesan cheese
+  parmigiano-reggiano cheese: parmesan cheese
+  parmesan-reggiano: parmesan cheese
+  pecorino: pecorino romano cheese
+  pecorino romano: pecorino romano cheese
+  romano: romano cheese
+  mozzarella: mozzarella cheese
+  cheddar: cheddar cheese
+  sharp cheddar cheese: cheddar cheese
+  sharp cheddar: cheddar cheese
+  extra-sharp cheddar cheese: cheddar cheese
+  mild cheddar cheese: cheddar cheese
+  feta: feta cheese
+  ricotta: ricotta cheese
+  whole-milk ricotta cheese: ricotta cheese
+  whole-milk ricotta: ricotta cheese
+  gruyere: gruyere cheese
+  mascarpone: mascarpone cheese
+  monterey jack: monterey jack cheese
+  jack cheese: monterey jack cheese
+  plain yogurt: yogurt
+  natural yogurt: yogurt
+  mayo: mayonnaise
+  catsup: ketchup
+  tomato ketchup: ketchup
+  light olive oil: olive oil
+  oil: vegetable oil
+  cooking oil: vegetable oil
+  salad oil: vegetable oil
+  nonstick cooking spray: cooking spray
+  vegetable cooking spray: cooking spray
+  nonstick spray: cooking spray
+  juice of lemon: lemon juice
+  juice of 1 lemon: lemon juice
+  zest of lemon: lemon zest
+  lemon peel: lemon zest
+  lime peel: lime zest
+  orange peel: orange zest
+  red pepper flake: red pepper flakes
+  crushed red pepper flake: red pepper flakes
+  crushed red pepper: red pepper flakes
+  red chili flake: red pepper flakes
+  chili flake: red pepper flakes
+  cayenne: cayenne pepper
+  ground cayenne pepper: cayenne pepper
+  ground red pepper: cayenne pepper
+  jalapeno pepper: jalapeno
+  jalapeno chile: jalapeno
+  jalapeno chili: jalapeno
+  serrano chile: serrano pepper
+  serrano chili: serrano pepper
+  red pepper: red bell pepper
+  green pepper: green bell pepper
+  yellow pepper: yellow bell pepper
+  chicken breast half: chicken breast
+  chicken breast halve: chicken breast
+  chicken breast fillet: chicken breast
+  chicken thigh fillet: chicken thigh
+  prawn: shrimp
+  courgette: zucchini
+  aubergine: eggplant
+  rocket: arugula
+  yellow cornmeal: cornmeal
+  white cornmeal: cornmeal
+  panko: panko bread crumbs
+  panko breadcrumb: panko bread crumbs
+  panko bread crumb: panko bread crumbs
+  japanese bread crumb: panko bread crumbs
+  breadcrumb: bread crumbs
+  bread crumb: bread crumbs
+  dry bread crumb: bread crumbs
+  italian-style bread crumb: italian bread crumbs
+  italian seasoned bread crumb: italian bread crumbs
+  seasoned bread crumb: italian bread crumbs
+  chicken stock: chicken broth
+  beef stock: beef broth
+  vegetable stock: vegetable broth
+  veggie broth: vegetable broth
+  low-sodium chicken broth: chicken broth
+  rice wine vinegar: rice vinegar
+  cider vinegar: apple cider vinegar
+  distilled white vinegar: white vinegar
+  balsamic: balsamic vinegar
+  soy: soy sauce
+  shoyu: soy sauce
+  worcestershire: worcestershire sauce
+  dijon: dijon mustard
+  dijon-style mustard: dijon mustard
+  dry mustard: mustard powder
+  ground mustard: mustard powder
+  mustard: yellow mustard
+  prepared mustard: yellow mustard
+  sriracha sauce: sriracha
+  tabasco: hot sauce
+  tabasco sauce: hot sauce
+  hot pepper sauce: hot sauce
+  semisweet chocolate chip: chocolate chips
+  semi-sweet chocolate chip: chocolate chips
+  chocolate chip: chocolate chips
+  semisweet chocolate morsel: chocolate chips
+  chocolate morsel: chocolate chips
+  semi-sweet chocolate: semisweet chocolate
+  cocoa: cocoa powder
+  unsweetened cocoa: cocoa powder
+  dutch-process cocoa powder: cocoa powder
+  dutch-processed cocoa powder: cocoa powder
+  oat: rolled oats
+  rolled oat: rolled oats
+  old-fashioned oat: rolled oats
+  old-fashioned rolled oat: rolled oats
+  quick-cooking oat: rolled oats
+  quick oat: rolled oats
+  oats: rolled oats
+  yeast: active dry yeast
+  rapid-rise yeast: instant yeast
+  ice cube: ice
+  tap water: water
+  green onions: green onion
+  shallots: shallot
+  english cucumber: cucumber
+  hothouse cucumber: cucumber
+  seedless cucumber: cucumber
+  roma tomato: plum tomato
+  grape tomato: cherry tomato
+  sundried tomato: sun-dried tomato
+  sun dried tomato: sun-dried tomato
+  vidalia onion: sweet onion
+  yellow onion: onion
+  white onion: onion
+  spanish onion: onion
+  brown onion: onion
+  russet potato: potato
+  idaho potato: potato
+  baking potato: potato
+  granulated garlic: garlic powder
+  minced garlic: garlic
+  onion flake: dried onion
+  minced onion: onion
+  instant minced onion: dried onion
+  stick butter: butter
+  sweet butter: butter
+  butter flavored shortening: shortening
+  vegetable shortening: shortening
+  crisco: shortening
+  canola: canola oil
+  peanut: peanuts
+  pine nut: pine nuts
+  pignoli: pine nuts
+  pinenut: pine nuts
+  walnut: walnuts
+  walnut half: walnuts
+  walnut halve: walnuts
+  pecan: pecans
+  pecan half: pecans
+  pecan halve: pecans
+  almond: almonds
+  slivered almond: almonds
+  sliced almond: almonds
+  blanched almond: almonds
+  cashew: cashews
+  raisin: raisins
+  golden raisin: raisins
+  dried cranberry: dried cranberries
+  craisin: dried cranberries
+  sesame seed: sesame seeds
+  sunflower seed: sunflower seeds
+  pumpkin seed: pumpkin seeds
+  pepita: pumpkin seeds
+  cumin seed: cumin seeds
+  fennel seed: fennel seeds
+  caraway seed: caraway seeds
+  poppy seed: poppy seeds
+  mustard seed: mustard seeds
+  chia seed: chia seeds
+  flax seed: flaxseed
+  ground flaxseed: flaxseed
+  flaxseed meal: flaxseed
+  red kidney bean: kidney beans
+  kidney bean: kidney beans
+  black bean: black beans
+  pinto bean: pinto beans
+  cannellini bean: cannellini beans
+  white bean: white beans
+  great northern bean: white beans
+  navy bean: white beans
+  green bean: green beans
+  string bean: green beans
+  french green bean: green beans
+  haricot vert: green beans
+  pea: peas
+  green pea: peas
+  sweet pea: peas
+  lentil: lentils
+  red lentil: lentils
+  brown lentil: lentils
+  noodle: noodles
+  egg noodle: egg noodles
+  wide egg noodle: egg noodles
+  rice noodle: rice noodles
+  mushroom: mushrooms
+  button mushroom: mushrooms
+  white mushroom: mushrooms
+  cremini mushroom: cremini mushrooms
+  crimini mushroom: cremini mushrooms
+  baby bella mushroom: cremini mushrooms
+  shiitake: shiitake mushrooms
+  shiitake mushroom: shiitake mushrooms
+  shitake mushroom: shiitake mushrooms
+  portobello mushroom: portobello mushrooms
+  portabella mushroom: portobello mushrooms
+  portobello mushroom cap: portobello mushrooms
+  bacon slice: bacon
+  slice bacon: bacon
+  bacon strip: bacon
+  thick-cut bacon: bacon
+  center-cut bacon: bacon
+  hamburger: ground beef
+  ground sirloin: ground beef
+  ground chuck: ground beef
+  ground round: ground beef
+  lean ground beef: ground beef
+  extra-lean ground beef: ground beef
+  ground turkey breast: ground turkey
+  extra-virgin olive oil: olive oil
+  evoo: olive oil
+  canned tomato: canned tomatoes
+  diced tomato: diced tomatoes
+  crushed tomato: crushed tomatoes
+  whole tomato: whole tomatoes
+  whole peeled tomato: whole tomatoes
+  stewed tomato: stewed tomatoes
+  tomato purée: tomato puree
+  passata: tomato puree
+  marinara: marinara sauce
+  spaghetti sauce: marinara sauce
+  pasta sauce: marinara sauce
+  light coconut milk: coconut milk
+  unsweetened coconut milk: coconut milk
+  flaked coconut: shredded coconut
+  coconut flake: shredded coconut
+  sweetened flaked coconut: shredded coconut
+  sweetened shredded coconut: shredded coconut
+  coconut: shredded coconut
+  desiccated coconut: shredded coconut
+  pure maple syrup: maple syrup
+  cooking sherry: sherry
+  dry sherry: sherry
+  dry white wine: white wine
+  dry red wine: red wine
+  ice water: water
+  boiling water: water
+  lettuce leaf: lettuce
+  romaine: romaine lettuce
+  romaine heart: romaine lettuce
+  iceberg: iceberg lettuce
+  head lettuce: lettuce
+  chile: chili pepper
+  chili: chili pepper
+  chile pepper: chili pepper
+  red chile: chili pepper
+  red chili pepper: chili pepper
+  green chile: green chiles
+  green chili: green chiles
+  green chile pepper: green chiles
+  diced green chile: green chiles
+  chipotle chile in adobo sauce: chipotle in adobo
+  chipotle chile in adobo: chipotle in adobo
+  chipotle pepper in adobo sauce: chipotle in adobo
+  chipotle chiles in adobo: chipotle in adobo
+  gingerroot: ginger
+  ginger root: ginger
+  fresh ginger: ginger
+  ground cinnamon: cinnamon
+  ground nutmeg: nutmeg
+  whole nutmeg: nutmeg
+  ground cumin: cumin
+  ground allspice: allspice
+  clove: ground cloves
+  ground clove: ground cloves
+  whole clove: whole cloves
+  cardamom pod: cardamom pods
+  dried oregano: oregano
+  dill weed: dill
+  dillweed: dill
+  sweet paprika: paprika
+  hungarian paprika: paprika
+  pimenton: smoked paprika
+  chile powder: chili powder
+  ancho chile powder: ancho chili powder
+  ground white pepper: white pepper
+  ground black pepper: black pepper
+  cracked black pepper: black pepper
+  coarsely ground black pepper: black pepper
+  fresh black pepper: black pepper

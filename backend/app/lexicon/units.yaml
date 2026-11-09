@@ -1,1 +1,37 @@
-# units.yaml - filled in M1/M5 (see PRD 4.5 / 6.4)
+# Unit lexicon (PRD 4.5 step 3). canonical unit -> family + spellings (lowercase, plural included).
+# Families: volume / mass / count / container. A trailing "." is accepted automatically (tsp., oz.).
+# Multi-word spellings are matched before single words, so "fluid ounce" wins over "ounce".
+cup:        {family: volume, aliases: [cup, cups, c]}
+tablespoon: {family: volume, aliases: [tablespoon, tablespoons, tbsp, tbsps, tbs, tbl, tbls, tblsp]}
+teaspoon:   {family: volume, aliases: [teaspoon, teaspoons, tsp, tsps, tspn]}
+fluid ounce: {family: volume, aliases: [fluid ounce, fluid ounces, fl oz, fl. oz, fl ounce]}
+pint:       {family: volume, aliases: [pint, pints, pt]}
+quart:      {family: volume, aliases: [quart, quarts, qt, qts]}
+gallon:     {family: volume, aliases: [gallon, gallons, gal]}
+ml:         {family: volume, aliases: [ml, milliliter, milliliters, millilitre, millilitres]}
+l:          {family: volume, aliases: [l, liter, liters, litre, litres]}
+pinch:      {family: volume, aliases: [pinch, pinches]}
+dash:       {family: volume, aliases: [dash, dashes]}
+drop:       {family: volume, aliases: [drop, drops]}
+ounce:      {family: mass, aliases: [ounce, ounces, oz, ozs]}
+pound:      {family: mass, aliases: [pound, pounds, lb, lbs]}
+g:          {family: mass, aliases: [g, gram, grams, gr]}
+kg:         {family: mass, aliases: [kg, kilogram, kilograms, kilo, kilos]}
+clove:      {family: count, aliases: [clove, cloves]}
+slice:      {family: count, aliases: [slice, slices]}
+stick:      {family: count, aliases: [stick, sticks]}
+sprig:      {family: count, aliases: [sprig, sprigs]}
+stalk:      {family: count, aliases: [stalk, stalks, rib, ribs]}
+head:       {family: count, aliases: [head, heads]}
+bunch:      {family: count, aliases: [bunch, bunches]}
+piece:      {family: count, aliases: [piece, pieces]}
+strip:      {family: count, aliases: [strip, strips]}
+fillet:     {family: count, aliases: [fillet, fillets]}
+handful:    {family: count, aliases: [handful, handfuls]}
+can:        {family: container, aliases: [can, cans, tin, tins]}
+package:    {family: container, aliases: [package, packages, pkg, pkgs, packet, packets, pack, packs, envelope, envelopes]}
+jar:        {family: container, aliases: [jar, jars]}
+bottle:     {family: container, aliases: [bottle, bottles]}
+box:        {family: container, aliases: [box, boxes]}
+bag:        {family: container, aliases: [bag, bags]}
+container:  {family: container, aliases: [container, containers, carton, cartons, tub, tubs]}

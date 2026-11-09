@@ -4,8 +4,10 @@ WORKDIR /app
 # download first so code edits don't re-download ~200 MB
 COPY scripts/download.py scripts/download.py
 RUN python scripts/download.py
-COPY backend/app/ingest.py backend/app/ingest.py
-RUN python backend/app/ingest.py
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/app backend/app
+RUN python -m backend.app.ingest
 
 # ---- runtime: deps + code + recipes.db only. Targets Railway Trial (0.5 GB), budget <400 MB.
 FROM python:3.12-slim
