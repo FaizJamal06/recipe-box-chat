@@ -5,7 +5,8 @@ Why it is shaped like this:
   ("butter or margarine"). So parse_line returns a list of ParsedLine, one per required item, and
   each item carries its alternatives. ingest.py stores them as rows sharing (line_no, alt_group).
 - `canonical` = what product it is (matching). `tags` = what it contains (hard constraints).
-  Tags are computed from the name before any vocabulary fallback, so "vegan butter" never turns into dairy.
+  Tags are computed from the name before any vocabulary fallback, so "vegan butter" never turns into dairy,
+  and line_tags() also scans the whole line so a word the item parse drops still counts.
 - All word lists live in lexicon/*.yaml so they can be reviewed and edited without touching code.
 """
 import re
@@ -21,17 +22,13 @@ LEX = Path(__file__).resolve().parent / "lexicon"
 LEVELS = {None: 0, "may_contain": 1, "contains": 2}
 
 
-def _load(name: str) -> dict:
-    """Read one lexicon YAML file."""
-    return yaml.safe_load((LEX / f"{name}.yaml").read_text(encoding="utf-8"))
-
-
 def _alt(words) -> str:
     """Regex alternation, longest first so multi-word phrases win; spaces match any whitespace."""
     return "|".join(re.escape(w).replace(r"\ ", r"\s+") for w in sorted(set(words), key=len, reverse=True))
 
 
-_UNITS, _SYN, _FAM, _TAGS = _load("units"), _load("synonyms"), _load("families"), _load("tags")
+_UNITS, _SYN, _FAM, _TAGS = (yaml.safe_load((LEX / f"{n}.yaml").read_text(encoding="utf-8"))
+                             for n in ("units", "synonyms", "families", "tags"))
 UNIT_FAMILY = {u: d["family"] for u, d in _UNITS.items()}
 _UNIT_OF = {a: u for u, d in _UNITS.items() for a in d["aliases"]}
 SYNONYMS: dict[str, str] = _SYN["synonyms"]
@@ -44,6 +41,7 @@ _UNIT = re.compile(rf"^(?:(?:small|medium|large)\s+)?({_alt(_UNIT_OF)})\.?(?=\s|
 _SIZE = re.compile(rf"^\(?\s*({NUM})\s*-?\s*({_alt(_UNIT_OF)})\.?\s*\)?\s*(?=(?:{_alt(_CONTAINERS)})\b)")
 _PLUS = re.compile(rf"^plus\s+{NUM}\s*(?:{_alt(_UNIT_OF)})?\.?\s+")
 _PAREN = re.compile(r"\([^)]*\)?")
+_UNIT_WORD = re.compile(rf"\b(?:{_alt(_UNIT_OF)})\b")
 _DIGIT_TOKEN = re.compile(r"\S*\d\S*")
 _PUNCT = re.compile(r"[^a-z\s,/&+_-]")
 _DESCRIPTORS = re.compile(rf"(?<![\w-])(?:{_alt(_SYN['descriptors'])})(?![\w-])")
@@ -54,7 +52,8 @@ _FRACTIONS = {"½": "1/2", "⅓": "1/3", "⅔": "2/3", "¼": "1/4", "¾": "3/4",
               "⅘": "4/5", "⅙": "1/6", "⅚": "5/6", "⅛": "1/8", "⅜": "3/8", "⅝": "5/8", "⅞": "7/8"}
 # Words that only look plural. Plural canonicals ("black beans") come from synonyms.yaml instead.
 _NO_SINGULAR = {"molasses", "couscous", "hummus", "asparagus", "swiss", "grits", "oats", "greens", "brussels",
-                "schnapps", "bitters", "series", "species", "herbes", "fries", "lees"}
+                "schnapps", "bitters", "series", "species", "herbes", "fries", "lees", "gras"}
+_DECEPTIVE = set(_SYN["deceptive_heads"])
 _IRREGULAR = {"leaves": "leaf", "halves": "half", "loaves": "loaf", "cookies": "cookie", "pies": "pie",
               "brownies": "brownie", "chilies": "chili", "chillies": "chili", "veggies": "veggie",
               "smoothies": "smoothie", "calories": "calorie", "knives": "knife"}
@@ -127,28 +126,29 @@ def singular(name: str) -> str:
 
 
 def synonym(name: str) -> str:
-    """Synonym map applied to the name as written, then to its singular form."""
-    return SYNONYMS.get(name) or SYNONYMS.get(singular(name)) or singular(name)
+    """Synonym map applied to the name as written, then to its singular form; the result is always singular
+    ('peanuts' and 'salted peanuts' -> 'peanut'), so ingest and user input land on the same canonical."""
+    return singular(SYNONYMS.get(name) or SYNONYMS.get(singular(name)) or name)
 
 
 def suffix_match(key: str, vocab) -> str | None:
     """Longest word-suffix of `key` that is in `vocab` (head-final English: 'boneless pork loin' -> 'pork loin').
-    Guard: the suffix may lose tags but never add one, so 'cashew butter' / 'vegan cheese' / 'hemp milk'
-    never become butter / cheese / milk."""
+    Guards: never a deceptive bare head (butter, milk, cheese, sauce... from synonyms.yaml), and the suffix
+    may lose tags but never add one, so 'apple butter' / 'oat milk' / 'vegan cheese' keep their own name."""
     words, have = key.split(), {t for t, _ in tags_for(key)}
     for i in range(1, len(words)):
         cand = synonym(" ".join(words[i:]))
-        if cand in vocab and {t for t, _ in tags_for(cand)} <= have:
+        if cand in vocab and cand not in _DECEPTIVE and {t for t, _ in tags_for(cand)} <= have:
             return cand
     return None
 
 
 @lru_cache(maxsize=100_000)
 def tags_for(name: str) -> tuple:
-    """((tag, level), ...) for one ingredient name, from lexicon/tags.yaml (see the rules there)."""
+    """((tag, level), ...) for a name or a whole line, from lexicon/tags.yaml (see the rules there).
+    Equipment phrases are masked out first ('cookie cutter' is not gluten, 'butter, for the baking dish' is dairy)."""
     out = []
-    if _NOT_FOOD.search(name):
-        return ()
+    name = _NOT_FOOD.sub(" ", name)
     for tag, (free, exc, contains, may) in _TAG_RE.items():
         if free and free.search(name):
             continue
@@ -161,25 +161,36 @@ def tags_for(name: str) -> tuple:
 
 
 def _word_re(words) -> re.Pattern | None:
-    """Whole-word regex allowing a plural s/es; None for an empty list."""
+    """Whole-word regex for the words and their singulars, allowing a plural s/es; None for an empty list."""
+    words = set(words) | {singular(w) for w in words}
     return re.compile(rf"\b(?:{_alt(words)})(?:e?s)?\b") if words else None
 
 
 _NOT_FOOD = _word_re(_TAGS.pop("not_food"))
 _TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain"))
            for t, d in _TAGS.items()}
-_FAMILY_OF = {m: f for f, d in _FAM.items() for m in d.get("members") or []}
-_BROAD = {f: set(d.get("broad") or []) for f, d in _FAM.items()}
+# families.yaml -> {name suffix: family}. Family names and members map to the family, `broad` entries to
+# themselves (their own group), `exclude` entries to None (the canonical stands alone). Names singularized.
+_GROUP: dict[str, str | None] = {}
+for _f, _d in _FAM.items():
+    _GROUP.update({singular(m): singular(_f) for m in [_f, *(_d.get("members") or [])]})
+for _d in _FAM.values():
+    for _b in _d.get("broad") or []:
+        _GROUP.setdefault(singular(_b), singular(_b))
+for _d in _FAM.values():
+    _GROUP.update({singular(x): None for x in _d.get("exclude") or []})
+BROAD = {singular(f): sorted({singular(b) for b in d.get("broad") or []}) for f, d in _FAM.items()}
 
 
 @lru_cache(maxsize=100_000)
 def family_for(canonical: str) -> str:
-    """Loose group (lexicon/families.yaml): explicit member, else head-noun suffix, else itself."""
-    if canonical in _FAMILY_OF:
-        return _FAMILY_OF[canonical]
-    for fam, broad in _BROAD.items():
-        if (canonical == fam or canonical.endswith(" " + fam)) and canonical not in broad:
-            return fam
+    """Strict family (lexicon/families.yaml) from the longest name suffix that is a known group:
+    'extra lean ground beef' -> beef, 'sliced green onion' -> green onion, 'light sour cream' -> itself."""
+    words = canonical.split()
+    for i in range(len(words)):
+        suf = " ".join(words[i:])
+        if suf in _GROUP:
+            return _GROUP[suf] or canonical
     return canonical
 
 
@@ -199,32 +210,34 @@ def _name(text: str) -> Name | None:
     return Name(clean, key, family_for(key), tags_for(key))
 
 
-def _items(rest: str) -> list[list[Name]]:
-    """'salt and pepper, to taste' -> [[salt], [black pepper]]; 'butter or margarine' -> [[butter, margarine]]."""
-    rest = _KEEP.sub(lambda m: re.sub(r"\s+", "_", m.group(0)), rest)
-    rest = rest.replace("and/or", " or ")
-    # First comma segment that still names something ('boneless, skinless chicken'). shortcut: comma lists
-    # ('salt, pepper and paprika') keep only 'salt'; split on commas when the tail ends in ' and X' if it matters.
-    for seg in rest.split(","):
-        items = []
-        for part in _AND.split(seg):
-            # '1 egg + 1 tablespoon water': digits are gone already, drop the part's own leading unit
-            opts = [n for n in (_name(_UNIT.sub("", o.strip(), count=1) or o) for o in _OR.split(part)) if n]
-            if opts:
-                items.append(opts)
-        if items:
-            return items
-    return []
+def _opts(part: str) -> list[Name]:
+    """'butter or margarine' -> [butter, margarine]. Drops the part's own leading unit ('+ 1 tablespoon water';
+    digits are gone already)."""
+    return [n for n in (_name(_UNIT.sub("", o.strip(), count=1) or o) for o in _OR.split(part)) if n]
+
+
+def _items(rest: str) -> tuple[list, list | None]:
+    """(default, comma_split), each item = [primary, *alternatives]. default: first comma segment naming
+    something ('onion, finely chopped' -> onion). comma_split: every part of a ', ... and ...' line, else None;
+    parse_line uses it only when every part is a known canonical ('onion, peeled and chopped' stays one item)."""
+    rest = _KEEP.sub(lambda m: re.sub(r"\s+", "_", m.group(0)), rest).replace("and/or", " or ")
+    segs = rest.split(",")
+    default = next((its for seg in segs if (its := [o for p in _AND.split(seg) if (o := _opts(p))])), [])
+    split = None
+    if len(segs) > 1 and _AND.search(rest[rest.index(","):]):
+        parts = [_opts(p) for seg in segs for p in _AND.split(re.sub(r"^\s*and\s+", "", seg)) if p.strip()]
+        split = parts if len(parts) > 1 and all(parts) else None
+    return default, split
 
 
 @lru_cache(maxsize=50_000)
-def _parse(raw: str) -> tuple[ParsedLine, ...]:
-    """Cached core of parse_line (most lines repeat: '1 teaspoon salt')."""
+def _parse(raw: str) -> tuple:
+    """Cached core of parse_line (most lines repeat: '1 teaspoon salt') -> (items, line_tags, comma_split)."""
     s = clean_text(raw)
     if not s:
-        return ()
+        return (), (), None
     if is_header(s):
-        return (ParsedLine(raw, is_header=True),)
+        return (ParsedLine(raw, is_header=True),), (), None
     if ":" in s:  # 'Garnish: chopped parsley' -> parse the part after the label
         s = s.split(":", 1)[1].strip()
     qty = qty_range = unit = None
@@ -236,6 +249,7 @@ def _parse(raw: str) -> tuple[ParsedLine, ...]:
     size = _SIZE.match(s)
     if size:
         s = s[size.end():]
+    notes = _UNIT_WORD.sub(" ", " ".join(_PAREN.findall(s)))  # '(or butter)' counts for tags, '(2 ribs)' not
     s = _PAREN.sub(" ", s).strip()
     m = _UNIT.match(s)
     if m and s[m.end():].strip():  # '4 ribs' alone: keep 'ribs' as the name, not as a unit
@@ -245,42 +259,41 @@ def _parse(raw: str) -> tuple[ParsedLine, ...]:
         su = _UNIT_OF[re.sub(r"\s+", " ", size.group(2))]
         if UNIT_FAMILY[su] in ("mass", "volume"):
             qty, unit, qty_range = (qty or 1.0) * _num(size.group(1)), su, None
+    line_tags = tags_for(f"{s} {notes}")  # keyword scan of everything after the amount (all comma parts)
     s = _PUNCT.sub(" ", _DIGIT_TOKEN.sub(" ", s))
-    uf = UNIT_FAMILY.get(unit)
-    # shortcut: every item on a compound line shares the line's leading qty/unit ('1 egg + 1 tablespoon water')
-    return tuple(ParsedLine(raw, qty, qty_range, unit, uf, opts[0], tuple(opts[1:])) for opts in _items(s))
+    head = (qty, qty_range, unit, UNIT_FAMILY.get(unit))
+    # only the first item owns the leading amount; the others' amounts are unknown (NULL), not shared
+    mk = lambda items: tuple(ParsedLine(raw, *(head if i == 0 else (None,) * 4), o[0], tuple(o[1:]))
+                             for i, o in enumerate(items))
+    default, split = _items(s)
+    return mk(default), line_tags, (mk(split) if split else None)
+
+
+def line_tags(raw: str) -> tuple:
+    """Tags from a keyword scan of the whole line (negations honoured): catches 'salt, pepper and butter'."""
+    return _parse(raw)[1]
+
+
+def comma_split(raw: str, vocab) -> list[ParsedLine] | None:
+    """The comma-list reading of `raw` ('salt, pepper and paprika' -> 3 items) if every option is in vocab."""
+    split = _parse(raw)[2]
+    return list(split) if split and all(o.canonical in vocab for p in split for o in p.options) else None
 
 
 def parse_line(raw: str, vocab=None) -> list[ParsedLine]:
     """Raw ingredient line -> one ParsedLine per required item ([] for empty/ADVERTISEMENT-only lines).
-
-    vocab: optional set of known canonicals; a canonical outside it falls back to its longest
-    in-vocab word suffix ('teriyaki marinade sauce' -> 'sauce' only if that is all we know).
-    Tags are not changed by that fallback (they describe the text, not the guess).
-    """
-    out = list(_parse(raw))
+    With a vocab (known canonicals), comma lists of known canonicals are split and an unknown canonical falls
+    back to its longest safe in-vocab suffix ('heritage pork loin' -> 'pork loin'); tags stay as parsed."""
+    out = list(_parse(raw)[0])
     if vocab is None:
         return out
+    out = comma_split(raw, vocab) or out
     fix = lambda n: n if n.canonical in vocab or not (c := suffix_match(n.canonical, vocab)) \
         else Name(n.clean, c, family_for(c), n.tags)
     return [ParsedLine(p.raw, p.qty, p.qty_range, p.unit, p.unit_family, fix(p.name),
                        tuple(fix(a) for a in p.alternatives), p.is_header) if p.name else p for p in out]
 
 
-# ---- instructions (PRD 4.4) ----
-_ABBREV = {"tsp", "tbsp", "tbs", "tbl", "oz", "approx", "f", "c", "lb", "lbs", "pkg", "fl", "qt", "pt", "no",
-           "vs", "st", "dr", "mr", "mrs", "e.g", "i.e", "deg", "min", "mins", "hr", "hrs", "in", "ca", "pkgs"}
-_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
-
-
-def count_sentences(text: str) -> int:
-    """Sentences in instructions. Splits on . ! ? + whitespace and newlines, but not after abbreviations
-    (tsp., oz., approx., 350 F.) or a bare number ('1. Preheat'); decimals never split (no space after '.')."""
-    n = 0
-    for seg in (text or "").split("\n"):
-        chunks = [c for c in _SENT_SPLIT.split(seg.strip()) if c]
-        for i, c in enumerate(chunks):
-            last = re.sub(r"[^a-z0-9.]", "", c.rsplit(None, 1)[-1].lower()).rstrip(".")
-            if i == len(chunks) - 1 or not (last in _ABBREV or last.replace(".", "").isdigit()):
-                n += 1
-    return n
+def normalize(text: str, vocab=None) -> list[str]:
+    """Canonicals named in free text, e.g. user input ('peanuts' -> ['peanut']); same path as ingest."""
+    return [p.name.canonical for p in parse_line(text, vocab) if p.name]

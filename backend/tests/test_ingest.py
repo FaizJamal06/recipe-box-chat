@@ -10,16 +10,20 @@ from app.ingest import build
 FIXTURE = Path(__file__).parent / "fixtures" / "mini.json"
 
 
-@pytest.fixture(scope="module")
-def con(tmp_path_factory):
+def _build(d: Path, vocab_min: int = 5) -> sqlite3.Connection:
     """Build a DB from the fixture (one JSON file per source, like data/raw/)."""
-    d = tmp_path_factory.mktemp("mini")
     files = {}
     for source, recs in json.loads(FIXTURE.read_text(encoding="utf-8")).items():
         files[source] = d / f"{source}.json"
         files[source].write_text(json.dumps(recs), encoding="utf-8")
-    build(d / "t.db", files)
-    c = sqlite3.connect(d / "t.db")
+    build(d / "t.db", files, vocab_min)
+    return sqlite3.connect(d / "t.db")
+
+
+@pytest.fixture(scope="module")
+def con(tmp_path_factory):
+    """The fixture DB with the real VOCAB_MIN (5)."""
+    c = _build(tmp_path_factory.mktemp("mini"))
     yield c
     c.close()
 
@@ -82,6 +86,17 @@ def test_recipe_tags(con):
     t = tags(con, "epi:e09")
     assert t["pork"] == t["fish"] == t["meat"] == "contains"
     assert one(con, "SELECT evidence_line_no FROM recipe_tags WHERE recipe_id = 'ar:a01' AND tag = 'dairy'") == (2,)
+    # line scan: butter is dropped by the first-part rule (pepper < 5 recipes here), the tag is not
+    assert tags(con, "fn:f04") == {"dairy": "contains"}
+
+
+def test_comma_list_split_once_vocab_knows_the_parts(tmp_path):
+    c = _build(tmp_path, vocab_min=1)
+    rows = c.execute("SELECT canonical, qty, unit FROM ingredient_lines WHERE recipe_id = 'fn:f04' AND line_no = 3 "
+                     "ORDER BY alt_group").fetchall()
+    assert rows == [("salt", 1.0, "tablespoon"), ("black pepper", None, None), ("butter", None, None)]
+    assert one(c, "SELECT COUNT(*) FROM ingredient_lines WHERE recipe_id = 'ar:a04' AND line_no = 1") == (1,)
+    c.close()
 
 
 def test_vocab_and_family_filled(con):

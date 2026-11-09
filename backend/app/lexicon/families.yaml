@@ -1,19 +1,47 @@
-# Loose ingredient groups for "broad" stats (PRD 4.5). family(canonical):
-#   1. canonical listed in a family's `members`            -> that family
-#   2. canonical ends with " <family>" (cherry tomato) or equals it, and is not in that family's `broad`
-#                                                           -> that family
-#   3. otherwise                                            -> the canonical itself
-# `broad` members keep their own family; stats in broad mode add them (green onion counts as onion).
-onion:
-  members: [red onion, sweet onion, pearl onion, cipollini onion]
-  broad: [green onion, onion powder, dried onion, shallot, leek, chives]
-tomato:
-  members: [plum tomato, cherry tomato, heirloom tomato, beefsteak tomato, canned tomatoes, diced tomatoes,
-            crushed tomatoes, whole tomatoes, stewed tomatoes]
-  broad: [sun-dried tomato, green tomato, tomatillo, tomato paste, tomato sauce, tomato puree]
+# Loose ingredient groups (PRD 4.5). Names are singularized on load. family(canonical) = the group of the
+# LONGEST word-suffix of the canonical that is listed here:
+#   family name or one of its `members`  -> that family          ('extra lean ground beef' -> beef)
+#   one of its `broad` entries           -> that entry, its own group ('sliced green onion' -> green onion)
+#   one of its `exclude` entries         -> the canonical itself  ('light sour cream' is not cream)
+#   nothing                              -> the canonical itself
+# strict F = lines whose family is F. broad F = strict F + lines whose family or canonical is in F's `broad`.
 garlic:
-  members: []
-  broad: [garlic powder, garlic salt, roasted garlic]
+  members: [garlic clove, clove garlic, cloves garlic, minced garlic, chopped garlic, fresh garlic, garlic bulb,
+            bulb garlic, garlic head, head garlic, heads garlic, garlic paste, garlic puree, pureed garlic,
+            roasted garlic]
+  broad: [garlic powder, garlic salt, granulated garlic, dried garlic, garlic flake]
+  exclude: [tomatoes garlic]
+onion:
+  members: [red onion, white onion, yellow onion, sweet onion, vidalia onion, spanish onion, maui onion, purple onion,
+            pearl onion, cipollini onion, walla walla onion, caramelized onion]
+  broad: [green onion, shallot, onion powder, onion salt, dried onion, onion flake, fried onion, french-fried onion]
+  exclude: [pickled onion, pickled red onion]
+tomato:
+  members: [plum tomato, roma tomato, cherry tomato, grape tomato, heirloom tomato, beefsteak tomato, green tomato,
+            canned tomatoes, diced tomatoes, crushed tomatoes, whole tomatoes, stewed tomatoes, whole peeled tomatoes,
+            fire-roasted tomatoes, san marzano tomatoes, can tomato, tomatoes in juice, tomatoes juice,
+            tomatoes green chile pepper]
+  broad: [tomato paste, tomato sauce, tomato puree, sun-dried tomato, passata]
+egg:
+  members: [egg white, egg yolk, hard-boiled egg, hard-cooked egg, hard boiled egg]
+  broad: []
+rice:
+  members: [white rice, brown rice, jasmine rice, basmati rice, long-grain rice, long grain rice, arborio rice,
+            short-grain rice, sushi rice, instant rice, wild rice]
+  broad: []
+  exclude: [cauliflower rice]  # rice vinegar / rice flour / rice noodles end in another head noun already
+cream:
+  members: [heavy cream, whipping cream, heavy whipping cream, light cream, light whipping cream, half and half,
+            half-and-half cream, double cream, single cream, table cream]
+  broad: []
+  exclude: [sour cream, ice cream, coconut cream, whipped cream, marshmallow cream, pastry cream, irish cream]
+pasta:
+  members: [penne, penne rigate, spaghetti, spaghettini, linguine, linguini, fettuccine, fettuccini, rigatoni, ziti,
+            rotini, fusilli, farfalle, orzo, macaroni, elbow macaroni, angel hair, capellini, vermicelli, bucatini,
+            pappardelle, tagliatelle, orecchiette, ditalini, cavatappi, gemelli, campanelle, lasagna noodle,
+            pasta shell, egg fettuccine]
+  broad: [egg noodles, tortellini, ravioli, gnocchi]
+  exclude: [rice vermicelli]
 bell pepper:
   members: [red bell pepper, green bell pepper, yellow bell pepper, orange bell pepper, roasted red pepper]
   broad: []
@@ -24,10 +52,6 @@ chili pepper:
 potato:
   members: [yukon gold potato, red potato, new potato, fingerling potato, baking potato, white potato]
   broad: [sweet potato]
-rice:
-  members: [white rice, brown rice, long-grain rice, basmati rice, jasmine rice, arborio rice, wild rice,
-            long grain rice, short-grain rice, sushi rice, long-grain white rice, instant rice]
-  broad: [rice flour, rice vinegar, rice noodles]
 flour:
   members: [bread flour, cake flour, whole wheat flour, pastry flour, self-rising flour, white whole wheat flour]
   broad: [rice flour, almond flour, cornstarch, cornmeal]
@@ -44,6 +68,7 @@ cheese:
             romano cheese, mascarpone cheese, provolone cheese, cottage cheese, fontina cheese, asiago cheese,
             gouda cheese, pepper jack cheese, colby cheese, queso fresco, brie]
   broad: [cream cheese]
+  exclude: [macaroni and cheese, mac and cheese]
 oil:
   members: [olive oil, vegetable oil, canola oil, peanut oil, sesame oil, coconut oil, grapeseed oil,
             sunflower oil, safflower oil, corn oil, avocado oil, walnut oil, truffle oil]
@@ -60,6 +85,7 @@ beef:
   members: [ground beef, beef chuck, chuck roast, flank steak, skirt steak, sirloin steak, beef tenderloin,
             ribeye steak, beef brisket, stew beef, beef stew meat, short rib, steak]
   broad: [beef broth, beef bouillon]
+  exclude: [tuna steak, salmon steak, swordfish steak, halibut steak, fish steak, ham steak, cauliflower steak]
 pork:
   members: [pork tenderloin, pork chop, pork loin, pork shoulder, ground pork, pork butt, pork belly,
             spare rib, baby back ribs]
@@ -72,6 +98,7 @@ beans:
   members: [black beans, kidney beans, pinto beans, cannellini beans, white beans, chickpea, lima bean,
             navy bean, refried beans, baked beans]
   broad: [green beans, lentils]
+  exclude: [vanilla bean, coffee bean, espresso bean, jelly bean, cocoa bean]
 lettuce:
   members: [romaine lettuce, iceberg lettuce, butter lettuce, bibb lettuce, boston lettuce, red leaf lettuce,
             green leaf lettuce, mixed greens]

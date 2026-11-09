@@ -27,7 +27,7 @@
     "f01": {"title": "Salad Dressing", "ingredients": ["Salt and freshly ground black pepper", "1/4 cup extra-virgin olive oil", "2 tablespoons fresh lemon juice", "1 tablespoon Dijon mustard", "1/2 cup chopped fresh coriander leaves"], "instructions": "Whisk.", "picture_link": null},
     "f02": {"title": null, "ingredients": ["1 cup sugar"], "instructions": "Mix.", "picture_link": null},
     "f03": {"title": "Toast", "ingredients": ["2 slices bread"], "instructions": null, "picture_link": null},
-    "f04": {"title": "Paragraph Rice", "ingredients": ["1 cup rice", "2 cups water", "Salt"], "instructions": "In a heavy saucepan combine the rice, water, and salt. Bring to a boil at 212 F. and reduce the heat. Cook 15 to 20 minutes. Fluff with a fork.", "picture_link": null},
+    "f04": {"title": "Paragraph Rice", "ingredients": ["1 cup rice", "2 cups water", "Salt", "1 tablespoon salt, pepper and butter"], "instructions": "In a heavy saucepan combine the rice, water, and salt. Bring to a boil at 212 F. and reduce the heat. Cook 15 to 20 minutes. Fluff with a fork.", "picture_link": null},
     "f05": {"title": "Meringue Cookies", "ingredients": ["4 egg whites", "1 cup superfine sugar", "1/4 teaspoon cream of tartar"], "instructions": "Beat.\nBake.", "picture_link": null},
     "f06": {"title": "Chicken Pot Pie", "ingredients": ["2 boneless, skinless chicken breast halves", "1 (10.75 ounce) can cream of chicken soup", "1 cup frozen peas", "1 refrigerated pie crust"], "instructions": "Fill.\nBake.", "picture_link": null},
     "f07": {"title": "Butter Lettuce Salad", "ingredients": ["1 head butter lettuce", "1/2 cup pine nuts, toasted", "2 tablespoons coconut cream"], "instructions": "Toss.", "picture_link": null},

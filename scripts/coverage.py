@@ -6,6 +6,7 @@ A line is "mapped" when every required item on it has a canonical used by >= 5 v
 Usage: python scripts/coverage.py [--samples 5] [--seed 0]
 """
 import argparse
+import json
 import random
 import sqlite3
 import sys
@@ -13,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
-from app.normalize import tags_for, synonym  # noqa: E402
+from app.normalize import BROAD, tags_for, synonym  # noqa: E402
 
 DB = ROOT / "data" / "recipes.db"
 PROFILE = ROOT / "docs" / "DATA_PROFILE.md"
@@ -63,6 +64,33 @@ def report(con: sqlite3.Connection, samples: int, seed: int) -> list[str]:
     out += ["", "Top 10 canonicals by recipe count:", ""]
     out.append("; ".join(f"{c} ({n:,})" for c, n in
                          q("SELECT canonical, recipe_count FROM vocab ORDER BY recipe_count DESC LIMIT 10")))
+    out += ["", "Top 15 canonicals in `contains` recipes per tag (canonical whose own tags say contains -> "
+            "recipes); 'line scan only' = contains recipes no parsed canonical explains:", ""]
+    vocab = [c for c, in q("SELECT canonical FROM vocab")]
+    for tag in ("dairy", "egg", "peanut", "gluten", "meat"):
+        cans = json.dumps([c for c in vocab if dict(tags_for(c)).get(tag) == "contains"])
+        base = ("FROM recipe_tags t JOIN recipes r ON r.id = t.recipe_id AND r.valid = 1 "
+                "WHERE t.tag = ? AND t.level = 'contains'")
+        top = q("SELECT l.canonical, COUNT(DISTINCT l.recipe_id) FROM ingredient_lines l JOIN recipe_tags t ON "
+                "t.recipe_id = l.recipe_id AND t.tag = ? AND t.level = 'contains' JOIN recipes r ON r.id = l.recipe_id "
+                "AND r.valid = 1 WHERE l.is_alt = 0 AND l.canonical IN (SELECT value FROM json_each(?)) "
+                "GROUP BY 1 ORDER BY 2 DESC LIMIT 15", tag, cans)
+        (scan_only,), = q(f"SELECT COUNT(*) {base} AND NOT EXISTS (SELECT 1 FROM ingredient_lines l WHERE "
+                          "l.recipe_id = t.recipe_id AND l.canonical IN (SELECT value FROM json_each(?)))", tag, cans)
+        out.append(f"- **{tag}**: " + "; ".join(f"{c} {n:,}" for c, n in top) + f" · line scan only: {scan_only:,}")
+    out += ["", "Strict vs broad family recipe counts (valid recipes, required items; broad adds the family's "
+            "`broad` list in lexicon/families.yaml):", "", "| family | strict | broad |", "|---|---|---|"]
+    fam = {}
+    for f in ("garlic", "onion", "tomato"):
+        b = json.dumps([f, *BROAD[f]])
+        sel = ("SELECT DISTINCT l.recipe_id FROM ingredient_lines l JOIN recipes r ON r.id = l.recipe_id AND "
+               "r.valid = 1 WHERE l.is_alt = 0 AND ")
+        fam[f] = ({r for r, in q(sel + "l.family = ?", f)},
+                  {r for r, in q(sel + "(l.family IN (SELECT value FROM json_each(?)) OR "
+                                 "l.canonical IN (SELECT value FROM json_each(?)))", b, b)})
+    fam["garlic AND onion"] = tuple(fam["garlic"][i] & fam["onion"][i] for i in (0, 1))
+    for f in ("garlic", "onion", "garlic AND onion", "tomato"):
+        out.append(f"| {f} | {len(fam[f][0]):,} | {len(fam[f][1]):,} |")
     rnd = random.Random(seed)
     out += ["", f"{samples} random parsed lines per source (raw -> canonical | family | qty unit | tags):", ""]
     for (src,) in q("SELECT DISTINCT source FROM recipes ORDER BY 1"):

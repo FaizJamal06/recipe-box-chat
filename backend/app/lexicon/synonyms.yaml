@@ -1,4 +1,9 @@
 # Name canonicalization data (PRD 4.5 steps 4-6). Everything lowercase, accents already stripped.
+# Canonicals are always singularized after lookup (normalize.synonym), so plural values are fine.
+
+# deceptive_heads: the vocab suffix fallback never resolves a rare name to one of these bare heads
+# ('apple butter' is not butter, 'oat milk' is not milk); the full cleaned name stays its own canonical.
+deceptive_heads: [butter, milk, cream, cheese, flour, sauce, paste, powder, oil, egg, nut]
 
 # keep_whole: phrases that stay intact. Never split on "and"/"or", never stripped of descriptor words.
 # (ground beef keeps "ground"; hot sauce keeps "hot"; half and half is one product, not two.)
@@ -473,8 +478,6 @@ synonyms:
   vegetable shortening: shortening
   crisco: shortening
   canola: canola oil
-  peanut: peanuts
-  pine nut: pine nuts
   pignoli: pine nuts
   pinenut: pine nuts
   walnut: walnuts

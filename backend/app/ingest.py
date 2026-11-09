@@ -5,16 +5,18 @@ Pass 1 (per recipe): validity, step/sentence counts, every ingredient line parse
 rows, recipe_tags. Rows sharing (recipe_id, line_no, alt_group) are alternatives ("butter or margarine");
 different alt_group values on one line are separate items ("salt and pepper"); is_alt=0 marks the
 primary. Originals are stored verbatim (ingredients_raw keeps ADVERTISEMENT); derived columns are separate.
-Pass 2 (SQL): canonicals seen in < VOCAB_MIN valid recipes fall back to their longest in-vocab word
-suffix (normalize.suffix_match), then vocab(canonical, family, recipe_count) and the family column are filled.
+Recipe tags = parsed items' tags + a keyword scan of each whole line (normalize.line_tags) as a safety net.
+Pass 2 (SQL): comma lists of known canonicals are split (resplit), canonicals seen in < VOCAB_MIN valid
+recipes fall back to their longest safe in-vocab word suffix (normalize.suffix_match), then
+vocab(canonical, family, recipe_count) and the family column are filled.
 Run: python -m backend.app.ingest   (from the repo root)
 """
 import gc
 import json
+import re
 import sqlite3
 import sys
 import time
-from itertools import groupby
 from pathlib import Path
 
 from . import normalize as nz
@@ -69,31 +71,67 @@ def peak_rss_mb() -> float:
     return kb / 1024 if sys.platform != "darwin" else kb / 2**20
 
 
+_ABBREV = {"tsp", "tbsp", "tbs", "tbl", "oz", "approx", "f", "c", "lb", "lbs", "pkg", "fl", "qt", "pt", "no",
+           "vs", "st", "dr", "mr", "mrs", "e.g", "i.e", "deg", "min", "mins", "hr", "hrs", "in", "ca", "pkgs"}
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def count_sentences(text: str) -> int:
+    """Sentences in instructions. Splits on . ! ? + whitespace and newlines, but not after abbreviations
+    (tsp., oz., approx., 350 F.) or a bare number ('1. Preheat'); decimals never split (no space after '.')."""
+    n = 0
+    for seg in (text or "").split("\n"):
+        chunks = [c for c in _SENT_SPLIT.split(seg.strip()) if c]
+        for i, c in enumerate(chunks):
+            last = re.sub(r"[^a-z0-9.]", "", c.rsplit(None, 1)[-1].lower()).rstrip(".")
+            if i == len(chunks) - 1 or not (last in _ABBREV or last.replace(".", "").isdigit()):
+                n += 1
+    return n
+
+
 def steps(instr: str) -> tuple[int, int, int, int]:
     """(n_steps, n_sentences, n_steps_newline, is_paragraph_format) per PRD 4.4.
     A recipe written as one block of several sentences is paragraph-format; its effective
     n_steps is then its sentence count, otherwise the newline-segment count."""
     newline = sum(1 for seg in instr.split("\n") if seg.strip())
-    sent = nz.count_sentences(instr)
+    sent = count_sentences(instr)
     para = int(newline == 1 and sent >= 2)
     return (sent if para else newline), sent, newline, para
 
 
-def recipe_tags(rid: str, parsed: list[tuple[int, list]]) -> list[tuple]:
+def recipe_tags(rid: str, parsed: list[tuple[int, list, tuple]]) -> list[tuple]:
     """One (recipe_id, tag, level, evidence_line_no) per tag. Per item, the best option decides:
     'contains' if every option contains the tag, 'may_contain' if the best option may contain it,
     'alt' if the tag is only in options that have a tag-free alternative (eligible, with a note)."""
     best: dict[str, tuple[int, int]] = {}  # tag -> (rank, line_no)
-    for line_no, items in parsed:
+
+    def bump(tag: str, rank: int, line_no: int) -> None:
+        if rank > best.get(tag, (0, 0))[0]:
+            best[tag] = (rank, line_no)
+
+    for line_no, items, scan in parsed:
+        seen = set()
         for it in items:
             opts = [dict(o.tags) for o in it.options]
             for tag in {t for o in opts for t in o}:
+                seen.add(tag)
                 lv = min(nz.LEVELS[o.get(tag)] for o in opts)
-                rank = TAG_RANK["contains"] if lv == 2 else TAG_RANK["may_contain"] if lv == 1 else TAG_RANK["alt"]
-                if rank > best.get(tag, (0, 0))[0]:
-                    best[tag] = (rank, line_no)
+                bump(tag, TAG_RANK["contains"] if lv == 2 else TAG_RANK["may_contain"] if lv == 1
+                     else TAG_RANK["alt"], line_no)
+        # safety net: a tag word on the line that no parsed item explains ('salt, pepper and butter')
+        for tag, lv in scan:
+            if tag not in seen:
+                bump(tag, TAG_RANK[lv], line_no)
     names = {v: k for k, v in TAG_RANK.items()}
     return [(rid, tag, names[r], ln) for tag, (r, ln) in sorted(best.items())]
+
+
+def line_rows(rid: str, n: int, s: str, items: list) -> list[tuple]:
+    """ingredient_lines rows for one real line: one per option; a line naming nothing keeps canonical NULL."""
+    if not items:
+        return [(rid, n, s, None, None, None, None, None, None, None, 0, 0)]
+    return [(rid, n, s, o.clean, o.canonical, None, it.qty, it.unit, it.unit_family, g, 0, int(k > 0))
+            for g, it in enumerate(items) for k, o in enumerate(it.options)]
 
 
 def convert(source: str, key: str, rec: dict) -> tuple:
@@ -112,12 +150,8 @@ def convert(source: str, key: str, rec: dict) -> tuple:
             rows.append((rid, n, s, None, None, None, None, None, None, None, 1, 0))
             continue
         real.append(s)
-        parsed.append((n, items))
-        if not items:  # real line that names nothing we can parse ('to taste'): keep it, canonical NULL
-            rows.append((rid, n, s, None, None, None, None, None, None, None, 0, 0))
-        for g, it in enumerate(items):
-            for k, o in enumerate(it.options):
-                rows.append((rid, n, s, o.clean, o.canonical, None, it.qty, it.unit, it.unit_family, g, 0, int(k > 0)))
+        parsed.append((n, items, nz.line_tags(s)))
+        rows.extend(line_rows(rid, n, s, items))
     n_steps, n_sent, n_newline, para = steps(instr)
     reason = ("empty_record" if not rec else "no_title" if not title.strip()
               else "no_ingredients" if not real else "no_instructions" if not instr.strip() else None)
@@ -140,11 +174,25 @@ FROM ingredient_lines l JOIN recipes r ON r.id = l.recipe_id
 WHERE l.canonical IS NOT NULL GROUP BY l.canonical"""
 
 
+def resplit(con: sqlite3.Connection, vocab: set) -> int:
+    """Comma lists whose every part is a known canonical ('salt, pepper and paprika') -> one row group per
+    part. Needs the vocab, so it runs in pass 2. recipe_tags need no update: the pass-1 line scan already
+    saw every word. shortcut: an alternative inside such a list can rank a tag one level stricter than needed."""
+    todo = [(rid, n, s, sp) for rid, n, s in con.execute(
+        "SELECT DISTINCT recipe_id, line_no, raw FROM ingredient_lines WHERE is_header = 0 AND raw LIKE '%,%'"
+    ).fetchall() if (sp := nz.comma_split(s, vocab))]
+    con.executemany("DELETE FROM ingredient_lines WHERE recipe_id = ? AND line_no = ?", [t[:2] for t in todo])
+    con.executemany("INSERT INTO ingredient_lines VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [row for rid, n, s, sp in todo for row in line_rows(rid, n, s, sp)])
+    return len(todo)
+
+
 def finalize(con: sqlite3.Connection, vocab_min: int) -> None:
     """Pass 2: rare canonicals -> longest in-vocab suffix, then fill vocab and ingredient_lines.family.
     recipe_count counts valid recipes only (that is what stats and matching see)."""
     counts = dict(con.execute(COUNT_SQL).fetchall())
     vocab = {c for c, n in counts.items() if n >= vocab_min}
+    print(f"comma lists split: {resplit(con, vocab):,}")
     remap = [(c, m) for c, n in counts.items() if n < vocab_min and (m := nz.suffix_match(c, vocab))]
     del counts
     con.execute("CREATE TEMP TABLE remap(old TEXT PRIMARY KEY, new TEXT)")

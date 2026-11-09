@@ -1,7 +1,8 @@
 """normalize.py: the tricky cases of PRD 4.5 (qty, units, headers, compounds, identity, tags) and 4.4 sentences."""
 import pytest
 
-from app.normalize import count_sentences, parse_line, tags_for
+from app.ingest import count_sentences
+from app.normalize import BROAD, family_for, line_tags, normalize, parse_line, tags_for
 
 
 def canon(raw: str, vocab=None) -> list[str]:
@@ -82,15 +83,68 @@ def test_identity_forms_stay_distinct():
              "1 teaspoon onion powder"]
     got = [canon(x)[0] for x in lines]
     assert got == ["tomato", "tomato paste", "tomato sauce", "sun-dried tomato", "garlic", "garlic powder", "rice",
-                   "rice vinegar", "rice flour", "egg", "egg noodles", "onion", "green onion", "onion powder"]
+                   "rice vinegar", "rice flour", "egg", "egg noodle", "onion", "green onion", "onion powder"]
     assert [parse_line(x)[0].name.family for x in ["1 red onion", "2 green onions", "1 cup cherry tomatoes"]] \
         == ["onion", "green onion", "tomato"]
 
 
-def test_vocab_fallback_never_adds_a_tag():
-    assert canon("2 pounds heritage pork loin", vocab={"pork loin"}) == ["pork loin"]
-    assert canon("1 cup cashew butter", vocab={"butter"}) == ["cashew butter"]
-    assert canon("1 cup vegan cheese", vocab={"cheese"}) == ["vegan cheese"]
+def test_vocab_fallback_never_adds_a_tag_or_lands_on_a_deceptive_head():
+    p, = parse_line("2 pounds heritage pork loin", vocab={"pork loin"})
+    assert p.name.canonical == "pork loin" and dict(p.name.tags)["pork"] == "contains"
+    for raw, head in [("1 cup cashew butter", "butter"), ("1 cup vegan cheese", "cheese"),
+                      ("1 cup apple butter", "butter"), ("1 cup oat milk", "milk"),
+                      ("2 tablespoons teriyaki marinade sauce", "sauce"), ("1 tsp ancho powder", "powder")]:
+        assert canon(raw, vocab={head}) == [raw.split(maxsplit=2)[2]]
+
+
+def test_line_tags_scan_whole_line():
+    assert ("dairy", "contains") in line_tags("salt, pepper and butter")
+    assert "dairy" not in dict(line_tags("1 cup dairy-free chocolate chips"))
+    assert "dairy" not in dict(line_tags("1/2 cup coconut milk, or non-dairy creamer"))
+    assert ("dairy", "contains") in line_tags("1 cup vegetable oil (or melted butter)")
+    assert "meat" not in dict(line_tags("4 ribs celery, chopped")) | dict(line_tags("1 cup celery (about 2 ribs)"))
+    assert dict(line_tags("1 tablespoon butter, for the baking dish")) == {"dairy": "contains"}
+
+
+V = {"salt", "black pepper", "paprika", "onion", "garlic", "egg", "water"}
+
+
+def test_comma_lists_split_only_when_every_part_is_known():
+    assert canon("1 teaspoon salt, pepper and paprika", V) == ["salt", "black pepper", "paprika"]
+    assert canon("salt, pepper, and paprika", V) == ["salt", "black pepper", "paprika"]
+    assert canon("1 teaspoon salt, pepper and paprika") == ["salt"]  # no vocab: first-part rule
+    assert canon("1 onion, peeled and chopped", V) == ["onion"]
+    assert canon("1 onion, finely chopped", V) == ["onion"]
+
+
+def test_only_first_item_keeps_the_amount():
+    assert [(p.qty, p.unit) for p in parse_line("1 teaspoon salt, pepper and paprika", V)] \
+        == [(1, "teaspoon"), (None, None), (None, None)]
+    assert [(p.qty, p.unit) for p in parse_line("2 teaspoons salt and pepper")] == [(2, "teaspoon"), (None, None)]
+
+
+def test_singular_everywhere():
+    assert normalize("peanuts") == normalize("1 cup salted peanuts") == ["peanut"]
+    assert normalize("2 cans black beans") == ["black bean"] and normalize("foie gras") == ["foie gras"]
+
+
+@pytest.mark.parametrize("canonical, family", [
+    ("garlic", "garlic"), ("minced garlic", "garlic"), ("garlic powder", "garlic powder"),
+    ("sweet onion", "onion"), ("red onion", "onion"), ("sliced green onion", "green onion"), ("shallot", "shallot"),
+    ("diced tomato", "tomato"), ("tomato paste", "tomato paste"), ("egg white", "egg"), ("egg yolk", "egg"),
+    ("jasmine rice", "rice"), ("basmati rice", "rice"), ("rice vinegar", "vinegar"), ("rice flour", "rice flour"),
+    ("heavy cream", "cream"), ("half and half", "cream"), ("sour cream", "sour cream"),
+    ("vanilla ice cream", "vanilla ice cream"), ("penne", "pasta"), ("penne pasta", "pasta"),
+    ("vanilla bean", "vanilla bean"), ("black bean", "bean"), ("extra lean ground beef", "beef"),
+])
+def test_families(canonical, family):
+    assert family_for(canonical) == family
+
+
+def test_broad_families():
+    assert {"green onion", "shallot", "onion powder"} <= set(BROAD["onion"])
+    assert {"garlic powder", "garlic salt"} <= set(BROAD["garlic"])
+    assert {"tomato paste", "tomato sauce", "tomato puree"} <= set(BROAD["tomato"])
 
 
 def level(name: str, tag: str):
