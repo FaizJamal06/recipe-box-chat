@@ -51,7 +51,7 @@ def _recipe(con: sqlite3.Connection, rid: str | None):
 def answer(con: sqlite3.Connection, ds: Dataset, attr: str, text: str, rid: str | None) -> tuple[str, object]:
     """(reply, stats result or None). `rid` = the recipe the message refers to, if any."""
     rec = _recipe(con, rid)
-    name = f"{rec[0]} '{rec[1]}'" if rec else None
+    name = f"`{rec[0]}` '{rec[1].strip()}'" if rec else None
     if attr == "nutrition":
         out = ["Not in the dataset: there are no nutrition fields (no calories, macros, sodium, sugar or fibre), "
                "so I can't compute or estimate them from this data."]

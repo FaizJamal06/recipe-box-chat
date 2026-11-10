@@ -64,6 +64,7 @@ class Turn:
     result: object
     info: PlanInfo
     ms: int
+    notes: list = field(default_factory=list)  # state notes ("Kept your restrictions ...") shown above the reply
 
     @property
     def llm_calls(self) -> int:
@@ -73,6 +74,7 @@ class Turn:
         """'[planner: ... | LLM calls: n | latency]' (the visible rule-parser flag)."""
         src = {"llm": f"LLM {llm.model()}", "guard": "unsupported-attribute guard (no LLM needed)",
                "rule_direct": "rule parser (high-confidence pattern; LLM skipped)",
+               "ui": "state changed in the UI (no planner)",
                "rule": f"rule parser (LLM unavailable: {self.info.reason})"}[self.info.source]
         hits = sum(c.cached for c in self.info.calls)
         llm_ms = sum(c.ms for c in self.info.calls)
@@ -91,10 +93,22 @@ class Session:
 
     def __init__(self, con: sqlite3.Connection, ds: Dataset, use_llm: bool = True):
         self.con, self.ds, self.use_llm, self.state = con, ds, use_llm, SessionState()
+        self.notes: list[str] = []
+        self.ref_id: str | None = None  # recipe an unsupported-attribute question referred to
+
+    def rerun(self) -> Turn:
+        """Re-run the active task on the current state (after a chip removal / toggle in the UI)."""
+        t0, self.notes = time.perf_counter(), []
+        p = finish({"intent": self.state.active_task or "clarify"})
+        try:
+            reply, res = self._run("", p)
+        except stats.UnknownIngredient as e:
+            reply, res = f"I don't recognise '{e}' as an ingredient in this dataset.", None
+        return Turn(reply, p, res, PlanInfo("ui"), round((time.perf_counter() - t0) * 1000), self.notes)
 
     def respond(self, text: str) -> Turn:
         """Answer one message and update the state."""
-        t0 = time.perf_counter()
+        t0, self.notes, self.ref_id = time.perf_counter(), [], None
         attr = guard.check(text)
         if attr:
             p, info = finish({"intent": "unsupported", "unsupported": {"attribute": attr}}), PlanInfo("guard")
@@ -106,7 +120,7 @@ class Session:
         except stats.UnknownIngredient as e:
             reply, res = f"I don't recognise '{e}' as an ingredient in this dataset. {HELP}", None
         self.state.history = (self.state.history + [(text, reply.split("\n")[0][:150])])[-6:]
-        return Turn(reply, p, res, info, round((time.perf_counter() - t0) * 1000))
+        return Turn(reply, p, res, info, round((time.perf_counter() - t0) * 1000), self.notes)
 
     def _resolve(self, tg: dict, text: str) -> str | None:
         """Target -> a recipe id from last_results / selected only (never a planner-invented id)."""
@@ -173,7 +187,8 @@ class Session:
             attr = p["unsupported"]["attribute"]
             if attr in ("none", "other"):
                 return "That isn't a field in this dataset (it has titles, ingredient lines and instructions).", None
-            return guard.answer(con, ds, attr, text, self._resolve(p["target"], text))
+            self.ref_id = self._resolve(p["target"], text)  # the recipe the question is about (for the UI card)
+            return guard.answer(con, ds, attr, text, self.ref_id)
         if intent == "stats":
             return compose.stats_reply(res := execute_stats(con, ds, p), ds, p), res
         if intent == "recipe_detail":
@@ -189,7 +204,7 @@ class Session:
         d = p["state_patch"]
         if not d["query_text"] and not d["have_set"] and s.active_task:
             intent = s.active_task  # a bare restriction re-runs the current task
-        notes = self._apply(d)
+        notes = self.notes = self._apply(d)
         terms = lambda ws: [stats.term(w, ds) for w in ws]
         s.active_task = intent
         if intent == "match":

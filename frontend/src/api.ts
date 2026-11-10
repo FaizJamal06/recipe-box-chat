@@ -1,0 +1,93 @@
+// Types mirror backend/app/api.py + web.py. Every number shown in the UI comes from these payloads.
+
+export type ChipKind = "matched" | "extra" | "unused" | "violation" | "may_contain" | "ok";
+export type Chip = { kind: ChipKind; label: string; detail: string };
+
+export type Card = {
+  id: string;
+  title: string;
+  source: string;
+  n_ingredients: number;
+  n_steps: number;
+  chips: Chip[];
+  evidence?: string[];
+  score?: number;
+  parts?: Record<string, number>;
+  staples?: string[];
+};
+
+export type Calc = {
+  label: string;
+  value: unknown;
+  filters: string;
+  n_analyzed: number;
+  denominator: number;
+  method: string;
+  sql: string;
+  normalization_note: string;
+  notes: string[];
+};
+
+export type Recipe = {
+  id: string;
+  source: string;
+  title: string;
+  ingredients: string[];
+  steps: string[];
+  paragraph: boolean;
+  n_ingredients: number;
+  n_steps: number;
+  tags: Record<string, string>;
+  parsed: { line_no: number; raw: string; canonical: string | null; qty: number | null; unit: string | null;
+            is_alt: number; is_header: number; is_not_food: number }[];
+};
+
+export type Payload = {
+  type: "search" | "match" | "stats" | "recipe" | "unsupported" | "text";
+  cards: Card[];
+  calc?: Calc[];
+  total?: number;
+  alternatives?: { violates: string; cards: Card[] }[];
+  have?: string[];
+  rows?: { name: string; recipes: number }[];
+  recipe?: Recipe;
+  postcheck: { ids_in_reply: number; stripped: string[] };
+};
+
+export type State = {
+  active_task: string | null;
+  query_text: string | null;
+  include: string[];
+  exclude: string[];
+  exclude_tags: string[];
+  max_steps: number | null;
+  have: string[];
+  prefs: string[];
+  staples: boolean;
+  strict_may_contain: boolean;
+  selected_recipe_id: string | null;
+};
+
+export type Planner = { kind: "llm" | "rule" | "guard" | "ui"; detail: string; reason: string; calls: number;
+                        ms: number; prompt_tokens: number; turn_ms: number; model: string | null };
+
+export type ChatResponse = { session_id: string; reply_md: string; payload: Payload; state: State;
+                             trace: string[]; planner: Planner };
+
+async function call<T>(url: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || body.detail || `HTTP ${r.status}`);
+  return body as T;
+}
+
+export const api = {
+  chat: (session_id: string | null, message: string) =>
+    call<ChatResponse>("/api/chat", { method: "POST", body: JSON.stringify({ session_id, message }) }),
+  patch: (sid: string, op: "remove" | "set", field: string, value: unknown) =>
+    call<ChatResponse>(`/api/session/${sid}/state`, { method: "PATCH", body: JSON.stringify({ op, field, value }) }),
+  reset: (sid: string) => call<{ state: State }>(`/api/session/${sid}/reset`, { method: "POST" }),
+  // ids contain '/' and '.': encode it whole so the browser never normalizes a '..' segment
+  recipe: (id: string) => call<Recipe>(`/api/recipe/${encodeURIComponent(id)}`),
+  health: () => call<{ valid: number; total: number; llm: { model: string | null; status: string } }>("/api/health"),
+};

@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Warm "recipe box" editorial: cream paper, ink text, one tomato accent. */
+@theme {
+  --color-cream: #f6efe2;
+  --color-paper: #fffaf2;
+  --color-ink: #2b2420;
+  --color-ink-soft: #6b5f56;
+  --color-rule: #e3d7c3;
+  --color-tomato: #c4412c;
+  --color-tomato-soft: #f7ddd5;
+  --color-ok: #3d7a4f;
+  --color-ok-soft: #e2efe1;
+  --color-amber: #a8670f;
+  --color-amber-soft: #f7e7c8;
+  --color-grey: #857a70;
+  --color-grey-soft: #ece5d9;
+  --color-bad: #b42318;
+  --color-bad-soft: #fbe0dc;
+  --color-warn: #7c5800;
+  --color-warn-soft: #fbefc4;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--color-cream); color: var(--color-ink); font-family: var(--font-sans); }
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--color-rule) transparent; }
+@keyframes blink { 0%, 80%, 100% { opacity: .2 } 40% { opacity: 1 } }
+.dot { animation: blink 1.2s infinite both; }
+.dot:nth-child(2) { animation-delay: .2s; }
+.dot:nth-child(3) { animation-delay: .4s; }

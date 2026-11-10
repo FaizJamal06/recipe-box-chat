@@ -14,7 +14,7 @@ Eligible: 495 of 122,934 valid recipes (125,164 records; invalid: no_ingredients
   9. ar:1y7j2vPKV2KEQbMJ7GgJw1Z5X/yKF/S  Penne Pasta with Veggies — 11 ingredients, 5 steps
   10. ar:jfbKxlKg793qYyjjiDwAPlu.AOZgDZO  Portobello Penne Pasta Casserole — 11 ingredients, 4 steps
 SQL: SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM recipes_fts JOIN recipes r ON r.id = recipes_fts.id WHERE recipes_fts MATCH '"penne" "pasta"' AND r.valid = 1 ORDER BY (r.title LIKE '%penne pasta%') DESC, bm25(recipes_fts, 3.0, 1.0), r.id -- first 10 shown
-[planner: rule parser (LLM unavailable: no GEMINI_API_KEY) | LLM calls: 0, 0 ms | turn 55 ms]
+[planner: rule parser (LLM unavailable: no GEMINI_API_KEY) | LLM calls: 0, 0 ms | turn 46 ms]
 State: task=search · dish='penne pasta'
 
 > I cannot have dairy
@@ -41,7 +41,7 @@ Eligible: 81 of 122,934 valid recipes (125,164 records; invalid: no_ingredients 
   10. ar:kRoPOYpOULlZJJvfVyfZNStj4DNvQE6  Penne with Vegan Arrabbiata Sauce — 7 ingredients, 3 steps
        · no dairy: 0 dairy-tagged lines; checked 7 lines
 SQL: SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM recipes_fts JOIN recipes r ON r.id = recipes_fts.id WHERE recipes_fts MATCH '"penne" "pasta"' AND r.valid = 1 AND r.id NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = 'dairy' AND level IN ('contains')) ORDER BY (r.title LIKE '%penne pasta%') DESC, bm25(recipes_fts, 3.0, 1.0), r.id -- first 10 shown
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 984 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 837 ms]
 State: task=search · dish='penne pasta' · no dairy
 
 > show me the steps for the second one
@@ -59,7 +59,7 @@ Steps:
   2. Saute asparagus tips in garlic, olive oil, salt and pepper until tender. Add to the pasta along with the basil and sun-dried tomatoes. Toss to mix. Adjust seasonings as necessary. Refrigerate 1 hour or longer before serving.
 Restrictions check:
   · no dairy: 0 dairy-tagged lines; checked 7 lines
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 49 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 52 ms]
 State: task=search · dish='penne pasta' · no dairy · selected: fn:ck/foCIv1g.W0SyPMLF5DWS/ZdeQBRi
 
 > also no garlic
@@ -96,7 +96,7 @@ Eligible: 17 of 122,934 valid recipes (125,164 records; invalid: no_ingredients 
        · no garlic: 0 lines name or mention it; checked 14 lines
        · no dairy: 0 dairy-tagged lines; checked 14 lines
 SQL: SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM recipes_fts JOIN recipes r ON r.id = recipes_fts.id WHERE recipes_fts MATCH '"penne" "pasta"' AND r.valid = 1 AND r.id NOT IN (SELECT recipe_id FROM ingredient_lines WHERE is_alt = 0 AND (family IN ('garlic','dried garlic','garlic flake','garlic powder','garlic salt','granulated garlic') OR canonical IN ('garlic','dried garlic','garlic flake','garlic powder','garlic salt','granulated garlic'))) AND r.id NOT IN (SELECT id FROM recipes_fts WHERE recipes_fts MATCH 'ingredients : ("garlic" OR "dried garlic" OR "garlic flake" OR "garlic powder" OR "garlic salt" OR "granulated garlic")') AND r.id NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = 'dairy' AND level IN ('contains')) ORDER BY (r.title LIKE '%penne pasta%') DESC, bm25(recipes_fts, 3.0, 1.0), r.id -- first 10 shown
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 1588 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 1794 ms]
 State: task=search · dish='penne pasta' · no dairy · no garlic · selected: fn:ck/foCIv1g.W0SyPMLF5DWS/ZdeQBRi
 
 =================== demo4_unsupported ===================
@@ -115,7 +115,7 @@ Eligible: 309 of 122,934 valid recipes (125,164 records; invalid: no_ingredients
   9. ar:TJFqS5qmSUVcBw7c2Da99BzhmvnbgCm  Rich and Delicious Banana Bread — 6 ingredients, 3 steps
   10. ar:pW/G7uT3a0khPJWk/AzOieElj4cz2ku  The Best Banana Bread — 6 ingredients, 3 steps
 SQL: SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM recipes_fts JOIN recipes r ON r.id = recipes_fts.id WHERE recipes_fts MATCH '"banana" "bread"' AND r.valid = 1 ORDER BY (r.title LIKE '%banana bread%') DESC, bm25(recipes_fts, 3.0, 1.0), r.id -- first 10 shown
-[planner: rule parser (LLM unavailable: no GEMINI_API_KEY) | LLM calls: 0, 0 ms | turn 31 ms]
+[planner: rule parser (LLM unavailable: no GEMINI_API_KEY) | LLM calls: 0, 0 ms | turn 23 ms]
 State: task=search · dish='banana bread'
 
 > show me the first one
@@ -130,12 +130,12 @@ Ingredients (original lines):
 Steps:
   1. In a shallow bowl, whisk together the eggs, sweetened condensed milk and vanilla with a fork. Set aside.
   2. Melt butter in a large skillet over medium heat. Slice banana bread into 4 thick slices. Dip each slice into the egg mixture, then place in the hot pan. Cook on each side until golden brown. Dust with confectioners' sugar just before serving, if desired.
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 3 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 1 ms]
 State: task=search · dish='banana bread' · selected: ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La
 
 > How many calories are in that one?
 Not in the dataset: there are no nutrition fields (no calories, macros, sodium, sugar or fibre), so I can't compute or estimate them from this data.
-What the data does have for ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La 'Banana Bread French Toast': its 6 ingredient lines:
+What the data does have for `ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La` 'Banana Bread French Toast': its 6 ingredient lines:
   - 3 eggs
   - 3 tablespoons sweetened condensed milk
   - 1 teaspoon vanilla extract
@@ -147,7 +147,7 @@ State: task=search · dish='banana bread' · selected: ar:GiHk4/Wm95WTxwkxlmJtSm
 
 > How long does it take to make?
 Not in the dataset: there is no cook-time or prep-time field.
-Durations mentioned in the instructions of ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La 'Banana Bread French Toast' (mentioned in instructions, not a total time; steps may overlap or be missing times):
+Durations mentioned in the instructions of `ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La` 'Banana Bread French Toast' (mentioned in instructions, not a total time; steps may overlap or be missing times):
   (no durations mentioned)
 [planner: unsupported-attribute guard (no LLM needed) | LLM calls: 0, 0 ms | turn 0 ms]
 State: task=search · dish='banana bread' · selected: ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La
@@ -164,7 +164,7 @@ Mean number of ingredients (title has any of: cake, cookie, pie, brownie, puddin
 Analyzed: 17,097 of 122,934 valid recipes (125,164 records; invalid: no_ingredients 1,628, empty_record 517, no_title 52, no_instructions 33)
 Method: mean of n_ingredients over 17,097 matching valid recipes.
 SQL: SELECT r.n_ingredients FROM recipes r WHERE r.valid = 1 AND r.id IN (SELECT id FROM recipes_fts WHERE recipes_fts MATCH 'title : ("cake" OR "cookie" OR "pie" OR "brownie" OR "pudding" OR "tart" OR "cupcake" OR "cheesecake" OR "fudge" OR "mousse" OR "cobbler" OR "ice cream" OR "sorbet" OR "dessert")')
-[planner: unsupported-attribute guard (no LLM needed) | LLM calls: 0, 0 ms | turn 501 ms]
+[planner: unsupported-attribute guard (no LLM needed) | LLM calls: 0, 0 ms | turn 298 ms]
 State: task=search · dish='banana bread' · selected: ar:GiHk4/Wm95WTxwkxlmJtSmHUBdpv2La
 
 =================== demo5_match ===================
@@ -191,7 +191,7 @@ Score = 3·matched − 1.5·extra − 0.1·steps − 0.5·short-quantity items; 
        matched (3): onion, tomato, rice · unused: egg · extra (3): vegetable oil, zucchini, green bell pepper · staples used: black pepper, salt, water
        why here: uses 3 of your 4 ingredients, needs 3 more, 2 steps.
 SQL: WITH cand AS (SELECT r.id, r.title, r.n_steps FROM recipes r WHERE r.valid = 1 AND r.id NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = 'peanut' AND level IN ('contains')) AND r.n_steps <= 6 AND r.id IN (SELECT recipe_id FROM ingredient_lines WHERE is_alt = 0 AND ((family = 'egg') OR (family = 'onion') OR (family = 'tomato') OR (family = 'rice')))) SELECT c.id, c.title, c.n_steps, COUNT(DISTINCT CASE WHEN NOT COALESCE(((family = 'egg') OR (family = 'onion') OR (family = 'tomato') OR (family = 'rice')), 0) AND NOT COALESCE(canonical IN ('salt','black pepper','water'), 0) THEN COALESCE(l.canonical, l.raw) END), MAX(CASE WHEN family = 'egg' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'onion' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'tomato' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'rice' THEN 1 ELSE 0 END) FROM cand c JOIN ingredient_lines l ON l.recipe_id = c.id WHERE l.is_alt = 0 AND l.is_header = 0 AND l.is_not_food = 0 GROUP BY c.id
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 5558 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 4443 ms]
 State: task=match · no peanut · max 6 steps · have: eggs, onions, tomatoes, rice · prefs: use_most, fewest_extra
 
 > Exclude eggs too.
@@ -217,7 +217,7 @@ Score = 3·matched − 1.5·extra − 0.1·steps − 0.5·short-quantity items; 
        matched (2): onion, rice · unused: tomato · extra (1): carrot · staples used: salt, water
        why here: uses 2 of your 3 ingredients, needs 1 more, 2 steps; same score as #4, ordered by the tie-break.
 SQL: WITH cand AS (SELECT r.id, r.title, r.n_steps FROM recipes r WHERE r.valid = 1 AND r.id NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = 'peanut' AND level IN ('contains')) AND r.id NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = 'egg' AND level IN ('contains')) AND r.n_steps <= 6 AND r.id IN (SELECT recipe_id FROM ingredient_lines WHERE is_alt = 0 AND ((family = 'onion') OR (family = 'tomato') OR (family = 'rice')))) SELECT c.id, c.title, c.n_steps, COUNT(DISTINCT CASE WHEN NOT COALESCE(((family = 'onion') OR (family = 'tomato') OR (family = 'rice')), 0) AND NOT COALESCE(canonical IN ('salt','black pepper','water'), 0) THEN COALESCE(l.canonical, l.raw) END), MAX(CASE WHEN family = 'onion' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'tomato' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'rice' THEN 1 ELSE 0 END) FROM cand c JOIN ingredient_lines l ON l.recipe_id = c.id WHERE l.is_alt = 0 AND l.is_header = 0 AND l.is_not_food = 0 GROUP BY c.id
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 3419 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 2672 ms]
 State: task=match · no peanut · no egg · max 6 steps · have: eggs, onions, tomatoes, rice · prefs: use_most, fewest_extra
 
 =================== demo5_qty ===================
@@ -251,7 +251,7 @@ Score = 2·matched − 1·extra − 0.1·steps − 0.5·short-quantity items; ti
        qty: egg: sufficient (recipe needs 1, you have 2)
        qty: rice: sufficient (recipe needs 0.75 cup, you have 1 cup)
 SQL: WITH cand AS (SELECT r.id, r.title, r.n_steps FROM recipes r WHERE r.valid = 1 AND r.id IN (SELECT recipe_id FROM ingredient_lines WHERE is_alt = 0 AND ((family = 'egg') OR (family = 'rice')))) SELECT c.id, c.title, c.n_steps, COUNT(DISTINCT CASE WHEN NOT COALESCE(((family = 'egg') OR (family = 'rice')), 0) AND NOT COALESCE(canonical IN ('salt','black pepper','water'), 0) THEN COALESCE(l.canonical, l.raw) END), MAX(CASE WHEN family = 'egg' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'rice' THEN 1 ELSE 0 END) FROM cand c JOIN ingredient_lines l ON l.recipe_id = c.id WHERE l.is_alt = 0 AND l.is_header = 0 AND l.is_not_food = 0 GROUP BY c.id
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 5480 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 3205 ms]
 State: task=match · have: 2 eggs, 1 cup rice
 
 =================== demo6_nomatch ===================
@@ -279,7 +279,7 @@ Score = 2·matched − 1·extra − 0.1·steps − 0.5·short-quantity items; ti
        matched (1): marshmallow · unused: saffron · extra (2): chocolate graham cracker, creme de menthe thin
        why here: uses 1 of your 2 ingredients, needs 2 more, 2 steps; same score as #4, ordered by the tie-break.
 SQL: WITH cand AS (SELECT r.id, r.title, r.n_steps FROM recipes r WHERE r.valid = 1 AND r.id NOT IN (SELECT recipe_id FROM ingredient_lines WHERE is_alt = 0 AND (family IN ('sugar','agave nectar','corn syrup','honey','maple syrup','molasses') OR canonical IN ('sugar','agave nectar','corn syrup','honey','maple syrup','molasses'))) AND r.id NOT IN (SELECT id FROM recipes_fts WHERE recipes_fts MATCH 'ingredients : ("sugar" OR "agave nectar" OR "corn syrup" OR "honey" OR "maple syrup" OR "molasses")') AND r.n_steps <= 2 AND r.id IN (SELECT recipe_id FROM ingredient_lines WHERE is_alt = 0 AND ((family = 'saffron') OR (family = 'marshmallow')))) SELECT c.id, c.title, c.n_steps, COUNT(DISTINCT CASE WHEN NOT COALESCE(((family = 'saffron') OR (family = 'marshmallow')), 0) AND NOT COALESCE(canonical IN ('salt','black pepper','water'), 0) THEN COALESCE(l.canonical, l.raw) END), MAX(CASE WHEN family = 'saffron' THEN 1 ELSE 0 END), MAX(CASE WHEN family = 'marshmallow' THEN 1 ELSE 0 END) FROM cand c JOIN ingredient_lines l ON l.recipe_id = c.id WHERE l.is_alt = 0 AND l.is_header = 0 AND l.is_not_food = 0 GROUP BY c.id
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 1934 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 1146 ms]
 State: task=match · no sugar · max 2 steps · have: saffron, marshmallows
 
 > at most 1 step
@@ -294,6 +294,6 @@ No recipe satisfies all hard constraints
     1. ar:umtjmgkdBPjH9cHEWRPWXVuh5J4zwei  Shudderuppers — matched: marshmallow · extra (1): individually wrapped caramel · 2 steps
     2. fn:IsW9V0dzgX4/umI4vuoq1.A0Lz.hpIy  Chocolate S'mores — matched: marshmallow · extra (1): digestive biscuit · 2 steps
     3. fn:XoWfnMsxa8gJ4nIoAhk/wn8PPJ.52oy  Samoa S'mores — matched: marshmallow · extra (1): cookie · 3 steps
-[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 2340 ms]
+[planner: rule parser (high-confidence pattern; LLM skipped) | LLM calls: 0, 0 ms | turn 2394 ms]
 State: task=match · no sugar · max 1 steps · have: saffron, marshmallows
 

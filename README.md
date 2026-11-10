@@ -1,7 +1,19 @@
 # Recipe Box chatbot
 
-Status: **M3 done** (LLM planner with rule fallback, sticky sessions, T2 matching, unsupported-attribute guard;
-demos 1–6 run as CLI sessions, transcripts in `demos/transcripts/`). Spec: [PRD.md](PRD.md). Data findings: [docs/DATA_PROFILE.md](docs/DATA_PROFILE.md).
+Status: **M4 done** (web UI + API: chat, constraint chips, Results / Calculation / Evidence / Trace panel,
+recipe drawer; demos 1–6 run in the browser and as CLI sessions, transcripts in `demos/transcripts/`).
+Spec: [PRD.md](PRD.md). Data findings: [docs/DATA_PROFILE.md](docs/DATA_PROFILE.md).
+
+## Run it locally
+
+```
+python -m backend.app.ingest                      # once: build data/recipes.db (needs data/raw, see make data)
+cd frontend; npm ci; npm run build; cd ..         # build the UI into frontend/dist
+python -m uvicorn app.api:app --app-dir backend --port 8000
+```
+Open http://127.0.0.1:8000. The UI talks to `/api/*` on the same server. For UI work with hot reload, keep the
+server running and use `cd frontend; npm run dev` (http://localhost:5173, proxies `/api`).
+A link like `/?q=Find+a+penne+pasta+recipe&q=I+cannot+have+dairy` replays those messages on load.
 
 ## Commands
 
@@ -19,11 +31,14 @@ Each `make` target is one command you can run directly (no `make` needed; PowerS
 | — | `python scripts/determinism.py` | build the DB twice (different hash seeds) and compare fingerprints (~6 min alone) |
 | `make peek` | `python scripts/peek.py --n 3` | print 3 truncated records per file (never open `data/raw/` directly) |
 | `make profile` | `python scripts/profile_data.py` | write `docs/DATA_PROFILE.md` |
-| `make run` | `python -m uvicorn app.api:app --app-dir backend --port 8000 --reload` | serve the API; try http://127.0.0.1:8000/api/health |
-| `make docker` | `docker build -t recipe-box . ; docker run --rm -p 8000:8000 recipe-box` | the image Railway builds (listens on `$PORT`, default 8000) |
+| `make ui` | `cd frontend; npm ci; npm run build` | build the React UI into `frontend/dist` (served by FastAPI) |
+| `make run` | `python -m uvicorn app.api:app --app-dir backend --port 8000` | serve the UI + API on http://127.0.0.1:8000 (`/api/health` for counts, fingerprint, LLM status) |
+| `make docker` | `docker build -t recipe-box . ; docker run --rm -p 8000:8000 -e GEMINI_API_KEY=... recipe-box` | the image Railway builds: node stage builds the UI, builder stage builds the DB (listens on `$PORT`, default 8000) |
 
 Activate the venv before `run`: `.\.venv\Scripts\Activate.ps1` (Windows) or `. .venv/bin/activate`.
-More targets (eval, ui) arrive with their milestones.
+API: `POST /api/chat {session_id, message}` → `{reply_md, payload, state, trace, planner}`; `GET /api/recipe/{id}`;
+`PATCH /api/session/{id}/state {op: remove|set, field, value}` (re-runs the active task); `POST /api/session/{id}/reset`;
+`GET /api/health`. Sessions are in memory (30 min TTL), 10 messages/min per session.
 
 Counting rules every answer states: N of the **valid** recipes (title + at least one real ingredient line + instructions; the
 record total and invalid breakdown are read from the DB at startup). Steps = effective `n_steps` (newline steps;
