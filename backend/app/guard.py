@@ -1,14 +1,18 @@
 """Unsupported-attribute guard (PRD 5.3): deterministic, runs before any planner output is trusted.
 
-The dataset has no nutrition, cook-time, servings, rating or category field. These questions are answered
-here (no LLM call): say what is missing, then offer what the data does have, clearly labelled:
+The dataset has no nutrition, cook-time, servings, rating, category or cuisine field. These questions are
+answered here (no planner call): say what is missing, then offer what the data does have, clearly labelled:
 cook time -> durations *mentioned in the instructions* (not a total time); category -> a title-keyword proxy
-with its keyword list shown, computed by the normal stats executor.
+computed by the stats executor; cuisine -> a title-keyword search (lexicon/cuisines.yaml + optional LLM dish
+names, every keyword listed, honest count even when zero; the session runs it, see session._run).
 """
 import re
 import sqlite3
 
-from . import compose, stats
+import yaml
+
+from . import compose, llm, stats
+from . import normalize as nz
 from .db import Dataset
 from .rules import rule_plan
 
@@ -34,12 +38,53 @@ _CAT_KEY = {"sweets": "dessert", "cocktail": "drink", "beverage": "drink"}
 DURATION = re.compile(r"\b\d+(?:\s*(?:-|to)\s*\d+)?\s*(?:minutes?|mins?|hours?|hrs?)\b", re.I)
 
 
+CUISINES = yaml.safe_load((nz.LEX / "cuisines.yaml").read_text(encoding="utf-8"))
+_CUISINE = re.compile(r"\b(" + "|".join(sorted(map(re.escape, CUISINES), key=len, reverse=True)) + r")\b"
+                      r"(?!\s+(?:sausage|seasoning|dressing|bread|parsley|herbs?|cheese|style|blend|spices?|salad dressing))")
+_CUISINE_CTX = re.compile(r"\b(?:dish|dishes|recipes?|food|cuisine|meals?|cooking|something|anything|ideas?|dinner|lunch)"
+                          r"\b|^(?:any|find|show|suggest|give|some)\b")
+EXPAND_SYSTEM = ("List typical dishes of the cuisine as they would appear in English recipe titles: 3 to 8 names, "
+                 "1 to 3 words each, no explanations.")
+EXPAND_SCHEMA = {"type": "object", "properties": {"dishes": {"type": "array", "items": {"type": "string"}}},
+                 "required": ["dishes"]}
+
+
+def cuisine_of(text: str) -> str | None:
+    """'Gujarati dishes' -> 'gujarati'; 'italian sausage recipe' -> None (an ingredient, not a cuisine)."""
+    t = text.lower()
+    m = _CUISINE.search(t)
+    return m.group(1) if m and _CUISINE_CTX.search(t) else None
+
+
+def _dishes(d: dict) -> list[str]:
+    xs = [x.strip().lower() for x in d["dishes"] if isinstance(x, str)]
+    xs = [x for x in xs if re.fullmatch(r"[a-z][a-z' -]{1,30}", x) and len(x.split()) <= 3][:8]
+    if not xs:
+        raise ValueError("no dish names")
+    return xs
+
+
+def cuisine_keywords(cuisine: str, use_llm: bool = True) -> tuple[list, list, list]:
+    """(built-in keywords, LLM-suggested extra dish names, llm calls). The LLM part is optional (4 s, cached)."""
+    base = [cuisine, *CUISINES.get(cuisine, [])]
+    if not (use_llm and llm.available()):
+        return base, [], []
+    try:
+        extra, calls = llm.generate_json(EXPAND_SYSTEM, f"Cuisine: {cuisine}", EXPAND_SCHEMA, _dishes,
+                                         timeout_ms=4000, attempts=1, label="cuisine")
+    except llm.LLMError as e:
+        return base, [], e.calls
+    return base, [x for x in extra if x not in base], calls
+
+
 def check(text: str) -> str | None:
     """The unsupported attribute a message asks about, or None. Category only for dataset-stats questions."""
     t = text.lower()
     for attr, rx in (("nutrition", NUTRITION), ("cook_time", COOK_TIME), ("servings", SERVINGS), ("rating", RATING)):
         if rx.search(t):
             return attr
+    if cuisine_of(t):
+        return "cuisine"
     return "category" if _CAT.search(t) and STATS_WORDS.search(t) else None
 
 

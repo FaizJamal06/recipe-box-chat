@@ -13,6 +13,7 @@ Quantities are compared only within one unit family (volume / mass via units.yam
 the same unit or none); never volume<->mass. Otherwise: name-level match, quantity not verified.
 No eligible recipe -> MatchResult.rows is empty and .alternatives relaxes one named constraint at a time.
 """
+import re
 import sqlite3
 from dataclasses import dataclass, field
 
@@ -74,10 +75,26 @@ def _hits(t: Term, canonical: str | None, family: str | None) -> bool:
     return family == t.family if t.canonical == t.family else canonical == t.canonical
 
 
+def _segment(s: str, vocab) -> list[str] | None:
+    """'eggs spinach' (no comma) -> ['eggs', 'spinach'] when the words split, longest first, into known
+    canonicals that keep all their words ('goat cheese' is one canonical, so it is never split)."""
+    words, out, i = s.split(), [], 0
+    while i < len(words):
+        for j in range(len(words), i, -1):
+            c = nz.normalize(" ".join(words[i:j]), vocab)
+            if c and c[0] in vocab and len(c[0].split()) >= j - i:
+                out.append(" ".join(words[i:j]))
+                i = j
+                break
+        else:
+            return None
+    return out if len(out) > 1 else None
+
+
 def parse_have(items: list[str], ds: Dataset) -> tuple[list[Have], list[str]]:
     """'2 eggs' -> Have(egg, qty 2); names the dataset doesn't know go to `unknown`."""
     have, unknown, seen = [], [], set()
-    for s in items:
+    for s in [x for item in items for x in (_segment(item, ds.vocab) if not re.search(r"\d", item) else None) or [item]]:
         p = nz.parse_line(s, ds.vocab)
         p = p[0] if p and p[0].name else None
         if not p or p.name.canonical not in ds.vocab:

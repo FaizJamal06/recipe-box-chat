@@ -151,6 +151,8 @@ def convert(source: str, key: str, rec: dict) -> tuple:
         if items and (items[0].is_header or items[0].not_food):  # kept, but not an ingredient
             rows.append((rid, n, s, None, None, None, None, None, None, None, int(items[0].is_header), 0,
                          int(items[0].not_food)))
+            if items[0].is_header and (lt := nz.line_tags(s)):  # 'Pie Crust, recipe follows': still tags it
+                parsed.append((n, [], lt))
             continue
         real.append(s)
         parsed.append((n, items, nz.line_tags(s)))

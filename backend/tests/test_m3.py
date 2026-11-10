@@ -132,7 +132,7 @@ def fake_llm(monkeypatch, tmp_path):
     monkeypatch.setattr(llm, "LLM_CACHE", tmp_path / "cache.sqlite")
     queue = []
 
-    def remote(system, prompt, schema):
+    def remote(system, prompt, schema, timeout_ms=None):
         x = queue.pop(0)
         if isinstance(x, Exception):
             raise x

@@ -68,11 +68,13 @@ export type State = {
   selected_recipe_id: string | null;
 };
 
-export type Planner = { kind: "llm" | "rule" | "guard" | "ui"; detail: string; reason: string; calls: number;
-                        ms: number; prompt_tokens: number; turn_ms: number; model: string | null };
+export type Planner = { kind: "llm" | "rule" | "guard" | "ui"; detail: string; label: string; reason: string;
+                        calls: number; ms: number; prompt_tokens: number; errors: string[]; turn_ms: number;
+                        model: string | null };
+export type Suggestion = { label: string; message: string };
 
-export type ChatResponse = { session_id: string; reply_md: string; payload: Payload; state: State;
-                             trace: string[]; planner: Planner };
+export type ChatResponse = { session_id: string; reply_md: string; voice: string | null; payload: Payload;
+                             state: State; trace: string[]; planner: Planner; suggestions: Suggestion[] };
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });

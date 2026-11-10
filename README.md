@@ -25,7 +25,8 @@ Each `make` target is one command you can run directly (no `make` needed; PowerS
 | `make data` | `python scripts/download.py` | download + unzip the dataset into `data/raw/` |
 | `make db` | `python -m backend.app.ingest` | build `data/recipes.db` (~3.5 min, peak RSS ~330 MB; prints peak memory) |
 | `make test` | `python -m pytest -q -x` | unit tests + a DB build from `backend/tests/fixtures/mini.json` |
-| `make coverage` | `python scripts/coverage.py` | normalization report; rewrites the coverage section of `docs/DATA_PROFILE.md` |
+| `make coverage` | `python scripts/coverage.py ; python scripts/audit_tags.py` | normalization report (rewrites the coverage section of `docs/DATA_PROFILE.md`) + family-tag consistency audit (members whose tags differ from their family) |
+| — | `python eval/explore.py` | exploratory run of `eval/explore.txt` through the API; transcripts in `eval/explore_transcripts/` |
 | `make cli` | `python -m backend.app.cli` (or `--ask "..."`, `--session demos/demo1_refine.txt`, `--no-llm`) | chat in the terminal; one sticky session; prints planner (LLM / rule parser + why), LLM calls and latency per turn |
 | `make oracle` | `python eval/oracle.py` | recompute demos 2 and 3 from the raw JSON in pure Python and check the CLI answers (~2.5 min) |
 | — | `python scripts/determinism.py` | build the DB twice (different hash seeds) and compare fingerprints (~6 min alone) |
@@ -53,7 +54,17 @@ plan; at most 2 requests per turn (the 2nd only to retry invalid JSON); response
 "the second one", short restriction-only messages like "also no garlic") skip the LLM and use the rule parser
 directly. No key, a 429, a network error or no answer within 6 s → the rule parser, flagged in the reply.
 The 6 s limit is client-side (the API rejects deadlines under 10 s); google-genai's ~6 s cold import is paid
-at startup (`llm.warm()`), not inside a turn. Nutrition, cook time, servings,
+at startup (`llm.warm()`), not inside a turn.
+
+Voice (LLM call #2, UI only): after the executor runs, the LLM writes a 2–4 sentence friendly reply from the
+payload's facts only (counts, titles, IDs, filters, score parts). Every number, number word and recipe ID in it
+must appear in those facts, otherwise the templated answer is shown alone (4 s cap, cached, skipped when the
+planner used both calls). The templated "exact answer", the cards and the Calculation tab are unchanged.
+Conversation: greetings / thanks / "what can you do" / off-topic get short fixed replies; "why that one?" is
+answered from the score breakdown or ranking evidence; a contradiction ("vegan chicken curry") gets one short
+question; each answer offers 2–3 follow-up chips. Cuisine questions (no cuisine field) run a labelled
+title-keyword proxy (`lexicon/cuisines.yaml` + optional LLM dish names), honest count even when zero.
+Wheat allergy maps to the gluten tag, said in the reply (stricter: also excludes barley and rye). Nutrition, cook time, servings,
 ratings and categories have no field: the guard answers those without the LLM (category → a labelled
 title-keyword proxy; cook time → durations mentioned in the instructions).
 

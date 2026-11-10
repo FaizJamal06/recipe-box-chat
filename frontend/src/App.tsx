@@ -23,7 +23,8 @@ export default function App() {
   const show = useCallback((r: ChatResponse, keepTab = false) => {
     sidRef.current = r.session_id; setSid(r.session_id);
     setResp(r); setState(r.state);
-    setMessages((m) => [...m, { role: "bot", md: r.reply_md, planner: r.planner, trace: r.trace }]);
+    setMessages((m) => [...m, { role: "bot", md: r.reply_md, voice: r.voice, planner: r.planner, trace: r.trace,
+                                suggestions: r.suggestions ?? [] }]);
     setDrawer(r.payload.type === "recipe" && r.payload.recipe ? r.payload.recipe.id : null);
     if (!keepTab) setTab(r.payload.cards.length || r.payload.type === "match" ? "results" : r.payload.calc?.length ? "calc" : "trace");
   }, []);

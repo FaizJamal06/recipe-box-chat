@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { Planner, State } from "../api";
+import type { Planner, State, Suggestion } from "../api";
 import { ConstraintBar } from "./ConstraintBar";
 import { Markdown } from "./Markdown";
 
-export type Msg = { role: "user"; text: string } | { role: "bot"; md: string; planner: Planner; trace: string[] }
+export type Msg = { role: "user"; text: string }
+  | { role: "bot"; md: string; voice: string | null; planner: Planner; trace: string[]; suggestions: Suggestion[] }
   | { role: "error"; text: string };
 
 export const DEMO_PROMPTS = [
@@ -18,15 +19,25 @@ export const DEMO_PROMPTS = [
 
 function PlannerBadge({ p }: { p: Planner }) {
   const secs = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`);
+  const calls = `${p.calls} LLM call${p.calls === 1 ? "" : "s"}`;
   if (p.kind === "llm")
-    return <span className="text-ink-soft" title={`${p.calls} LLM call(s), ${p.prompt_tokens} prompt tokens`}>
-      LLM · {p.model} · {secs(p.turn_ms)}</span>;
-  const label = { rule: "rule parser", guard: "unsupported-attribute guard", ui: "chip change" }[p.kind];
-  const why = p.kind === "rule" ? (p.detail === "rule_direct" ? "high-confidence pattern, LLM skipped" : `LLM unavailable: ${p.reason}`)
-    : p.kind === "guard" ? "answered without the LLM" : "state edited in the UI";
+    return <span className="text-ink-soft" title={`${calls}, ${p.prompt_tokens} prompt tokens`}>{p.label} · {secs(p.turn_ms)}</span>;
   return <span className="inline-flex items-center gap-1.5">
-    <span title={why} className="rounded-full border border-tomato/40 bg-tomato-soft px-2 py-px font-medium text-tomato">{label}</span>
-    <span className="text-ink-soft">{why} · {secs(p.turn_ms)}</span></span>;
+    <span title={p.reason || p.label} className="rounded-full border border-tomato/40 bg-tomato-soft px-2 py-px font-medium text-tomato">{p.label}</span>
+    <span className="text-ink-soft">{calls} · {secs(p.turn_ms)}</span></span>;
+}
+
+/** Collapsed by default and rendered only when opened (a closed <details> list leaked empty "1. 2. 3." markers). */
+function Trace({ steps }: { steps: string[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2 border-t border-rule/70 pt-1.5 text-[12px] text-ink-soft">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="cursor-pointer select-none hover:text-ink">
+        {open ? "▾" : "▸"} trace · {steps.length} steps</button>
+      {open && <div className="mt-1 space-y-0.5 font-mono text-[11px]">{steps.map((t, i) =>
+        <div key={i} className="flex gap-2"><span className="w-4 shrink-0 text-right text-ink-soft/70">{i + 1}.</span><span>{t}</span></div>)}</div>}
+    </div>
+  );
 }
 
 function Bubble({ m, onOpen }: { m: Msg; onOpen: (id: string) => void }) {
@@ -39,11 +50,12 @@ function Bubble({ m, onOpen }: { m: Msg; onOpen: (id: string) => void }) {
       <div className="mb-1 flex items-center gap-2 text-[11.5px]"><span className="font-display font-semibold text-tomato">Recipe Box</span>
         <PlannerBadge p={m.planner} /></div>
       <div className="rounded-2xl rounded-tl-sm border border-rule bg-paper px-4 py-3 text-[14.5px] shadow-[0_1px_0_rgba(43,36,32,0.05)]">
-        <Markdown md={m.md} onOpen={onOpen} />
-        <details className="mt-2 border-t border-rule/70 pt-1.5 text-[12px] text-ink-soft">
-          <summary className="cursor-pointer select-none hover:text-ink">trace · {m.trace.length} steps</summary>
-          <ol className="mt-1 list-decimal space-y-0.5 pl-5 font-mono text-[11px]">{m.trace.map((t, i) => <li key={i}>{t}</li>)}</ol>
-        </details>
+        {m.voice && <p className="mb-2 text-[15px] leading-relaxed text-ink">{m.voice}</p>}
+        <div className={m.voice ? "border-t border-rule/70 pt-2 text-[13px] text-ink-soft" : ""}>
+          {m.voice && <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-soft/80">Exact answer</div>}
+          <Markdown md={m.md} onOpen={onOpen} />
+        </div>
+        <Trace steps={m.trace} />
       </div>
     </div>
   );
@@ -57,6 +69,7 @@ export function ChatPane({ messages, loading, state, onSend, onPatch, onReset, o
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, loading]);
   const send = () => { const t = text.trim(); if (t && !loading) { onSend(t); setText(""); } };
+  const last = messages[messages.length - 1];
   return (
     <section className="flex min-h-0 flex-col">
       <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6">
@@ -71,6 +84,11 @@ export function ChatPane({ messages, loading, state, onSend, onPatch, onReset, o
             </div>
           </div>)}
         {messages.map((m, i) => <Bubble key={i} m={m} onOpen={onOpen} />)}
+        {!loading && last?.role === "bot" && last.suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2 pl-1" aria-label="Suggested follow-ups">{last.suggestions.map((s) =>
+            <button key={s.message} type="button" onClick={() => onSend(s.message)} title={s.message}
+                    className="rounded-full border border-tomato/30 bg-paper px-3 py-1 text-[13px] text-tomato transition hover:bg-tomato-soft cursor-pointer">
+              {s.label}</button>)}</div>)}
         {loading && <div className="flex items-center gap-2 text-[13.5px] text-ink-soft" aria-live="polite">
           <span className="font-display font-semibold text-tomato">Recipe Box</span> thinking
           <span><span className="dot">.</span><span className="dot">.</span><span className="dot">.</span></span></div>}

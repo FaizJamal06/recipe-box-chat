@@ -1,0 +1,40 @@
+# Exploratory messages a real person might send. Each "## " block is also run as its own fresh session.
+## everyday chat + wheat allergy + references
+hi there
+wat can u do?
+find me a chiken curry recipe
+im allergic to wheat
+show me the 3rd one
+why that one?
+no nuts either pls
+thanks!
+## pantry
+i got eggs spinach and feta, what can i make
+exclude eggs too
+fewer ingredients??
+## cuisines + Hinglish
+Gujarati dishes
+any italian recipes without meat
+paneer ki koi recipe batao
+## diets + contradictions
+something vegan for dinner
+vegan chicken curry
+im allergic to shellfish, find a paella recipe
+gluten free pasta recipes
+## vague + off-topic
+something quick for dinner
+whats the weather like today
+tell me a joke
+how many calories in a big mac
+## stats
+how many recipes have garlic but no onion
+which 3 recipes have the most ingredients
+average steps for recipes with chicken
+how many recipes are nut free
+## multi-constraint follow-ups
+find a soup recipe
+no dairy
+also at most 4 steps
+dairy is fine now
+the second one
+why did you pick this one?

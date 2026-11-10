@@ -6,54 +6,21 @@ restrictions (they are about the person, not the dish), said once. "The second o
 from last_results / selected_recipe_id only, so a recipe id the planner made up is never used.
 The CLI, the API and eval/oracle.py all go through Session.respond (respond() = a fresh one-turn session).
 """
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
 
-from . import compose, guard, llm, match, search, stats
+from . import compose, guard, llm, match, search, stats, talk
 from . import normalize as nz
 from .db import Dataset
 from .planner import PlanInfo, finish, plan as make_plan
-from .rules import TAG_WORDS, target as rule_target
+from .rules import TAG_WORDS, rule_plan, target as rule_target
+from .state import SessionState  # noqa: F401 (re-exported)
 
 HELP = ("I can answer, for example: 'How many recipes contain garlic and onion?', 'Among recipes containing "
         "tomato, which five have the fewest steps?', 'Find a penne pasta recipe', 'I cannot have dairy', "
         "'I have eggs, onions and rice', 'show me the steps for the second one'.")
-
-
-@dataclass
-class SessionState:
-    """Sticky conversation state (PRD 5.1); shown to the user as chips."""
-    active_task: str | None = None  # 'search' | 'match' (what a new restriction re-runs)
-    query_text: str | None = None
-    include: list = field(default_factory=list)
-    exclude: list = field(default_factory=list)  # plain words, canonicalized at execution
-    exclude_tags: list = field(default_factory=list)
-    max_steps: int | None = None
-    have: list = field(default_factory=list)  # as typed, quantities included ("2 eggs")
-    prefs: list = field(default_factory=list)  # use_most / fewest_extra / fewest_steps / no_staples
-    limit: int | None = None
-    strict_may_contain: bool = False
-    last_results: list = field(default_factory=list)  # recipe ids in displayed order
-    titles: dict = field(default_factory=dict)
-    selected_recipe_id: str | None = None
-    history: list = field(default_factory=list)  # (user text, first reply line), last 6
-    kept_note: bool = False
-
-    @property
-    def last_titles(self) -> list[tuple[str, str]]:
-        return [(i, self.titles.get(i, "")) for i in self.last_results]
-
-    def chips(self) -> str:
-        """One-line view of the state."""
-        c = [f"task={self.active_task}"] if self.active_task else []
-        c += [f"dish='{self.query_text}'"] if self.query_text else []
-        c += [f"no {x}" for x in self.exclude_tags + self.exclude]
-        c += [f"max {self.max_steps} steps"] if self.max_steps is not None else []
-        c += [f"have: {', '.join(self.have)}"] if self.have else []
-        c += [f"prefs: {', '.join(self.prefs)}"] if self.prefs else []
-        c += [f"selected: {self.selected_recipe_id}"] if self.selected_recipe_id else []
-        return " · ".join(c) or "(empty)"
 
 
 @dataclass
@@ -76,6 +43,8 @@ class Turn:
                "rule_direct": "rule parser (high-confidence pattern; LLM skipped)",
                "ui": "state changed in the UI (no planner)",
                "rule": f"rule parser (LLM unavailable: {self.info.reason})"}[self.info.source]
+        if self.plan.get("keyword"):
+            src = f"LLM unavailable ({self.info.reason}), ran as keyword search"
         hits = sum(c.cached for c in self.info.calls)
         llm_ms = sum(c.ms for c in self.info.calls)
         tok = sum(c.prompt_tokens for c in self.info.calls)
@@ -94,7 +63,10 @@ class Session:
     def __init__(self, con: sqlite3.Connection, ds: Dataset, use_llm: bool = True):
         self.con, self.ds, self.use_llm, self.state = con, ds, use_llm, SessionState()
         self.notes: list[str] = []
-        self.ref_id: str | None = None  # recipe an unsupported-attribute question referred to
+        self.ref_id: str | None = None  # recipe an unsupported-attribute / "why" question referred to
+        self.last_res = None  # last search/match/rank result, for "why did you pick this one?"
+        self.extra_calls: list = []  # LLM calls made inside the executor (cuisine dish names)
+        self.conflict: tuple | None = None  # (tag, dish word) when the request contradicts a restriction
 
     def rerun(self) -> Turn:
         """Re-run the active task on the current state (after a chip removal / toggle in the UI)."""
@@ -108,10 +80,12 @@ class Session:
 
     def respond(self, text: str) -> Turn:
         """Answer one message and update the state."""
-        t0, self.notes, self.ref_id = time.perf_counter(), [], None
+        t0, self.notes, self.ref_id, self.extra_calls, self.conflict = time.perf_counter(), [], None, [], None
         attr = guard.check(text)
         if attr:
-            p, info = finish({"intent": "unsupported", "unsupported": {"attribute": attr}}), PlanInfo("guard")
+            p = finish({"intent": "cuisine"} if attr == "cuisine" else
+                       {"intent": "unsupported", "unsupported": {"attribute": attr}})
+            info = PlanInfo("guard")
         else:
             known = lambda w: w.lower() in TAG_WORDS or (_key(w) or ("",))[0] in self.ds.vocab
             p, info = make_plan(text, self.state, self.use_llm, known)
@@ -119,6 +93,7 @@ class Session:
             reply, res = self._run(text, p)
         except stats.UnknownIngredient as e:
             reply, res = f"I don't recognise '{e}' as an ingredient in this dataset. {HELP}", None
+        info.calls += self.extra_calls
         self.state.history = (self.state.history + [(text, reply.split("\n")[0][:150])])[-6:]
         return Turn(reply, p, res, info, round((time.perf_counter() - t0) * 1000), self.notes)
 
@@ -142,13 +117,13 @@ class Session:
     def _apply(self, d: dict) -> list[str]:
         """Merge a state_patch into the sticky state; returns notes for the reply."""
         s, notes = self.state, []
-        if d["mode"] == "new" and (d["query_text"] or d["have_set"]):
+        if d["mode"] == "new" and (d["query_text"] or d["have_set"] or d.get("reset")):
             kept = s.exclude_tags + s.exclude + ([f"max {s.max_steps} steps"] if s.max_steps is not None else [])
             if kept and not s.kept_note:
                 notes.append(f"Kept your restrictions ({', '.join(kept)}): they're about you, not the dish. Say e.g. "
                              "'dairy is fine now' to drop one.")
                 s.kept_note = True
-            s.query_text, s.include = None, []
+            s.query_text, s.include, s.query_any, s.query_label = None, [], [], None
         if d["query_text"]:
             s.query_text = d["query_text"]
         for k in ("exclude_add", "include_add"):  # executor-side check of the planner's words
@@ -183,6 +158,19 @@ class Session:
     def _run(self, text: str, p: dict) -> tuple[str, object]:
         """Dispatch one plan; returns (reply, executor result)."""
         s, con, ds, intent = self.state, self.con, self.ds, p["intent"]
+        if intent == "smalltalk":
+            return talk.smalltalk(p["talk"], ds.valid), None
+        if intent == "offtopic":
+            return talk.OFFTOPIC, None
+        if intent == "clarify" and p["question"]:
+            return talk.clarify(p["question"]), None
+        if intent == "explain":
+            tg = p["target"] if p["target"]["kind"] != "none" else rule_target(text.lower())
+            rid = self._resolve(tg or {"kind": "result_index", "value": "1"}, text) or \
+                (s.last_results[0] if s.last_results else None)
+            why = talk.explain(self.last_res, rid, s.query_text) if rid else None
+            self.ref_id = rid if why else None
+            return why or "I can only explain recipes from the latest results: ask e.g. 'why the second one?'", None
         if intent == "unsupported":
             attr = p["unsupported"]["attribute"]
             if attr in ("none", "other"):
@@ -190,7 +178,10 @@ class Session:
             self.ref_id = self._resolve(p["target"], text)  # the recipe the question is about (for the UI card)
             return guard.answer(con, ds, attr, text, self.ref_id)
         if intent == "stats":
-            return compose.stats_reply(res := execute_stats(con, ds, p), ds, p), res
+            res = stats.execute(con, ds, p)
+            if getattr(res, "op", "") == "rank":  # ranked recipes can be opened / explained like search results
+                self.last_res, s.last_results, s.titles = res, [r[0] for r in res.rows], {r[0]: r[1] for r in res.rows}
+            return compose.stats_reply(res, ds, p), res
         if intent == "recipe_detail":
             rid = self._resolve(p["target"], text)
             if not rid:
@@ -199,14 +190,37 @@ class Session:
             terms = lambda ws: [stats.term(w, ds) for w in ws]
             ev = search.evidence(con, rid, terms(s.include), terms(s.exclude), s.exclude_tags, s.max_steps)
             return compose.detail_reply(con, rid, ev), rid
+        d, pre = p["state_patch"], []
+        if intent == "cuisine":  # no cuisine field: labelled title-keyword proxy, with the session's restrictions
+            c = guard.cuisine_of(text)
+            base, extra, self.extra_calls = guard.cuisine_keywords(c, self.use_llm)
+            rp = finish(rule_plan(text))["state_patch"]  # 'italian recipes without meat': keep the restriction
+            pre = self._apply({**rp, "mode": "new", "query_text": "_", "have_set": []})  # new dish, keeps restrictions
+            d = finish({})["state_patch"]  # already applied
+            s.query_text, s.query_any, s.query_label, intent = None, base + extra, f"{c} (title keywords)", "search"
+            s.active_task = "search"
+            pre.append(f"There's no cuisine field in this dataset, so '{c}' is approximated by recipe titles "
+                       f"containing: {', '.join(base)}" + (f"; plus dish names suggested by the LLM: {', '.join(extra)}"
+                                                            if extra else "") + ". Dishes not named that way are missed.")
         if intent not in ("search", "match"):
             return HELP, None
-        d = p["state_patch"]
-        if not d["query_text"] and not d["have_set"] and s.active_task:
+        if not d["query_text"] and not d["have_set"] and s.active_task and not p["keyword"] and not d.get("reset"):
             intent = s.active_task  # a bare restriction re-runs the current task
-        notes = self.notes = self._apply(d)
+        notes = self.notes = pre + self._apply(d)
+        if "gluten" in d["exclude_tags_add"] + [t for w in d["exclude_add"] for t in TAG_WORDS.get(w.lower(), [])] \
+                and re.search(r"\bwheat\b", text.lower()):
+            notes.append("Wheat allergy → I'm excluding the gluten tag. That is stricter than needed: it also "
+                         "excludes barley and rye.")
+        if p["keyword"]:
+            notes.append(f"I couldn't use the language model, so I ran your message as a keyword search for "
+                         f"'{d['query_text']}' in titles and ingredients.")
         terms = lambda ws: [stats.term(w, ds) for w in ws]
         s.active_task = intent
+        self.conflict = self._conflict() if intent == "search" else None
+        if self.conflict:  # 'vegan chicken curry': ask one short question instead of guessing
+            tag, word = self.conflict
+            return (f"“{s.query_text}” clashes with your restriction “no {tag}” ({word} contains {tag}). Should I "
+                    f"look for a version without {word}, or drop the “no {tag}” restriction?"), None
         if intent == "match":
             if not s.have:
                 return "Tell me which ingredients you have, e.g. 'I have eggs, rice and onions'.", None
@@ -215,28 +229,32 @@ class Session:
             rows = res.rows
             reply = compose.match_reply(res, ds)
         else:
-            res = search.search(con, s.query_text or "", terms(s.include), terms(s.exclude), s.exclude_tags,
-                                s.max_steps, s.strict_may_contain, s.limit or 10)
+            run = lambda q: search.search(con, q or "", terms(s.include), terms(s.exclude), s.exclude_tags,
+                                          s.max_steps, s.strict_may_contain, s.limit or 10, s.query_any)
+            res = run(s.query_text)
+            fixed = search.correct(s.query_text, ds.vocab) if not res.total and s.query_text and not p["keyword"] else None
+            if fixed and fixed != s.query_text and (res2 := run(fixed)).total:
+                notes.append(f"No recipes match '{s.query_text}', so I'm showing results for '{fixed}' "
+                             "(spelling corrected).")
+                s.query_text, res = fixed, res2
+            elif p["keyword"] and not res.total:
+                notes.append("No recipe matches those words, and without the language model I can't tell what you "
+                             "meant. I can only help with recipes: try 'find a pasta recipe' or 'I have eggs and rice'.")
             rows = res.hits
             reply = compose.search_reply(res, ds)
-        s.last_results, s.titles = [r.id for r in rows], {r.id: r.title for r in rows}
+        self.last_res, s.last_results, s.titles = res, [r.id for r in rows], {r.id: r.title for r in rows}
         return "\n".join(notes + [reply]), res
 
-
-def execute_stats(con: sqlite3.Connection, ds: Dataset, plan: dict):
-    """Run a stats plan; returns Result(s). Raises stats.UnknownIngredient."""
-    s = plan["stats"]
-    if s.get("tags"):
-        return stats.tag_count(con, ds, s["tags"], s["tag_mode"], "percentage" if s["op"] == "percentage" else "count")
-    terms = lambda k: [stats.term(w, ds) for w in s.get(k) or []]
-    f = stats.Filters(terms("all_of"), terms("any_of"), terms("none_of"), list(s.get("title_contains") or []))
-    if s["op"] in ("count", "percentage"):
-        return stats.count(con, ds, f, s["op"])
-    if s["op"] == "rank":
-        return stats.rank(con, ds, f, s["field"], s["order"], s["limit"])
-    if s["op"] in ("mean", "median"):
-        return stats.summary(con, ds, f, s["op"], s["field"])
-    return stats.top_ingredients(con, ds, f, s["limit"])
+    def _conflict(self) -> tuple[str, str] | None:
+        """('meat and poultry', word) when a dish word is an animal product the restrictions exclude ('vegan chicken
+        curry'). Only animal tags: 'gluten-free pasta' or 'dairy-free cheese' are real products, not contradictions."""
+        s = self.state
+        for w in (s.query_text or "").split():
+            tags = [t for t, lv in nz.tags_for(w) if lv == "contains" and t in s.exclude_tags
+                    and t in ("meat", "pork", "poultry", "fish", "shellfish")]
+            if tags:
+                return " and ".join(tags), w
+        return None
 
 
 def respond(con: sqlite3.Connection, ds: Dataset, text: str, use_llm: bool = True) -> tuple[str, dict, object]:

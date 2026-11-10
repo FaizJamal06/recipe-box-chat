@@ -1,0 +1,21 @@
+# There is NO cuisine field in the dataset. A cuisine question is answered with a labelled title-keyword proxy:
+# recipes whose TITLE contains the cuisine word or one of these typical dish names (whole words, stemmed by FTS).
+# The LLM may add dish names when available; the reply always lists every keyword used and the honest count.
+italian: [risotto, lasagna, carbonara, bolognese, pesto, gnocchi, bruschetta, tiramisu, cacciatore, piccata, osso buco, focaccia]
+mexican: [taco, enchilada, burrito, quesadilla, salsa, guacamole, tamale, fajita, mole, pozole, chilaquiles]
+indian: [curry, masala, tikka, dal, dhal, biryani, paneer, samosa, korma, chutney, vindaloo, tandoori, raita, pakora]
+gujarati: [dhokla, thepla, khandvi, undhiyu, handvo, kadhi, khichdi, fafda, shrikhand]
+punjabi: [chole, makki, sarson, rajma, paratha, lassi, butter chicken]
+south indian: [dosa, idli, sambar, rasam, uttapam, vada, upma]
+chinese: [stir fry, lo mein, chow mein, kung pao, fried rice, dumpling, wonton, szechuan, sichuan, sweet and sour, egg roll]
+thai: [pad thai, tom yum, satay, larb, green curry, red curry, massaman, panang, tom kha]
+japanese: [sushi, teriyaki, miso, tempura, ramen, udon, katsu, yakitori, gyoza, donburi]
+korean: [kimchi, bulgogi, bibimbap, gochujang, japchae, galbi]
+vietnamese: [pho, banh mi, spring roll, bun cha]
+french: [quiche, ratatouille, crepe, souffle, bourguignon, gratin, coq au vin, cassoulet, bouillabaisse, nicoise]
+greek: [moussaka, tzatziki, souvlaki, spanakopita, gyro, baklava, pastitsio]
+spanish: [paella, tapas, gazpacho, churro, tortilla espanola, patatas bravas]
+middle eastern: [hummus, falafel, shawarma, tabbouleh, baba ganoush, fattoush, kebab]
+moroccan: [tagine, couscous, harissa, chermoula]
+cajun: [jambalaya, gumbo, etouffee, po boy, blackened]
+caribbean: [jerk, plantain, rice and peas, roti]

@@ -175,7 +175,7 @@ def view(turn: Turn, s: Session) -> tuple[str, dict]:
         md += [f"**{r['title'].strip()}** `{r['id']}` — {r['n_ingredients']} ingredients · {r['n_steps']} steps "
                "(opened on the right)."] + [f"- {e}" for e in ev]
     else:  # unsupported guard answers, help, errors: the templated text, SQL moved to the Calculation tab
-        ref = s.ref_id if intent == "unsupported" else None
+        ref = s.ref_id if intent in ("unsupported", "explain") else None
         cards = [_card(ref, *_base(con, [ref])[ref])] if ref else []
         payload = {"type": "unsupported" if intent == "unsupported" else "text", "cards": cards,
                    "calc": [_calc(r) for r in (res if isinstance(res, list) else [res])] if isinstance(
@@ -197,9 +197,13 @@ def postcheck(md: str, payload: dict) -> str:
     return md
 
 
-def trace(turn: Turn, s: Session, payload: dict, prev_total: int | None) -> list[str]:
-    """Human-readable pipeline steps for the Trace tab."""
+def trace(turn: Turn, s: Session, payload: dict, prev_total: int | None, voice_calls: list = (),
+          voice_status: str = "") -> list[str]:
+    """Human-readable pipeline steps for the Trace tab, including every LLM call (planner, cuisine, voice)."""
     p, out = turn.plan, [f"Planner: {turn.meta()[10:-1]}"]
+    for i, c in enumerate([*turn.info.calls, *voice_calls], 1):
+        out.append(f"LLM call {i} ({c.label}): " + ("cache hit" if c.cached else f"{c.ms} ms"
+                   + (f", {c.prompt_tokens} prompt tok" if c.prompt_tokens else "") + f", {c.error or 'ok'}"))
     d = {k: v for k, v in p["state_patch"].items() if v and k != "mode"}
     out.append(f"Parsed: intent={p['intent']}" + (f", mode={p['state_patch']['mode']}" if d else "")
                + "".join(f", {k}={v}" for k, v in d.items()))
@@ -215,4 +219,6 @@ def trace(turn: Turn, s: Session, payload: dict, prev_total: int | None) -> list
     pc = payload["postcheck"]
     out.append(f"Post-check: {pc['ids_in_reply']} recipe IDs in the reply, "
                + ("all present in the payload" if not pc["stripped"] else f"{len(pc['stripped'])} stripped"))
+    if voice_status:
+        out.append(f"Voice: {voice_status}")
     return out

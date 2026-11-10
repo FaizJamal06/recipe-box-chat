@@ -21,7 +21,8 @@ def ids_in(md: str) -> set[str]:
 
 def test_chat_shape_postcheck_and_sticky_refine(client):
     r = client.post("/api/chat", json={"message": "Find a rice recipe"}).json()
-    assert set(r) == {"session_id", "reply_md", "payload", "state", "trace", "planner"}
+    assert set(r) == {"session_id", "reply_md", "voice", "payload", "state", "trace", "planner", "suggestions"}
+    assert r["voice"] is None and 2 <= len(r["suggestions"]) <= 3  # no LLM in tests: template only
     assert r["planner"]["kind"] == "rule" and r["payload"]["type"] == "search"
     assert ids_in(r["reply_md"]) <= {c["id"] for c in r["payload"]["cards"]} and ids_in(r["reply_md"])
     assert r["payload"]["calc"][0]["sql"].startswith("SELECT") and r["payload"]["postcheck"]["stripped"] == []

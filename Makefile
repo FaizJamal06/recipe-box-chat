@@ -16,7 +16,7 @@ test:
 	python -m pytest -q -x
 
 coverage:
-	python scripts/coverage.py
+	python scripts/coverage.py && python scripts/audit_tags.py
 
 cli:
 	python -m backend.app.cli

@@ -8,6 +8,7 @@ reproducible and cost no quota. Any failure (no key, 429, network, > TIMEOUT_MS,
 """
 import hashlib
 import json
+import logging
 import os
 import sqlite3
 import threading
@@ -19,6 +20,7 @@ from .config import LLM_CACHE
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 TIMEOUT_MS = 6_000  # past this the turn falls back to the rule parser (a slow free-tier reply is worse than rules)
+log = logging.getLogger("recipebox.llm")
 THINKING = "minimal"  # lowest level gemini-3.5-flash-lite supports (it cannot be fully off); docs checked Nov 2026
 
 
@@ -38,6 +40,8 @@ class Call:
     prompt_tokens: int = 0
     thought_tokens: int = 0
     output_tokens: int = 0
+    error: str = ""  # '' ok | timeout | quota (429) | overloaded (503) | invalid | error
+    label: str = ""  # planner | voice | cuisine
 
 
 def model() -> str:
@@ -84,15 +88,16 @@ def warm():
     return _pool.submit(_warm) if available() else None
 
 
-def _remote(system: str, prompt: str, schema: dict) -> tuple[str, dict]:
+def _remote(system: str, prompt: str, schema: dict, timeout_ms: int | None = None) -> tuple[str, dict]:
     """The network request (patched in tests): (text, token usage). Raises LLMError on API errors / timeout.
-    Client setup and request both run in a worker, so nothing waits longer than TIMEOUT_MS; a request still
-    running then finishes in its thread and is discarded."""
+    Client setup and request both run in a worker, so nothing waits longer than the timeout (TIMEOUT_MS by
+    default); a request still running then finishes in its thread and is discarded."""
+    timeout_ms = timeout_ms or TIMEOUT_MS
     fut = _pool.submit(_request, system, prompt, schema)
     try:
-        r = fut.result(timeout=TIMEOUT_MS / 1000)
+        r = fut.result(timeout=timeout_ms / 1000)
     except FutureTimeout as e:
-        raise LLMError(f"timeout > {TIMEOUT_MS // 1000} s") from e
+        raise LLMError(f"timeout > {timeout_ms / 1000:g} s") from e
     except Exception as e:  # google.genai APIError carries .code/.status; anything else is network
         code = getattr(e, "code", None)
         raise LLMError(f"HTTP {code} {getattr(e, 'status', '') or ''}".strip() if isinstance(code, int)
@@ -110,8 +115,16 @@ def _db() -> sqlite3.Connection:
     return con
 
 
-def generate_json(system: str, prompt: str, schema: dict, validate) -> tuple[object, list[Call]]:
-    """validate(json.loads(text)) for the first valid response (cache, then up to 2 requests)."""
+def error_kind(msg: str) -> str:
+    """Short error class for logs and the UI badge: timeout / quota (429) / overloaded (503) / other."""
+    return ("timeout" if msg.startswith("timeout") else "quota" if "429" in msg else
+            "overloaded" if "503" in msg else "invalid" if msg.startswith("invalid") else "error")
+
+
+def generate_json(system: str, prompt: str, schema: dict, validate, timeout_ms: int | None = None,
+                  attempts: int = 2, label: str = "planner") -> tuple[object, list[Call]]:
+    """validate(json.loads(text)) for the first valid response: cache first, then up to `attempts` requests
+    (the 2nd only when the 1st is invalid). Each failed request is logged with its error kind."""
     if not available():
         raise LLMError("no GEMINI_API_KEY")
     key = hashlib.sha256(json.dumps([model(), system, prompt, schema], sort_keys=True).encode()).hexdigest()
@@ -119,23 +132,26 @@ def generate_json(system: str, prompt: str, schema: dict, validate) -> tuple[obj
     try:
         row = con.execute("SELECT response FROM cache WHERE key = ?", (key,)).fetchone()
         if row:
-            return validate(json.loads(row[0])), [Call(True, 0)]
+            return validate(json.loads(row[0])), [Call(True, 0, label=label)]
         calls = []
-        for _ in range(2):
+        for _ in range(attempts):
             t = time.perf_counter()
             try:
-                text, usage = _remote(system, prompt, schema)
+                text, usage = _remote(system, prompt, schema, timeout_ms)
             except LLMError as e:
-                calls.append(Call(False, round((time.perf_counter() - t) * 1000)))
+                calls.append(Call(False, round((time.perf_counter() - t) * 1000), error=error_kind(str(e)), label=label))
+                log.warning("LLM %s call failed: %s (%s)", label, error_kind(str(e)), e)
                 raise LLMError(str(e), calls) from e
-            calls.append(Call(False, round((time.perf_counter() - t) * 1000), **usage))
+            calls.append(Call(False, round((time.perf_counter() - t) * 1000), label=label, **usage))
             try:
                 out = validate(json.loads(text))
-            except (ValueError, TypeError, KeyError):
+            except (ValueError, TypeError, KeyError) as e:
+                calls[-1].error = "invalid"
+                log.warning("LLM %s call returned invalid output: %s", label, e)
                 continue
             con.execute("INSERT OR REPLACE INTO cache VALUES (?,?,?)", (key, model(), text))
             con.commit()
             return out, calls
-        raise LLMError("invalid plan JSON twice", calls)
+        raise LLMError(f"invalid {label} output", calls)
     finally:
         con.close()

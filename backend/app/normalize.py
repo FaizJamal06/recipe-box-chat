@@ -1,12 +1,9 @@
 """Ingredient line -> structured parts; the single source of truth for canonicalization (PRD 4.5).
 
-Why it is shaped like this:
-- One raw line can hold several required ingredients ("salt and pepper") and alternatives
-  ("butter or margarine"). So parse_line returns a list of ParsedLine, one per required item, and
-  each item carries its alternatives. ingest.py stores them as rows sharing (line_no, alt_group).
-- `canonical` = what product it is (matching). `tags` = what it contains (hard constraints).
-  Tags are computed from the name before any vocabulary fallback, so "vegan butter" never turns into dairy,
-  and line_tags() also scans the whole line so a word the item parse drops still counts.
+- A line can hold several required items ("salt and pepper") with alternatives ("butter or margarine"):
+  parse_line returns one ParsedLine per item, each with its alternatives (ingest rows share line_no, alt_group).
+- `canonical` = what product it is (matching); `tags` = what it contains (hard constraints), computed from the
+  name before any vocab fallback ("vegan butter" never becomes dairy); line_tags() scans the whole line too.
 - All word lists live in lexicon/*.yaml so they can be reviewed and edited without touching code.
 """
 import re
@@ -146,17 +143,17 @@ def suffix_match(key: str, vocab) -> str | None:
 
 @lru_cache(maxsize=100_000)
 def tags_for(name: str) -> tuple:
-    """((tag, level), ...) for a name or a whole line, from lexicon/tags.yaml (see the rules there).
-    Equipment phrases are masked out first ('cookie cutter' is not gluten, 'butter, for the baking dish' is dairy)."""
+    """((tag, level), ...) per lexicon/tags.yaml rules; equipment masked first ('cookie cutter' is not gluten)."""
     out = []
     name = _NOT_FOOD.sub(" ", name)
-    for tag, (free, exc, contains, may) in _TAG_RE.items():
+    for tag, (free, exc, contains, may, down) in _TAG_RE.items():
         if free and free.search(name):
             continue
         t = exc.sub(" ", name) if exc else name
-        if contains.search(t):
+        d = down.sub(" ", t) if down else t  # downgrade phrases ('soba noodle') cap the level at may_contain
+        if contains.search(d):
             out.append((tag, "contains"))
-        elif may and may.search(t):
+        elif (may and may.search(t)) or (down and down.search(t)):
             out.append((tag, "may_contain"))
     return tuple(out)
 
@@ -167,9 +164,12 @@ def _word_re(words, edge=(r"\b", r"\b")) -> re.Pattern | None:
     return re.compile(rf"{edge[0]}(?:{_alt(words)})(?:e?s)?{edge[1]}") if words else None
 
 
-_NOT_FOOD = _word_re(_TAGS.pop("not_food"), (r"(?<![\w-])", r"(?![\w-])"))  # hyphen-aware: 'pan-fried' stays
-_TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain"))
+# hyphen-aware ('pan-fried' stays); breads named 'pan ...' are food ('pan dulce', 'pan de mie')
+_NOT_FOOD = _word_re(_TAGS.pop("not_food"), (r"(?<![\w-])", r"(?![\w-]|\s+(?:dulce|de\s+(?:mie|sal|muerto|bono)))"))
+_TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain", "downgrade"))
            for t, d in _TAGS.items()}
+# 'Caramel Mousse, recipe follows': a sub-recipe whose components are listed as their own lines
+_SUBRECIPE = re.compile(r"\brecipes?\s+follows?\b|\(see recipe\)|\bsee recipe (?:below|above)\b")
 # families.yaml -> {name suffix: family}. Family names and members map to the family, `broad` entries to
 # themselves (their own group), `exclude` entries to None (the canonical stands alone). Names singularized.
 _GROUP = {singular(m): singular(f) for f, d in _FAM.items() for m in [f, *(d.get("members") or [])]}
@@ -181,8 +181,7 @@ BROAD = {singular(f): sorted({singular(b) for b in d.get("broad") or []}) for f,
 
 @lru_cache(maxsize=100_000)
 def family_for(canonical: str) -> str:
-    """Strict family (lexicon/families.yaml) from the longest name suffix that is a known group:
-    'extra lean ground beef' -> beef, 'sliced green onion' -> green onion, 'light sour cream' -> itself."""
+    """Family from the longest known suffix: 'lean ground beef' -> beef, 'light sour cream' -> itself."""
     words = canonical.split()
     for i in range(len(words)):
         suf = " ".join(words[i:])
@@ -235,6 +234,8 @@ def _parse(raw: str) -> tuple:
         return (), (), None
     if is_header(s):
         return (ParsedLine(raw, is_header=True),), (), None
+    if _SUBRECIPE.search(s):  # kept as a reference line, not an ingredient; its words still count for tags
+        return (ParsedLine(raw, is_header=True),), tags_for(_PAREN.sub(" ", s)), None
     if ":" in s:  # 'Garnish: chopped parsley' -> parse the part after the label
         label, s = s.split(":", 1)
         if "equipment" in label:  # 'Special equipment: ...'
@@ -282,9 +283,8 @@ def comma_split(raw: str, vocab) -> list[ParsedLine] | None:
 
 
 def parse_line(raw: str, vocab=None) -> list[ParsedLine]:
-    """Raw ingredient line -> one ParsedLine per required item ([] for empty/ADVERTISEMENT-only lines).
-    With a vocab (known canonicals), comma lists of known canonicals are split and an unknown canonical falls
-    back to its longest safe in-vocab suffix ('heritage pork loin' -> 'pork loin'); tags stay as parsed."""
+    """Raw line -> one ParsedLine per required item. With a vocab: comma lists of known canonicals split, and an
+    unknown canonical falls back to its longest safe in-vocab suffix ('heritage pork loin' -> 'pork loin')."""
     if vocab is None:
         return list(_parse(raw)[0])
     out = comma_split(raw, vocab) or list(_parse(raw)[0])

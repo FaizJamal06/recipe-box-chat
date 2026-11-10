@@ -11,13 +11,15 @@ ORDINALS = {w: i for i, w in enumerate("first second third fourth fifth sixth se
 # words people use for a restriction -> recipe_tags tags (anything else is treated as an ingredient)
 TAG_WORDS = {"dairy": ["dairy"], "milk products": ["dairy"], "lactose": ["dairy"], "eggs": ["egg"], "egg": ["egg"],
              "gluten": ["gluten"], "wheat": ["gluten"], "peanuts": ["peanut"], "peanut": ["peanut"],
-             "tree nuts": ["tree_nut"], "tree nut": ["tree_nut"], "nuts": ["tree_nut", "peanut"], "meat": ["meat"],
+             "tree nuts": ["tree_nut"], "tree nut": ["tree_nut"], "nuts": ["tree_nut", "peanut"],
+             "nut": ["tree_nut", "peanut"], "meat": ["meat"],
              "pork": ["pork"], "fish": ["fish"], "shellfish": ["shellfish"], "seafood": ["fish", "shellfish"],
              "poultry": ["poultry"], "vegetarian": ["meat", "fish", "shellfish"],
              "vegan": ["meat", "fish", "shellfish", "dairy", "egg"]}
 NUM = r"(\d+|" + "|".join(NUMBERS) + r")"
 _SPLIT = re.compile(r"\s*(?:,|\band\b|&)\s*")
-_FILLER = re.compile(r"^(?:both|the|a|an|some|any|also|my)\s+|\s+(?:in them|in it|each|too|as well|either|please)$")
+_FILLER = re.compile(r"^(?:both|the|a|an|some|any|also|my)\s+|"
+                     r"\s+(?:in them|in it|each|too|as well|either|please|pls|plz|thanks|thx|tho|though)$")
 _LIMIT = re.compile(r"\b(?:top|which|first|the|show|list|suggest|give|find)?\s*" + NUM + r"\b(?:\s+recipes)?")
 _EXCL = re.compile(r"(?:\bno\s+(?!more\b|longer\b|less\b|than\b)|\bwithout\s+|\bcannot have\s+|\bcan'?t have\s+|"
                    r"\bcan'?t eat\s+|\ballergic to\s+|\bfree of\s+|\bexclude\s+|\bavoid\s+|\bhold the\s+)"
@@ -62,15 +64,28 @@ def _max_steps(t: str) -> int | None:
     return _num(m.group(1)) - 1 if m else None
 
 
+_ALLERGY = re.compile(r"\b([a-z]+(?: [a-z]+)?)[- ](?:allergy|allergies|intolerance|intolerant|sensitivity)\b")
+_ALIAS = {"milk": "dairy", "nut": "nuts", "tree nut": "tree nuts", "shell fish": "shellfish"}
+
+
+def _allergies(t: str) -> list[str]:
+    """'I have a wheat allergy' -> ['wheat'], 'lactose intolerant' -> ['lactose'], 'celiac' -> ['gluten']."""
+    out = [re.sub(r"^(?:a|an|my|the|bad|severe|mild|serious)\s+", "", w) for w in _ALLERGY.findall(t)]
+    out = [_ALIAS.get(w, w) for w in out]
+    return out + (["gluten"] if re.search(r"\b(?:celiac|coeliac)\b", t) else [])
+
+
 def _restrictions(t: str) -> dict:
     """exclude_add / exclude_tags_add / *_remove / max_steps / prefs found anywhere in the message."""
-    excl = [w for g in _EXCL.findall(t) for w in _words(g)]
+    excl = [w for g in _EXCL.findall(t) for w in _words(g)] + _allergies(t)
+    excl = [_ALIAS.get(w, w) for w in excl]
     excl += [m for m in _FREE.findall(t) if m in TAG_WORDS]
     excl += [w for w in ("vegetarian", "vegan") if re.search(rf"\b{w}\b", t)]
     rem = [w for g in re.findall(r"(?:^|\b(?:actually|now)\s+)([a-z ,&'-]+?)\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b"
                                  r"|\ballow\s+([a-z ,&'-]+?)(?:\.|,|\?|!|$| again)", t) for x in g for w in _words(x)]
     prefs = [p for p, rx in (("use_most", r"as many as possible|use as many|most of (?:my|these|them)"),
-                             ("fewest_extra", r"fewest (?:additional|extra|other|more|new)|least (?:additional|extra)"),
+                             ("fewest_extra", r"fewest (?:additional|extra|other|more|new)|least (?:additional|extra)|"
+                                              r"(?:fewer|less) (?:additional |extra )?ingredients"),
                              ("fewest_steps", r"fewest steps|quickest|simplest"),
                              ("no_staples", r"(?:no|without|don't assume|do not assume) (?:pantry )?staples"))
              if re.search(rx, t)]
@@ -100,7 +115,7 @@ def confident(text: str, plan: dict, known=lambda w: True) -> bool:
     that only adds/removes restrictions ('I cannot have dairy', 'also no garlic', 'exclude eggs too',
     'dairy is fine now', 'at most 1 step') whose words are all tags or known ingredients (`known`)."""
     intent = plan.get("intent")
-    if intent == "match":
+    if intent in ("match", "smalltalk", "explain") or (intent == "clarify" and plan.get("question")):
         return True
     if intent == "recipe_detail":
         return plan["target"]["kind"] == "result_index"
@@ -111,11 +126,61 @@ def confident(text: str, plan: dict, known=lambda w: True) -> bool:
     return len(re.findall(r"[a-z']+", text.lower())) <= 8 and all(known(w) for w in words)
 
 
+_TALK = (("greeting", r"^(?:hi+|hello+|hey+|hiya|yo|namaste|hola|good (?:morning|afternoon|evening))\b[\s!.,?a-z']{0,22}$"),
+         ("thanks", r"^(?:ok(?:ay)?,? )?(?:thanks|thank you|thank u|thx|ty|cheers|awesome|perfect|great|nice|cool)\b.{0,25}$"),
+         ("bye", r"^(?:bye|goodbye|see you|good night|cya)\b"),
+         ("capabilities", r"\bw(?:h)?at (?:can|cn) (?:you|u) do|what do (?:you|u) do|how do(?:es)? (?:this|you|u) work|"
+                          r"who are (?:you|u)|what are (?:you|u)\b|^help\b"))
+_FOODISH = re.compile(r"recipe|find|show|cook|make|have|how many|ingredient|dish|food|eat|meal|step")
+STOP = set("a an the and or of for to in on with without me my i im i'm you u your please pls plz some any recipe "
+           "recipes dish dishes food make cook cooking want need give show find get something anything can could "
+           "would like ki koi batao hai ka ke ko mujhe chahiye what whats how which is are do does there that this it "
+           "good nice best also too either just really dinner lunch breakfast tonight today meal meals quick easy "
+           "fast simple ideas idea suggest suggestion steps step most least have has got had fewer more less "
+           "ingredient ingredients".split())
+_DIET = re.compile(r"\b(?:vegan|vegetarian|[a-z]+[- ]free|no [a-z]+|without [a-z]+|allergic to [a-z ]+|"
+                   r"[a-z]+ allerg(?:y|ies)|at most \w+ steps?)\b")
+_REF = re.compile(r"^(?:(?:show|open|give)(?: me)? )?(?:the )?(" + "|".join(ORDINALS) + r"|last|\d+(?:st|nd|rd|th))"
+                  r" (?:one|recipe|result)[.!?]*$")
+
+
+def leftover(t: str) -> str:
+    """Dish words left after removing restriction phrases and filler: 'vegan chicken curry' -> 'chicken curry',
+    'I cannot have dairy' / 'dairy is fine now' -> ''."""
+    t = _EXCL.sub(" ", t)
+    t = re.sub(r"[a-z ,&'-]+?\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b.*|\ballow\s+.*", " ", t)
+    t = re.sub(r"as many as possible|use as many|fewest \w+|least \w+|(?:no|without) (?:pantry )?staples", " ", t)
+    return " ".join(w for w in re.findall(r"[a-z]+", _DIET.sub(" ", t))
+                    if w not in STOP and w not in TAG_WORDS and len(w) > 2 and w not in ("cannot", "cant"))
+
+
+def keyword_plan(text: str) -> dict:
+    """Last resort when the LLM is unavailable and no pattern matched: a keyword search on title + ingredients
+    ('paneer ki koi recipe batao' -> 'paneer'). Flagged so the reply says it ran as a keyword search."""
+    words = [w for w in re.findall(r"[a-z]+", text.lower()) if w not in STOP and len(w) > 2][:4]
+    return {"intent": "search", "keyword": True, "state_patch": {"mode": "new", "query_text": " ".join(words)}} \
+        if words else {"intent": "clarify"}
+
+
 def rule_plan(text: str) -> dict:
     """Plan from regexes (PRD 5.2 shape, missing keys filled by planner.finish)."""
     t = " ".join(text.lower().replace("’", "'").split())
     contain = r"(?:contain|containing|have|having|has|use|using|with|include|including)s?"
+    for kind, rx in _TALK:
+        if re.search(rx, t) and (kind == "capabilities" or not _FOODISH.search(t)):
+            return {"intent": "smalltalk", "talk": kind}
+    if _REF.match(t):  # 'the second one' on its own
+        return {"intent": "recipe_detail", "target": target(t)}
+    if re.search(r"\b(?:quick|fast|easy|simple|speedy)\b", t) and not leftover(t) and "i have" not in t:
+        return {"intent": "clarify", "question": "There's no cook-time field, but I can keep it short: want recipes "
+                                                 "with at most four steps, or do you have a dish in mind?"}
+    if re.search(r"^(?:and |so |but |ok |okay )?why\b", t) and \
+            re.search(r"\b(?:this|that|it|one|pick|picked|chose|choose|chosen|rank|ranked|top|first|second|third|"
+                      r"number|#\d|recommend|suggest)", t):
+        return {"intent": "explain", "target": target(t) or {"kind": "none", "value": ""}}
     m = re.search(r"\bi\s+(?:have|'ve got|have got|got)\s+(.+?)(?:[.?!]|$)", t)
+    if m and re.search(r"allerg|intoleran|celiac|coeliac|sensitiv", m.group(1)):
+        m = None  # 'I have a wheat allergy' is a restriction, not a pantry
     if m:  # T2: the have-list stops at the first restriction or request word
         items = re.split(r",?\s*\b(?:no|without|at most|suggest|exclude|but|under|using|use|what|which|can)\b", m.group(1))[0]
         r = _restrictions(t)
@@ -146,16 +211,19 @@ def rule_plan(text: str) -> dict:
         or re.search(rf"(?:percent(?:age)?|share|proportion|fraction)\s+of\s+(?:all\s+)?(?:the\s+)?(?:recipes|dataset)"
                      rf"\s+(?:\w+\s+)?{contain}\s+([a-z ,&'-]+?)(?:\?|$|\.)", t)
     if m:
-        words = _words(m.group(1))
-        if len(words) == 1 and words[0] in TAG_WORDS:
+        yes, *nos = re.split(r"\s+(?:but\s+)?(?:no|not|without|excluding)\s+", m.group(1))  # 'garlic but no onion'
+        words, none_of = _words(yes), [w for x in nos for w in _words(x)]
+        if len(words) == 1 and words[0] in TAG_WORDS and not none_of:
             return _stats(op, tags=TAG_WORDS[words[0]], tag_mode="contains")
-        return _stats(op, all_of=words)
+        return _stats(op, all_of=words, none_of=none_of)
     r = _restrictions(t)
     m = re.search(r"\b(?:find|show|give|search|suggest|want|need|looking for)\b(?:\s+me)?(?:\s+(?:for|a|an|some))*\s+"
                   r"([a-z ' -]+?)\s+recipes?\b", t)
-    if m or any(r[k] for k in r if k != "prefs_add"):
-        q = m.group(1).strip() if m else None
+    if m or any(r.values()):  # a dish request, or restrictions (+ dish words: 'gluten free pasta recipes')
+        q = m.group(1).strip() if m else (leftover(t) or None)
         if q:  # 'dairy-free pasta' -> query 'pasta' + exclude_tags dairy (already in r)
             q = " ".join(w for w in _FREE.sub(" ", q).split() if w not in ("vegetarian", "vegan")) or None
-        return {"intent": "search", "state_patch": {"mode": "new" if q else "refine", "query_text": q, **r}}
+        fresh = not q and bool(re.search(r"\b(?:something|anything|ideas?|suggest|recommend)\b", t))
+        return {"intent": "search", "state_patch": {"mode": "new" if q or fresh else "refine", "query_text": q,
+                                                    "reset": fresh, **r}}
     return {"intent": "clarify"}

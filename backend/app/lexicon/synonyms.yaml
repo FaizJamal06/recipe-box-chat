@@ -5,6 +5,13 @@
 # ('apple butter' is not butter, 'oat milk' is not milk); the full cleaned name stays its own canonical.
 deceptive_heads: [butter, milk, cream, cheese, flour, sauce, paste, powder, oil, egg, nut]
 
+# mention_safe: a hard exclusion ("no cream") also drops recipes whose ingredient text merely mentions the word
+# (search.hard_where safety net). These phrases contain the word but are a different product, so they don't count.
+mention_safe:
+  cream: [cream of tartar, coconut cream, cream of coconut]
+  butter: [peanut butter, almond butter, cashew butter, sunflower butter, nut butter, apple butter, pumpkin butter,
+           cocoa butter, shea butter, butter bean, butter lettuce]
+
 # keep_whole: phrases that stay intact. Never split on "and"/"or", never stripped of descriptor words.
 # (ground beef keeps "ground"; hot sauce keeps "hot"; half and half is one product, not two.)
 keep_whole:

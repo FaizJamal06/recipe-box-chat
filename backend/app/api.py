@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import llm, web
+from . import llm, talk, voice, web
 from .config import DB, ROOT
 from .db import connect, fingerprint, load_dataset
 from .session import Session, SessionState
@@ -89,25 +89,49 @@ def _entry(sid: str | None, create: bool = True) -> tuple[str, Entry]:
 
 
 def _state(s: SessionState) -> dict:
-    return {"active_task": s.active_task, "query_text": s.query_text, "include": s.include, "exclude": s.exclude,
+    return {"active_task": s.active_task, "query_text": s.query_text or s.query_label, "include": s.include,
+            "exclude": s.exclude,
             "exclude_tags": s.exclude_tags, "max_steps": s.max_steps, "have": s.have, "prefs": s.prefs,
             "staples": "no_staples" not in s.prefs, "strict_may_contain": s.strict_may_contain,
             "selected_recipe_id": s.selected_recipe_id, "last_results": s.last_results}
 
 
-def _response(sid: str, e: Entry, turn) -> dict:
-    """The chat response shape (also returned by PATCH state)."""
-    md, payload = web.view(turn, e.session)
-    tr = web.trace(turn, e.session, payload, e.prev_total)
+def _label(turn) -> str:
+    """The planner badge text (shown whenever the LLM did not plan the turn)."""
+    i = turn.info
+    if turn.plan.get("keyword"):
+        return "LLM unavailable, ran as keyword search"
+    if i.source == "rule":
+        kind = llm.error_kind(i.reason) if i.calls else ("off" if i.reason == "LLM disabled" else "no key")
+        return "LLM quota reached · rule parser" if kind == "quota" else f"rule parser · LLM {kind}"
+    return {"llm": f"LLM · {llm.model()}", "rule_direct": "rule parser · high-confidence pattern",
+            "guard": "guard · no LLM needed", "ui": "chip change"}[i.source]
+
+
+def _response(sid: str, e: Entry, turn, text: str = "") -> dict:
+    """The chat response shape (also returned by PATCH state): template, payload, optional voice, suggestions."""
+    s = e.session
+    md, payload = web.view(turn, s)
+    voice_text, vcalls, vstatus = None, [], "template (LLM not used this turn)"
+    used = sum(not c.cached for c in turn.info.calls)
+    llm_ok = s.use_llm and llm.available() and turn.info.source != "rule" and not any(c.error for c in turn.info.calls)
+    if llm_ok and used < 2 and text:  # <= 2 LLM calls per turn, planner (+cuisine) first
+        voice_text, vcalls, vstatus = voice.speak(text, payload, s.state.chips(), turn.notes)
+    elif llm_ok and text:
+        vstatus = "template (LLM call budget used)"
+    tr = web.trace(turn, s, payload, e.prev_total, vcalls, vstatus)
     if payload["type"] in ("search", "match"):
         e.prev_total = payload["total"]
     i = turn.info
     kind = {"llm": "llm", "guard": "guard", "ui": "ui"}.get(i.source, "rule")
-    return {"session_id": sid, "reply_md": md, "payload": payload, "state": _state(e.session.state), "trace": tr,
-            "planner": {"kind": kind, "detail": i.source, "reason": i.reason, "calls": turn.llm_calls,
-                        "cache_hits": sum(c.cached for c in i.calls), "ms": sum(c.ms for c in i.calls),
-                        "prompt_tokens": sum(c.prompt_tokens for c in i.calls), "turn_ms": turn.ms,
-                        "model": llm.model() if kind == "llm" else None}}
+    calls = [*i.calls, *vcalls]
+    return {"session_id": sid, "reply_md": md, "voice": voice_text, "payload": payload, "state": _state(s.state),
+            "trace": tr, "suggestions": talk.suggestions(s.state, payload, turn.plan, s.conflict),
+            "planner": {"kind": kind, "detail": i.source, "label": _label(turn), "reason": i.reason,
+                        "calls": sum(not c.cached for c in calls), "cache_hits": sum(c.cached for c in calls),
+                        "ms": sum(c.ms for c in calls), "prompt_tokens": sum(c.prompt_tokens for c in calls),
+                        "errors": [c.error for c in calls if c.error], "turn_ms": turn.ms,
+                        "model": llm.model() if any(not c.error for c in calls) and calls else None}}
 
 
 @app.post("/api/chat")
@@ -122,7 +146,7 @@ def chat(body: ChatIn):
     e.times.append(now)
     with ENGINE:
         turn = e.session.respond(body.message.strip())
-        return _response(sid, e, turn)
+        return _response(sid, e, turn, body.message.strip())
 
 
 @app.get("/api/recipe/{rid:path}")
@@ -151,6 +175,8 @@ def patch_state(sid: str, body: StateIn):
         lst.remove(body.value)
     elif body.op == "remove" and body.field in ("max_steps", "query_text"):
         setattr(s, body.field, None)
+        if body.field == "query_text":
+            s.query_any, s.query_label = [], None
     elif body.op == "set" and body.field == "strict_may_contain":
         s.strict_may_contain = bool(body.value)
     elif body.op == "set" and body.field == "staples":

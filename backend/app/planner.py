@@ -8,9 +8,10 @@ import json
 from dataclasses import dataclass, field
 
 from . import llm
-from .rules import confident, rule_plan
+from .rules import confident, keyword_plan, rule_plan
 
-INTENTS = ["search", "recipe_detail", "stats", "match", "unsupported", "clarify", "smalltalk"]
+INTENTS = ["search", "recipe_detail", "stats", "match", "unsupported", "clarify", "smalltalk", "explain", "offtopic"]
+TALK = ["none", "greeting", "thanks", "capabilities", "bye"]
 TAGS = ["dairy", "egg", "peanut", "tree_nut", "gluten", "meat", "pork", "poultry", "fish", "shellfish"]
 OPS = ["count", "percentage", "top_ingredients", "mean", "median", "rank"]
 PREFS = ["use_most", "fewest_extra", "fewest_steps", "no_staples"]
@@ -30,14 +31,19 @@ SCHEMA = obj({
                   "tag_mode": enum(["free", "contains"])}),
     "target": obj({"kind": enum(["none", "result_index", "recipe_id", "title", "selected"]), "value": S}),
     "unsupported": obj({"attribute": enum(ATTRS), "reason": S}),
+    "talk": enum(TALK),
+    "question": S,
 })
 SYSTEM = """Convert a message to a recipe chatbot into a JSON plan. Never answer it or state recipe facts; only use
 ids from LAST_RESULTS. Unmentioned fields: "", 0 or [].
 intent: search (dish words -> query_text) | match (user lists ingredients they have -> have_set, items as
 written incl. quantity: "2 eggs") | recipe_detail (target) | stats (counts, %, ranks, averages) | unsupported
-(nutrition, cook time, servings, ratings, category) | clarify | smalltalk.
+(nutrition, cook time, servings, ratings, category) | explain ("why this one?": target) | smalltalk (talk:
+greeting/thanks/capabilities/bye) | offtopic (not about food or these recipes) | clarify (only when truly
+ambiguous: put ONE short question, no numbers, in question).
 state_patch.mode: new = new dish or have-list; refine = only adds/removes restrictions. Allergen/diet words ->
-exclude_tags_add (eggs -> egg; vegetarian -> meat, poultry, fish, shellfish); other "no X" -> exclude_add.
+exclude_tags_add (eggs -> egg; wheat/celiac -> gluten; vegetarian -> meat, poultry, fish, shellfish; vegan ->
+also dairy, egg); other "no X" -> exclude_add. Messages may have typos, slang or Hinglish: plan by meaning.
 "X is fine now" -> *_remove. max_steps: "at most 6" -> 6, "under 5" -> 4, drop limit -> -1.
 prefs_add: as many as possible -> use_most; fewest additional -> fewest_extra; fewest steps -> fewest_steps;
 no salt/pepper/water assumed -> no_staples. limit = recipes asked for.
@@ -65,6 +71,9 @@ def finish(plan: dict) -> dict:
         patch[k] = [str(x).strip() for x in p.get(k) or [] if str(x).strip()]
     patch["max_steps"] = p.get("max_steps") or None  # 0 / None = unchanged
     patch["limit"] = p.get("limit") or None
+    # a fresh request with no dish words ('something vegan for dinner'): drop the old dish, keep restrictions
+    patch["reset"] = bool(p.get("reset")) or (patch["mode"] == "new" and not patch["query_text"]
+                                              and not patch["have_set"])
     stats = {"op": st.get("op") or "count", "field": st.get("field") or "n_steps", "order": st.get("order") or "asc",
              "limit": st.get("limit") or (10 if st.get("op") == "top_ingredients" else 5),
              **{k: list(st.get(k) or []) for k in ("all_of", "any_of", "none_of", "title_contains", "tags")},
@@ -73,7 +82,9 @@ def finish(plan: dict) -> dict:
     target = {"kind": tg.get("kind") or "none", "value": str(tg.get("value") or "")}
     un = plan.get("unsupported") or {}
     return {"intent": plan.get("intent") or "clarify", "state_patch": patch, "stats": stats, "target": target,
-            "unsupported": {"attribute": un.get("attribute") or "none", "reason": un.get("reason") or ""}}
+            "unsupported": {"attribute": un.get("attribute") or "none", "reason": un.get("reason") or ""},
+            "talk": plan.get("talk") or "none", "question": str(plan.get("question") or "")[:200],
+            "keyword": bool(plan.get("keyword"))}
 
 
 def validate(d: dict) -> dict:
@@ -85,6 +96,8 @@ def validate(d: dict) -> dict:
         raise ValueError("tags")
     if d["intent"] == "stats" and st.get("op") not in OPS:
         raise ValueError("op")
+    if d.get("talk", "none") not in TALK:
+        raise ValueError("talk")
     if not isinstance(p.get("max_steps", 0), int) or not isinstance(p.get("limit", 0), int):
         raise ValueError("ints")
     return finish(d)
@@ -109,10 +122,11 @@ def plan(text: str, state, use_llm: bool = True, known=lambda w: True) -> tuple[
     rp = rule_plan(text)
     if confident(text, rp, known):
         return finish(rp), PlanInfo("rule_direct")
+    fallback = rp if rp["intent"] != "clarify" else keyword_plan(text)  # unclassified -> keyword search
     if not use_llm or not llm.available():
-        return finish(rp), PlanInfo("rule", reason="LLM disabled" if not use_llm else "no GEMINI_API_KEY")
+        return finish(fallback), PlanInfo("rule", reason="LLM disabled" if not use_llm else "no GEMINI_API_KEY")
     try:
         p, calls = llm.generate_json(SYSTEM, prompt(text, state), SCHEMA, validate)
         return p, PlanInfo("llm", calls)
     except llm.LLMError as e:
-        return finish(rp), PlanInfo("rule", e.calls, str(e))
+        return finish(fallback), PlanInfo("rule", e.calls, str(e))

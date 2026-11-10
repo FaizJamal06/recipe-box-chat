@@ -237,3 +237,19 @@ def tag_count(con: sqlite3.Connection, ds: Dataset, tags: list[str], want: str =
         out.append(Result(op, n, f"{name}-{want} recipes", n, ds.valid,
                           method + "; percentage = count / valid recipes.", render(sql, p), mode, TAG_LEVELS))
     return out
+
+
+def execute(con: sqlite3.Connection, ds: Dataset, plan: dict):
+    """Run a stats plan; returns Result(s). Raises UnknownIngredient."""
+    s = plan["stats"]
+    if s.get("tags"):
+        return tag_count(con, ds, s["tags"], s["tag_mode"], "percentage" if s["op"] == "percentage" else "count")
+    terms = lambda k: [term(w, ds) for w in s.get(k) or []]
+    f = Filters(terms("all_of"), terms("any_of"), terms("none_of"), list(s.get("title_contains") or []))
+    if s["op"] in ("count", "percentage"):
+        return count(con, ds, f, s["op"])
+    if s["op"] == "rank":
+        return rank(con, ds, f, s["field"], s["order"], s["limit"])
+    if s["op"] in ("mean", "median"):
+        return summary(con, ds, f, s["op"], s["field"])
+    return top_ingredients(con, ds, f, s["limit"])

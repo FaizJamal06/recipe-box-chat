@@ -18,6 +18,12 @@ RECIPES = {
     "x4": ("Salted Almonds", ["2 cups almonds", "1 teaspoon salt"]),
     "x5": ("Snickerdoodles", ["1 cup shortening", "2 cups flour", "2 teaspoons cream of tartar", "1 cup sugar"]),
     "x6": ("Cream Sauce", ["1 cup heavy cream", "1 tablespoon flour"]),
+    # wheat-allergy safety: every pasta option must be tagged, rice noodles are fine, soba is may_contain
+    "x7": ("Cacio e Pepe", ["6 ounces penne or bucatini", "1/2 cup grated pecorino"]),
+    "x8": ("Rice Noodle Bowl", ["8 ounces rice noodles", "1 cup tofu"]),
+    "x9": ("Soba Salad", ["8 ounces soba noodles", "1 cucumber"]),
+    "x10": ("Cavatapi Ragu", ["8 ounces cavatapi or penne pasta, uncooked", "1 cup tomato sauce"]),
+    "x11": ("Tart", ["Pie Crust, recipe follows", "1 cup sugar"]),
 }
 
 
@@ -54,7 +60,17 @@ def test_no_cream_drops_cream(eng):
     assert "x6" not in kept(eng, word="cream")
 
 
-@pytest.mark.xfail(strict=True, reason="known over-exclusion: the ingredient-text safety net (FTS word 'cream') "
-                                       "also matches 'cream of tartar'; see docs/lexicon_todo.md")
-def test_no_cream_keeps_cream_of_tartar(eng):
+def test_no_cream_keeps_cream_of_tartar(eng):  # was a known over-exclusion; fixed via mention_safe
     assert "x5" in kept(eng, word="cream")
+
+
+def test_no_gluten_drops_every_wheat_pasta_option(eng):
+    """'penne or bucatini' / 'cavatapi or penne' used to be only 'alt' (the other shape had no tag) and leaked."""
+    con, _ = eng
+    lenient = kept(eng, tag="gluten")
+    assert not {"x7", "x10", "x11"} & lenient and {"x8", "x9"} <= lenient  # rice noodles fine, soba may_contain
+    strict = {h.id.split(":")[1] for h in search(con, "", exclude_tags=["gluten"], strict_may_contain=True, limit=50).hits}
+    assert "x9" not in strict and "x8" in strict
+    level = dict(con.execute("SELECT recipe_id, level FROM recipe_tags WHERE tag = 'gluten'").fetchall())
+    assert level["ar:x7"] == level["ar:x10"] == level["ar:x11"] == "contains" and level["ar:x9"] == "may_contain"
+    assert con.execute("SELECT is_header FROM ingredient_lines WHERE recipe_id = 'ar:x11' AND line_no = 0").fetchone() == (1,)

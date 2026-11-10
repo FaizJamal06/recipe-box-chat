@@ -23,7 +23,8 @@ dairy:
            cashew milk, hemp milk, peanut butter, almond butter, cashew butter, sunflower butter, nut butter,
            apple butter, pumpkin butter, cocoa butter, shea butter, butter bean, butter lettuce, butterhead,
            cream of tartar, coconut milk powder, coconut yogurt, cream soda, milk thistle, bread flour,
-           pastry flour, butter flavored, butter-flavored, butter flavor, cream-style, cream style]
+           pastry flour, butter flavored, butter-flavored, butter flavor, cream-style, cream style,
+           butter shortening, crisco butter]
   contains: [milk, cream, butter, cheese, yogurt, yoghurt, ghee, whey, casein, buttermilk, sour cream,
              half and half, half-and-half, creme fraiche, kefir, quark, mascarpone, ricotta, parmesan,
              parmigiano-reggiano, parmigiano, mozzarella, cheddar, feta, gruyere, brie, camembert, pecorino,
@@ -34,7 +35,7 @@ dairy:
   may_contain: [margarine, chocolate, bread, cake mix, brownie mix, biscuit mix, pancake mix, bisquick,
                 cookie, cracker, pastry, pie crust, croissant, brioche, caramel, toffee, butterscotch,
                 coffee creamer, creamer, whipped topping, cool whip, pesto, ranch, cream of mushroom soup,
-                mashed potato flake, nougat, frosting, icing, pudding mix]
+                mashed potato flake, nougat, frosting, icing, pudding mix, ravioli, tortellini, tortelloni]
 
 egg:
   free_if: [egg-free, eggless, vegan, egg replacer]
@@ -59,12 +60,18 @@ tree_nut:
   may_contain: [pesto, mixed nuts, nut, granola, trail mix, nougat, baklava, biscotti]
 
 gluten:
+  # wheat allergy maps here too (stricter than needed: gluten also covers barley and rye)
   free_if: [gluten-free, gluten free]
   except: [rice flour, corn flour, almond flour, coconut flour, chickpea flour, garbanzo flour, garbanzo bean flour,
            tapioca flour, potato flour, sorghum flour, millet flour, quinoa flour, cassava flour, arrowroot flour,
-           buckwheat flour, masa harina, rice noodle, rice paper, rice cracker, rice cake, corn tortilla,
+           masa harina, rice noodle, rice paper, rice cracker, rice cake, corn tortilla,
            tortilla chip, corn chip, rice bread, rice paper wrapper, ginger ale, ginger beer, root beer,
-           spaghetti sauce, pasta sauce, spaghetti squash]
+           spaghetti sauce, pasta sauce, spaghetti squash,
+           rice pasta, brown rice pasta, rice vermicelli, rice stick, rice ramen, corn pasta, chickpea pasta,
+           lentil pasta, red lentil pasta, quinoa pasta, bean pasta, black bean pasta, edamame pasta,
+           bean thread, glass noodle, cellophane noodle, mung bean noodle, sweet potato noodle, shirataki,
+           kelp noodle, zucchini noodle, zoodle, cauliflower crust, cauliflower pizza crust, cannelloni bean,
+           cannellini bean]
   contains: [flour, wheat, whole wheat, bread, breadcrumb, bread crumb, panko, crouton, pasta, spaghetti,
              macaroni, noodle, couscous, bulgur, barley, rye, semolina, farro, spelt, seitan, orzo, penne,
              linguine, fettuccine, fettuccini, lasagna, lasagne, tortellini, ravioli, rigatoni, ziti, rotini,
@@ -72,8 +79,19 @@ gluten:
              cracker, graham, cookie, cake, pie crust, pastry, phyllo, filo, biscuit, pretzel, beer, ale,
              lager, stout, malt, soy sauce, teriyaki, cake mix, brownie mix, matzo, matzoh, wonton, wrapper,
              pizza dough, dough, english muffin, muffin, waffle, pancake mix, bisquick, stuffing,
-             roll, brioche, challah, ciabatta, focaccia, sourdough, naan, udon, ramen, soba, gnocchi,
-             wheat germ, cream of wheat, cereal, crust, pie shell, pasta shell, ladyfinger]
+             roll, brioche, challah, ciabatta, focaccia, sourdough, naan, udon, ramen, gnocchi,
+             wheat germ, cream of wheat, cereal, crust, pie shell, pasta shell, ladyfinger,
+             # every wheat pasta shape: a line like "penne or bucatini" is only safe if both options are tagged
+             bucatini, cavatappi, cavatapi, orecchiette, pappardelle, tagliatelle, tagliolini, conchiglie,
+             rotelle, radiatori, gemelli, campanelle, ditalini, mostaccioli, manicotti, cannelloni, capellini,
+             perciatelli, paccheri, trofie, strozzapreti, tortiglioni, stelline, acini di pepe, anelli, lumache,
+             casarecce, garganelli, mafalda, mafaldine, farfalline, pastina, fideo, fideos, spaetzle, spatzle,
+             lo mein, chow mein, dumpling, gyoza wrapper, potsticker wrapper, dumpling wrapper, durum,
+             freekeh, kamut, einkorn, emmer, triticale, breadstick, flatbread, chapati, chapatti, roti,
+             paratha, puri, bhatura, kulcha, atta, maida, sooji, suji, rava, sevai, seviyan, dalia, pie dough,
+             pastry dough, pizza crust, pan dulce, pan de mie, pan de sal, pan de muerto, linguini, spaghettini]
+  # soba / buckwheat: gluten-free grain, but soba is often cut with wheat -> at most may_contain
+  downgrade: [buckwheat, buckwheat flour, soba, soba noodle, kasha]
   may_contain: [oat, oats, rolled oats, oatmeal, granola, worcestershire, bouillon, gravy, seasoning mix,
                 licorice, imitation crab, hoisin, miso, cornbread, tamari, cream of mushroom soup,
                 cream of chicken soup, sausage, meatball]
@@ -86,7 +104,8 @@ meat:
            hot dog bun, hamburger roll, hot dog roll, duck sauce, hen of the woods, chicken of the woods,
            vegetable broth, vegetable stock, mushroom broth, chickpea, goat cheese, goat milk,
            goats milk, goat yogurt, poultry seasoning, quail egg, duck egg, vegetable bouillon, mushroom stock,
-           fish stock, fish broth, seafood stock, shrimp stock, lobster stock, clam broth, clam juice]
+           fish stock, fish broth, seafood stock, shrimp stock, lobster stock, clam broth, clam juice,
+           beefsteak tomato, beef steak tomato, beefsteak mushroom]
   contains: [meat, beef, steak, sirloin, brisket, chuck, flank, skirt steak, veal, lamb, mutton, goat,
              venison, bison, elk, rabbit, pork, bacon, ham, prosciutto, pancetta, guanciale,
              salami, pepperoni, chorizo, sausage, kielbasa, bratwurst, andouille, hot dog, frankfurter,
