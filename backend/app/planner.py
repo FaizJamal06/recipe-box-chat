@@ -8,7 +8,7 @@ import json
 from dataclasses import dataclass, field
 
 from . import llm
-from .rules import rule_plan
+from .rules import confident, rule_plan
 
 INTENTS = ["search", "recipe_detail", "stats", "match", "unsupported", "clarify", "smalltalk"]
 TAGS = ["dairy", "egg", "peanut", "tree_nut", "gluten", "meat", "pork", "poultry", "fish", "shellfish"]
@@ -31,33 +31,26 @@ SCHEMA = obj({
     "target": obj({"kind": enum(["none", "result_index", "recipe_id", "title", "selected"]), "value": S}),
     "unsupported": obj({"attribute": enum(ATTRS), "reason": S}),
 })
-SYSTEM = f"""You turn one message to a recipe-database chatbot into a JSON plan. Never answer the question, never
-state facts or numbers about recipes, never invent recipe ids (only ids listed in LAST_RESULTS).
-Fill every field; use "" / 0 / [] for "not mentioned".
-intent: search = find recipes (dish words go to query_text); match = the user lists ingredients they have
-(have_set: each item as written, with its quantity, e.g. "2 eggs", "1 cup rice"); recipe_detail = show one
-recipe's steps/ingredients (target); stats = counts/percentages/rankings/averages over the dataset;
-unsupported = nutrition/calories, cook or prep time, servings, ratings, or a category/cuisine field (e.g.
-"desserts"); clarify = unclear; smalltalk = greeting/thanks.
-state_patch: mode "new" for a new dish or a new have-list, "refine" when the user only adds/removes
-restrictions to the current task. exclude_tags_add uses only these tags: {', '.join(TAGS)} ("eggs" -> egg,
-"vegetarian" -> meat, poultry, fish, shellfish); any other "no X" goes to exclude_add as plain words.
-"X is fine now" -> exclude_remove / exclude_tags_remove. max_steps: "at most 6 steps" -> 6, "under 5 steps" -> 4,
-remove the limit -> -1, not mentioned -> 0. prefs_add: "as many as possible" -> use_most, "fewest additional
-ingredients" -> fewest_extra, "fewest steps" -> fewest_steps, "don't assume salt/pepper/water" -> no_staples.
-limit: number of recipes asked for, else 0.
-stats: ingredient words go to all_of/any_of/none_of as plain words. "How many recipes are dairy-free" -> op count,
-tags [dairy], tag_mode free; "how many contain dairy" -> tag_mode contains. Ranks: "fewest steps" -> op rank,
-field n_steps, order asc. Default limit 5 for rank, 10 for top_ingredients.
-target: "the second one" -> result_index "2"; "the last one" -> result_index "-1"; "this/that recipe", "it" ->
-selected; a listed id -> recipe_id; a title -> title.
+SYSTEM = """Convert a message to a recipe chatbot into a JSON plan. Never answer it or state recipe facts; only use
+ids from LAST_RESULTS. Unmentioned fields: "", 0 or [].
+intent: search (dish words -> query_text) | match (user lists ingredients they have -> have_set, items as
+written incl. quantity: "2 eggs") | recipe_detail (target) | stats (counts, %, ranks, averages) | unsupported
+(nutrition, cook time, servings, ratings, category) | clarify | smalltalk.
+state_patch.mode: new = new dish or have-list; refine = only adds/removes restrictions. Allergen/diet words ->
+exclude_tags_add (eggs -> egg; vegetarian -> meat, poultry, fish, shellfish); other "no X" -> exclude_add.
+"X is fine now" -> *_remove. max_steps: "at most 6" -> 6, "under 5" -> 4, drop limit -> -1.
+prefs_add: as many as possible -> use_most; fewest additional -> fewest_extra; fewest steps -> fewest_steps;
+no salt/pepper/water assumed -> no_staples. limit = recipes asked for.
+stats: ingredients as plain words in all_of/any_of/none_of; "dairy-free" -> tags [dairy], tag_mode free;
+"fewest steps" -> op rank, field n_steps, order asc.
+target: "the second one" -> result_index "2"; last -> "-1"; this/that/it -> selected; else recipe_id or title.
 """
 
 
 @dataclass
 class PlanInfo:
     """How the plan was made, for the per-turn report."""
-    source: str  # 'llm' | 'rule' | 'guard'
+    source: str  # 'llm' | 'rule' (LLM failed or off) | 'rule_direct' (high-confidence pattern) | 'guard'
     calls: list = field(default_factory=list)  # llm.Call per request (cache hits included, ms = 0)
     reason: str = ""  # why the rule parser was used
 
@@ -98,20 +91,28 @@ def validate(d: dict) -> dict:
 
 
 def prompt(text: str, state) -> str:
-    """State JSON + numbered last results (max 10) + last 6 turns + the message; sorted keys keep it cacheable."""
-    st = {k: getattr(state, k) for k in ("active_task", "query_text", "exclude", "exclude_tags", "max_steps", "have",
-                                         "prefs", "selected_recipe_id")}
-    res = "\n".join(f"{i}. {rid} | {title}" for i, (rid, title) in enumerate(state.last_titles[:10], 1)) or "(none)"
-    hist = "\n".join(f"user: {u}\nbot: {b}" for u, b in state.history[-6:]) or "(none)"
-    return f"STATE: {json.dumps(st, sort_keys=True)}\nLAST_RESULTS:\n{res}\nHISTORY:\n{hist}\nMESSAGE: {text}"
+    """Compact prompt: non-empty state fields, numbered last results (max 10, short titles), last 4 turns
+    (bot side cut to 80 chars), the message. Sorted keys keep it cacheable."""
+    st = {k: v for k in ("active_task", "query_text", "exclude", "exclude_tags", "max_steps", "have", "prefs",
+                         "selected_recipe_id") if (v := getattr(state, k))}
+    res = "\n".join(f"{i}. {rid} | {title[:50]}" for i, (rid, title) in enumerate(state.last_titles[:10], 1))
+    hist = "\n".join(f"user: {u}\nbot: {b[:80]}" for u, b in state.history[-4:])
+    parts = [f"STATE: {json.dumps(st, sort_keys=True)}" if st else "", f"LAST_RESULTS:\n{res}" if res else "",
+             f"HISTORY:\n{hist}" if hist else "", f"MESSAGE: {text}"]
+    return "\n".join(p for p in parts if p)
 
 
-def plan(text: str, state, use_llm: bool = True) -> tuple[dict, PlanInfo]:
-    """LLM plan, or the rule plan (with the reason) on any LLM failure."""
+def plan(text: str, state, use_llm: bool = True, known=lambda w: True) -> tuple[dict, PlanInfo]:
+    """Rule plan when it is a high-confidence pattern (no LLM call); else the LLM plan; else the rule plan
+    with the reason the LLM was unavailable (no key, 429, timeout, network, invalid JSON twice).
+    known(word): is it a dataset ingredient (used by the high-confidence check)."""
+    rp = rule_plan(text)
+    if confident(text, rp, known):
+        return finish(rp), PlanInfo("rule_direct")
     if not use_llm or not llm.available():
-        return finish(rule_plan(text)), PlanInfo("rule", reason="LLM disabled" if not use_llm else "no GEMINI_API_KEY")
+        return finish(rp), PlanInfo("rule", reason="LLM disabled" if not use_llm else "no GEMINI_API_KEY")
     try:
         p, calls = llm.generate_json(SYSTEM, prompt(text, state), SCHEMA, validate)
         return p, PlanInfo("llm", calls)
     except llm.LLMError as e:
-        return finish(rule_plan(text)), PlanInfo("rule", e.calls, str(e))
+        return finish(rp), PlanInfo("rule", e.calls, str(e))

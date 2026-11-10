@@ -81,14 +81,15 @@ def search(con: sqlite3.Connection, query_text: str = "", include: list[Term] = 
         human.insert(0, f"matches '{query_text}'")
     else:
         frm, order = "recipes r", "r.id"
-    sql = f"SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM {frm} WHERE {w} ORDER BY {order} LIMIT ?"
-    tail = ([f"%{' '.join(query_text.split())}%"] if q else []) + [limit]
-    rows = con.execute(sql, params + tail).fetchall()
-    total = con.execute(f"SELECT COUNT(*) FROM {frm} WHERE {w}", params).fetchone()[0]
-    hits = [Hit(*r) for r in rows]
+    sql = f"SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM {frm} WHERE {w} ORDER BY {order}"
+    tail = [f"%{' '.join(query_text.split())}%"] if q else []
+    rows = con.execute(sql, params + tail).fetchall()  # every eligible row once: the total is len(rows)
+    total = len(rows)  # ponytail: one pass instead of a 2nd COUNT query; LIMIT + COUNT if result sets get huge
+    hits = [Hit(*r) for r in rows[:limit]]
     for h in hits:
         h.evidence = _evidence(con, h, include, exclude, exclude_tags, max_steps)
-    return SearchResult(hits, total, "; ".join(human) or "all valid recipes", render(sql, params + tail))
+    return SearchResult(hits, total, "; ".join(human) or "all valid recipes", render(sql, params + tail) +
+                        f" -- first {limit} shown")
 
 
 def evidence(con: sqlite3.Connection, rid: str, include=(), exclude=(), exclude_tags=(), max_steps=None) -> list[str]:

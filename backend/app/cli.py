@@ -10,6 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import llm
 from .db import connect, load_dataset
 from .session import Session
 
@@ -21,8 +22,14 @@ def main() -> None:
     ap.add_argument("--session", type=Path, help="file with one user turn per line")
     ap.add_argument("--no-llm", action="store_true", help="use the rule parser only")
     a = ap.parse_args()
+    warm = None if a.no_llm else llm.warm()  # google-genai (~6 s cold) loads while the DB loads
     con = connect()
     ds = load_dataset(con)
+    if warm:
+        try:
+            warm.result()  # startup cost, not a turn's: the 6 s LLM budget is for the request only
+        except Exception:  # noqa: BLE001  (a broken install shows up as a rule-parser fallback per turn)
+            pass
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # recipe titles have accents
     s = Session(con, ds, use_llm=not a.no_llm)

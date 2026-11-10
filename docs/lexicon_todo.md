@@ -22,5 +22,9 @@ Format: `- [area] example line -> what happens now -> what it should do`
   caramel, chocolate, candy still pass -> consider a `sugar` tag (contains: sweetened products) (seen in demo 6)
 - [parse] branded compound lines ("Progresso Recipe Starters creamy roasted garlic ... cooking sauce") -> one
   long canonical, garlic not detected (search exclusions now also check FTS word mentions) -> head-noun rule
+- [exclusion] KNOWN OVER-EXCLUSION: "no cream" drops "cream of tartar" (and coconut cream / cream of mushroom)
+  recipes via the FTS mention net in search.hard_where (canonical/family path is fine) -> per-word safe phrases,
+  e.g. FTS `"cream" NOT "cream of tartar"` (xfail test: test_exclusions.py::test_no_cream_keeps_cream_of_tartar).
+  "no egg" vs eggplant and "no salt" vs unsalted butter are correct (porter tokens differ), tested.
 
 ## Done

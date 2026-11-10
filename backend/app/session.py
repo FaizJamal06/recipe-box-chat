@@ -72,11 +72,14 @@ class Turn:
     def meta(self) -> str:
         """'[planner: ... | LLM calls: n | latency]' (the visible rule-parser flag)."""
         src = {"llm": f"LLM {llm.model()}", "guard": "unsupported-attribute guard (no LLM needed)",
+               "rule_direct": "rule parser (high-confidence pattern; LLM skipped)",
                "rule": f"rule parser (LLM unavailable: {self.info.reason})"}[self.info.source]
         hits = sum(c.cached for c in self.info.calls)
         llm_ms = sum(c.ms for c in self.info.calls)
+        tok = sum(c.prompt_tokens for c in self.info.calls)
+        tok = f", prompt {tok} tok, thoughts {sum(c.thought_tokens for c in self.info.calls)} tok" if tok else ""
         return (f"[planner: {src} | LLM calls: {self.llm_calls}{f' + {hits} cache hit' if hits else ''}, "
-                f"{llm_ms} ms | turn {self.ms} ms]")
+                f"{llm_ms} ms{tok} | turn {self.ms} ms]")
 
 
 def _key(w: str) -> tuple:
@@ -96,7 +99,8 @@ class Session:
         if attr:
             p, info = finish({"intent": "unsupported", "unsupported": {"attribute": attr}}), PlanInfo("guard")
         else:
-            p, info = make_plan(text, self.state, self.use_llm)
+            known = lambda w: w.lower() in TAG_WORDS or (_key(w) or ("",))[0] in self.ds.vocab
+            p, info = make_plan(text, self.state, self.use_llm, known)
         try:
             reply, res = self._run(text, p)
         except stats.UnknownIngredient as e:

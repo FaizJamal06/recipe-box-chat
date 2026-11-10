@@ -94,6 +94,23 @@ def target(t: str) -> dict | None:
     return None
 
 
+def confident(text: str, plan: dict, known=lambda w: True) -> bool:
+    """Rule plans trusted without asking the LLM (the faster, deterministic path):
+    a have-list ('I have ...'); 'the Nth one' with a detail word; a short message (<= 8 words, no question)
+    that only adds/removes restrictions ('I cannot have dairy', 'also no garlic', 'exclude eggs too',
+    'dairy is fine now', 'at most 1 step') whose words are all tags or known ingredients (`known`)."""
+    intent = plan.get("intent")
+    if intent == "match":
+        return True
+    if intent == "recipe_detail":
+        return plan["target"]["kind"] == "result_index"
+    p = plan.get("state_patch") or {}
+    if intent != "search" or p.get("query_text") or "?" in text:
+        return False
+    words = p.get("exclude_add", []) + p.get("exclude_remove", [])
+    return len(re.findall(r"[a-z']+", text.lower())) <= 8 and all(known(w) for w in words)
+
+
 def rule_plan(text: str) -> dict:
     """Plan from regexes (PRD 5.2 shape, missing keys filled by planner.finish)."""
     t = " ".join(text.lower().replace("’", "'").split())

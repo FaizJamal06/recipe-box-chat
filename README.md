@@ -32,9 +32,13 @@ fresh garlic forms) and **broad** (plus the family's `broad` list in `backend/ap
 Rankings break ties by n_steps, then n_ingredients, then id. Tag stats ("how many are dairy-free") report
 lenient (only `contains` counts) and strict (`may_contain` counts too).
 
-LLM: Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`) only turns text into a JSON plan; at most 2
-requests per turn (the 2nd only to retry invalid JSON); responses cached in `data/llm_cache.sqlite`. No key,
-a 429 or a network error → the regex rule parser, flagged in the reply. Nutrition, cook time, servings,
+LLM: Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`, thinking `minimal`) only turns text into a JSON
+plan; at most 2 requests per turn (the 2nd only to retry invalid JSON); responses cached in
+`data/llm_cache.sqlite`; prompt/thought tokens are printed per turn. High-confidence phrasings (a have-list,
+"the second one", short restriction-only messages like "also no garlic") skip the LLM and use the rule parser
+directly. No key, a 429, a network error or no answer within 6 s → the rule parser, flagged in the reply.
+The 6 s limit is client-side (the API rejects deadlines under 10 s); google-genai's ~6 s cold import is paid
+at startup (`llm.warm()`), not inside a turn. Nutrition, cook time, servings,
 ratings and categories have no field: the guard answers those without the LLM (category → a labelled
 title-keyword proxy; cook time → durations mentioned in the instructions).
 

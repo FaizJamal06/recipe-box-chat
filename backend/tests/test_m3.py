@@ -136,7 +136,7 @@ def fake_llm(monkeypatch, tmp_path):
         x = queue.pop(0)
         if isinstance(x, Exception):
             raise x
-        return x
+        return x, {"prompt_tokens": 100}
     monkeypatch.setattr(llm, "_remote", remote)
     return queue
 
@@ -152,10 +152,10 @@ def test_llm_plan_retry_cache_and_fallback(fake_llm, eng):
     con, ds = eng
     s = Session(con, ds)
     fake_llm += ['{"intent": "dance"}', GOOD]  # invalid, then valid: 2 requests, the max
-    t = s.respond("penne without dairy please")
+    t = s.respond("what penne dish works without dairy?")
     assert t.info.source == "llm" and t.llm_calls == 2 and s.state.exclude_tags == ["dairy"]
     s2 = Session(con, ds)  # same prompt (fresh state) -> cache hit, no request
-    t = s2.respond("penne without dairy please")
+    t = s2.respond("what penne dish works without dairy?")
     assert t.info.source == "llm" and t.llm_calls == 0 and t.info.calls[0].cached
     fake_llm += [llm.LLMError("HTTP 429 RESOURCE_EXHAUSTED")]
     t = Session(con, ds).respond("Find a rice recipe")
@@ -163,6 +163,38 @@ def test_llm_plan_retry_cache_and_fallback(fake_llm, eng):
     fake_llm += ["not json", '{"intent": 3}']
     t = Session(con, ds).respond("Find a tomato recipe")
     assert t.info.source == "rule" and t.llm_calls == 2 and not fake_llm
+
+
+def test_slow_llm_times_out_client_side(monkeypatch):
+    import time
+    from types import SimpleNamespace
+    slow = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **kw: time.sleep(0.5)))
+    monkeypatch.setattr(llm, "_client", slow)
+    monkeypatch.setattr(llm, "TIMEOUT_MS", 100)
+    t = time.perf_counter()
+    with pytest.raises(llm.LLMError, match="timeout"):
+        llm._remote("s", "p", {"type": "object"})
+    assert time.perf_counter() - t < 0.4
+
+
+def test_high_confidence_rule_patterns_skip_the_llm(fake_llm):
+    from app.session import SessionState
+    st, known = SessionState(), lambda w: w in ("garlic", "dairy", "eggs")
+    for text in ("I cannot have dairy", "also no garlic", "Exclude eggs too.", "dairy is fine now",
+                 "show me the steps for the second one", "at most 1 step", "I have 2 eggs and 1 cup rice", DEMO5):
+        assert planner.plan(text, st, known=known)[1].source == "rule_direct", text
+    fake_llm += [GOOD, GOOD]  # these go to the LLM: a new dish, and an exclusion of an unknown word
+    for text in ("Find a penne pasta recipe", "no I meant the other one"):
+        assert planner.plan(text, st, known=known)[1].source == "llm", text
+    assert not fake_llm
+
+
+def test_prompt_is_compact():
+    from app.session import SessionState
+    st = SessionState(exclude_tags=["dairy"], history=[(f"u{i}", "b" * 200) for i in range(6)])
+    text = planner.prompt("hi", st)
+    assert text.count("user: ") == 4 and "b" * 81 not in text and "have" not in text.split("MESSAGE")[0]
+    assert planner.prompt("hi", SessionState()) == "MESSAGE: hi"
 
 
 def test_planner_validation_rejects_unknown_enums():
