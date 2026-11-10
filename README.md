@@ -1,6 +1,7 @@
 # Recipe Box chatbot
 
-Status: **M2 done** (search, stats, rule planner, CLI; demos 2 and 3 cross-checked by `eval/oracle.py`). Spec: [PRD.md](PRD.md). Data findings: [docs/DATA_PROFILE.md](docs/DATA_PROFILE.md).
+Status: **M3 done** (LLM planner with rule fallback, sticky sessions, T2 matching, unsupported-attribute guard;
+demos 1–6 run as CLI sessions, transcripts in `demos/transcripts/`). Spec: [PRD.md](PRD.md). Data findings: [docs/DATA_PROFILE.md](docs/DATA_PROFILE.md).
 
 ## Commands
 
@@ -13,8 +14,9 @@ Each `make` target is one command you can run directly (no `make` needed; PowerS
 | `make db` | `python -m backend.app.ingest` | build `data/recipes.db` (~3.5 min, peak RSS ~330 MB; prints peak memory) |
 | `make test` | `python -m pytest -q -x` | unit tests + a DB build from `backend/tests/fixtures/mini.json` |
 | `make coverage` | `python scripts/coverage.py` | normalization report; rewrites the coverage section of `docs/DATA_PROFILE.md` |
-| `make cli` | `python -m backend.app.cli` (or `--ask "..."`) | chat in the terminal (rule planner until M3) |
+| `make cli` | `python -m backend.app.cli` (or `--ask "..."`, `--session demos/demo1_refine.txt`, `--no-llm`) | chat in the terminal; one sticky session; prints planner (LLM / rule parser + why), LLM calls and latency per turn |
 | `make oracle` | `python eval/oracle.py` | recompute demos 2 and 3 from the raw JSON in pure Python and check the CLI answers (~2.5 min) |
+| — | `python scripts/determinism.py` | build the DB twice (different hash seeds) and compare fingerprints (~6 min alone) |
 | `make peek` | `python scripts/peek.py --n 3` | print 3 truncated records per file (never open `data/raw/` directly) |
 | `make profile` | `python scripts/profile_data.py` | write `docs/DATA_PROFILE.md` |
 | `make run` | `python -m uvicorn app.api:app --app-dir backend --port 8000 --reload` | serve the API; try http://127.0.0.1:8000/api/health |
@@ -27,6 +29,22 @@ Counting rules every answer states: N of the **valid** recipes (title + at least
 record total and invalid breakdown are read from the DB at startup). Steps = effective `n_steps` (newline steps;
 sentences when the instructions are one paragraph). Ingredient presence is reported **strict** (the family, e.g.
 fresh garlic forms) and **broad** (plus the family's `broad` list in `backend/app/lexicon/families.yaml`).
+Rankings break ties by n_steps, then n_ingredients, then id. Tag stats ("how many are dairy-free") report
+lenient (only `contains` counts) and strict (`may_contain` counts too).
+
+LLM: Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`) only turns text into a JSON plan; at most 2
+requests per turn (the 2nd only to retry invalid JSON); responses cached in `data/llm_cache.sqlite`. No key,
+a 429 or a network error → the regex rule parser, flagged in the reply. Nutrition, cook time, servings,
+ratings and categories have no field: the guard answers those without the LLM (category → a labelled
+title-keyword proxy; cook time → durations mentioned in the instructions).
+
+Matching (T2): U = your ingredients, P = pantry staples assumed available (salt, black pepper, water; say "no
+staples" to turn off), R = the recipe's required ingredients − P. matched = U∩R, unused = U−R, extra = R−U.
+Eligible = no excluded ingredient/tag, n_steps ≤ limit, ≥ 1 matched. Score = 2·matched − 1·extra −
+0.1·steps − 0.5·(items short on quantity); "as many as possible" → 3·matched, "fewest additional" → 1.5·extra,
+"fewest steps" → 0.5·steps. Quantities are compared only within one unit family (volume or mass; counts
+with the same unit), never volume↔mass. If nothing is eligible the reply says "No recipe satisfies all hard
+constraints" and lists flagged alternatives, each relaxing one named constraint.
 
 ## Deploy to Railway
 

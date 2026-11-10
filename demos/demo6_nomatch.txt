@@ -1,0 +1,4 @@
+# PRD 11 demo 6 (T2 no-match). Turn 1 is the PRD wording: under PRD 6.3 eligibility (>= 1 matched item) saffron alone
+# qualifies in 2 steps, so it honestly returns matches. Turn 2 tightens the limit: exact no-match text + flagged relaxations.
+I have saffron and marshmallows, no sugar, at most 2 steps
+at most 1 step

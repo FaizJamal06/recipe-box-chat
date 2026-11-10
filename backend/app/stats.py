@@ -70,6 +70,7 @@ class Filters:
     any_of: list = field(default_factory=list)
     none_of: list = field(default_factory=list)
     title_contains: list = field(default_factory=list)
+    title_any: list = field(default_factory=list)  # whole-word title keywords, any of (category proxy, PRD 5.3)
 
     def where(self, mode: str, none_mode: str | None = None) -> tuple[str, list, str]:
         """(SQL where clause over recipes r, params, human-readable filters). none_mode: definition used for
@@ -91,6 +92,10 @@ class Filters:
             sql.append("r.title LIKE ?")
             params.append(f"%{w}%")
             human.append(f"title contains '{w}'")
+        if self.title_any:  # FTS5 title column, porter-stemmed whole words: 'cookie' also matches 'cookies'
+            sql.append("r.id IN (SELECT id FROM recipes_fts WHERE recipes_fts MATCH ?)")
+            params.append("title : (" + " OR ".join(f'"{w}"' for w in self.title_any) + ")")
+            human.append("title has any of: " + ", ".join(self.title_any))
         return " AND ".join(sql), params, " AND ".join(human) or "all valid recipes"
 
     @property
@@ -149,29 +154,33 @@ def count(con: sqlite3.Connection, ds: Dataset, f: Filters, op: str = "count") -
 
 def rank(con: sqlite3.Connection, ds: Dataset, f: Filters, fld: str = "n_steps", order: str = "asc",
          limit: int = 5) -> Result:
-    """Top `limit` valid recipes by a field, tie-break (field, id) ascending id. Ingredient filters are strict."""
+    """Top `limit` valid recipes by a field. Tie-break: the other field ascending (n_steps -> n_ingredients,
+    n_ingredients -> n_steps), then recipe id ascending. Ingredient filters are strict."""
     assert fld in FIELDS and order in ("asc", "desc")
+    other = "n_ingredients" if fld == "n_steps" else "n_steps"
     w, p, human = f.where("strict")
-    sql = (f"SELECT r.id, r.title, r.{fld}, r.n_steps_newline, r.n_sentences, r.is_paragraph_format "
-           f"FROM recipes r WHERE {w} ORDER BY r.{fld} {order.upper()}, r.id ASC LIMIT ?")
+    sql = (f"SELECT r.id, r.title, r.{fld}, r.n_steps_newline, r.n_sentences, r.is_paragraph_format, r.{other} "
+           f"FROM recipes r WHERE {w} ORDER BY r.{fld} {order.upper()}, r.{other} ASC, r.id ASC LIMIT ?")
     rows = con.execute(sql, p + [limit]).fetchall()
     n = con.execute(f"SELECT COUNT(*) FROM recipes r WHERE {w}", p).fetchone()[0]
     res = Result("rank", [r[0] for r in rows], human, n, ds.valid,
-                 f"Sorted all {n:,} matching valid recipes by {fld} {order}, ties broken by recipe id ascending."
-                 + (f" {STEP_RULE}" if fld == "n_steps" else ""), render(sql, p + [limit]),
-                 normalization_note=_note(con, f), rows=rows, notes=_broad_note(con, f))
+                 f"Sorted all {n:,} matching valid recipes by {fld} {order}, ties broken by {other} ascending, "
+                 f"then recipe id ascending." + (f" {STEP_RULE}" if fld == "n_steps" else ""),
+                 render(sql, p + [limit]), normalization_note=_note(con, f), rows=rows, notes=_broad_note(con, f))
     if rows:
         edge = rows[-1][2]
         ties = con.execute(f"SELECT COUNT(*) FROM recipes r WHERE {w} AND r.{fld} = ?", p + [edge]).fetchone()[0]
         if ties > 1:
-            res.notes.append(f"{ties:,} recipes have {fld} = {edge}; the ones shown are the first by recipe id.")
+            res.notes.append(f"{ties:,} recipes have {fld} = {edge}; the ones shown are the first by {other}, "
+                             "then recipe id.")
     if fld == "n_steps" and rows:
         para = sum(r[5] for r in rows)
         if para * 2 >= len(rows):
             res.notes.append(f"Caveat: {para} of {len(rows)} are paragraph-format (one block of text), so their "
                              "step count is a sentence count.")
         nl = con.execute(f"SELECT r.id, r.title, r.n_steps_newline, r.is_paragraph_format FROM recipes r WHERE {w} "
-                         f"ORDER BY r.n_steps_newline {order.upper()}, r.id ASC LIMIT ?", p + [limit]).fetchall()
+                         f"ORDER BY r.n_steps_newline {order.upper()}, r.n_ingredients ASC, r.id ASC LIMIT ?",
+                         p + [limit]).fetchall()
         np_ = sum(r[3] for r in nl)
         res.notes.append("Newline-only rule for comparison: " + ", ".join(f"{r[0]} ({r[2]})" for r in nl)
                          + (f" — {np_} of {len(nl)} paragraph-format" if np_ else ""))
@@ -201,3 +210,30 @@ def top_ingredients(con: sqlite3.Connection, ds: Dataset, f: Filters, k: int = 1
     return Result("top_ingredients", rows, human, n, ds.valid, "Canonical ingredients ranked by the number of "
                   "matching valid recipes that use them (required items only).", render(sql, p + [k]),
                   normalization_note=_note(con, f), rows=rows, notes=_broad_note(con, f))
+
+
+TAG_LEVELS = ("Tag levels (recipe_tags): contains = a required item has it; may_contain = label-dependent "
+              "(e.g. margarine, chocolate chips); alt = only in an 'or' option that has a tag-free alternative, so "
+              "the recipe can be made without it (counted as free).")
+
+
+def tag_count(con: sqlite3.Connection, ds: Dataset, tags: list[str], want: str = "free",
+              op: str = "count") -> list[Result]:
+    """'How many recipes are dairy-free / contain dairy' over recipe_tags, reported at two strictness levels:
+    lenient reads only 'contains'; strict also treats 'may_contain' as containing."""
+    assert want in ("free", "contains")
+    out, tph = [], ",".join("?" * len(tags))
+    for mode, levels in (("lenient", ("contains",)), ("strict", ("contains", "may_contain"))):
+        sub = (f"r.id IN (SELECT recipe_id FROM recipe_tags WHERE tag IN ({tph}) AND level IN "
+               f"({','.join('?' * len(levels))}))")
+        sql = f"SELECT COUNT(*) FROM recipes r WHERE r.valid = 1 AND {'NOT ' if want == 'free' else ''}{sub}"
+        p = [*tags, *levels]
+        n = con.execute(sql, p).fetchone()[0]
+        name = "/".join(tags)
+        method = (f"lenient = valid recipes with no {name} line at level 'contains' (may_contain and alt count as "
+                  f"free); strict = no {name} line at 'contains' or 'may_contain'" if want == "free" else
+                  f"lenient = valid recipes with a {name} line at level 'contains'; strict = at 'contains' or "
+                  "'may_contain'")
+        out.append(Result(op, n, f"{name}-{want} recipes", n, ds.valid,
+                          method + "; percentage = count / valid recipes.", render(sql, p), mode, TAG_LEVELS))
+    return out

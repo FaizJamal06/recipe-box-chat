@@ -70,16 +70,17 @@ def compute(files: dict, vocab_min: int = VOCAB_MIN) -> dict:
     for rid, rec in records(files):  # pass 2: required items (primary options) with the vocab, like the DB
         if rid not in valid:
             continue
-        cans = {p.name.canonical for s in real_lines(rec) for p in nz.parse_line(s, vocab) if p.name}
+        lines = real_lines(rec)
+        cans = {p.name.canonical for s in lines for p in nz.parse_line(s, vocab) if p.name}
         fams = {nz.family_for(c) for c in cans}
         for mode, broad in (("strict", False), ("broad", True)):
             both[mode] += has(fam["garlic"], cans, fams, broad) and has(fam["onion"], cans, fams, broad)
-        if has(fam["tomato"], cans, fams, False):
-            tomato.append((steps(rec["instructions"])[0], rid))
+        if has(fam["tomato"], cans, fams, False):  # rank tie-break: n_steps, n_ingredients, id
+            tomato.append((steps(rec["instructions"])[0], len(lines), rid))
         tomato_broad += has(fam["tomato"], cans, fams, True)
     tomato.sort()
     return {"total": sum(reasons.values()), "valid": reasons.pop(None, 0), "invalid": dict(reasons),
-            "demo2": dict(both), "demo3_n": len(tomato), "demo3_ids": [rid for _, rid in tomato[:5]],
+            "demo2": dict(both), "demo3_n": len(tomato), "demo3_ids": [rid for *_, rid in tomato[:5]],
             "demo3_broad": tomato_broad}
 
 

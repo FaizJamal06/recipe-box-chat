@@ -16,5 +16,11 @@ Format: `- [area] example line -> what happens now -> what it should do`
 - [parse] "1 (3-pound chicken)", "red onion: 1, julienned" -> parse misses -> parse them
 - [parse] storage-guide pseudo-lines ("Tomatoes--12 to 18 months") -> junk names ("to month", "year") -> drop
   them as not_food
+- [parse] units/qty glued into names: "pinch salt" (100 recipes), "teaspoon salt", "cup water", "grinds black
+  pepper", "egg tablespoon water" -> own canonicals, so they are not pantry staples in matching -> strip the unit
+- [tags] no sugar tag: "no sugar" is an ingredient exclusion (sugar family + broad + text mention), so marshmallow,
+  caramel, chocolate, candy still pass -> consider a `sugar` tag (contains: sweetened products) (seen in demo 6)
+- [parse] branded compound lines ("Progresso Recipe Starters creamy roasted garlic ... cooking sauce") -> one
+  long canonical, garlic not detected (search exclusions now also check FTS word mentions) -> head-noun rule
 
 ## Done

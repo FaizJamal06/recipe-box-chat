@@ -1,22 +1,22 @@
 # Unit lexicon (PRD 4.5 step 3). canonical unit -> family + spellings (lowercase, plural included).
-# Families: volume / mass / count / container. A trailing "." is accepted automatically (tsp., oz.).
+# Families: volume / mass / count / container. to_base = ml (volume) or g (mass), used only to compare quantities within one family. A trailing "." is accepted automatically (tsp., oz.).
 # Multi-word spellings are matched before single words, so "fluid ounce" wins over "ounce".
-cup:        {family: volume, aliases: [cup, cups, c]}
-tablespoon: {family: volume, aliases: [tablespoon, tablespoons, tbsp, tbsps, tbs, tbl, tbls, tblsp]}
-teaspoon:   {family: volume, aliases: [teaspoon, teaspoons, tsp, tsps, tspn]}
-fluid ounce: {family: volume, aliases: [fluid ounce, fluid ounces, fl oz, fl. oz, fl ounce]}
-pint:       {family: volume, aliases: [pint, pints, pt]}
-quart:      {family: volume, aliases: [quart, quarts, qt, qts]}
-gallon:     {family: volume, aliases: [gallon, gallons, gal]}
-ml:         {family: volume, aliases: [ml, milliliter, milliliters, millilitre, millilitres]}
-l:          {family: volume, aliases: [l, liter, liters, litre, litres]}
-pinch:      {family: volume, aliases: [pinch, pinches]}
-dash:       {family: volume, aliases: [dash, dashes]}
-drop:       {family: volume, aliases: [drop, drops]}
-ounce:      {family: mass, aliases: [ounce, ounces, oz, ozs]}
-pound:      {family: mass, aliases: [pound, pounds, lb, lbs]}
-g:          {family: mass, aliases: [g, gram, grams, gr]}
-kg:         {family: mass, aliases: [kg, kilogram, kilograms, kilo, kilos]}
+cup:        {family: volume, to_base: 240, aliases: [cup, cups, c]}
+tablespoon: {family: volume, to_base: 15, aliases: [tablespoon, tablespoons, tbsp, tbsps, tbs, tbl, tbls, tblsp]}
+teaspoon:   {family: volume, to_base: 5, aliases: [teaspoon, teaspoons, tsp, tsps, tspn]}
+fluid ounce: {family: volume, to_base: 30, aliases: [fluid ounce, fluid ounces, fl oz, fl. oz, fl ounce]}
+pint:       {family: volume, to_base: 473, aliases: [pint, pints, pt]}
+quart:      {family: volume, to_base: 946, aliases: [quart, quarts, qt, qts]}
+gallon:     {family: volume, to_base: 3785, aliases: [gallon, gallons, gal]}
+ml:         {family: volume, to_base: 1, aliases: [ml, milliliter, milliliters, millilitre, millilitres]}
+l:          {family: volume, to_base: 1000, aliases: [l, liter, liters, litre, litres]}
+pinch:      {family: volume, to_base: 0.3, aliases: [pinch, pinches]}
+dash:       {family: volume, to_base: 0.6, aliases: [dash, dashes]}
+drop:       {family: volume, to_base: 0.05, aliases: [drop, drops]}
+ounce:      {family: mass, to_base: 28.35, aliases: [ounce, ounces, oz, ozs]}
+pound:      {family: mass, to_base: 453.6, aliases: [pound, pounds, lb, lbs]}
+g:          {family: mass, to_base: 1, aliases: [g, gram, grams, gr]}
+kg:         {family: mass, to_base: 1000, aliases: [kg, kilogram, kilograms, kilo, kilos]}
 clove:      {family: count, aliases: [clove, cloves]}
 slice:      {family: count, aliases: [slice, slices]}
 stick:      {family: count, aliases: [stick, sticks]}

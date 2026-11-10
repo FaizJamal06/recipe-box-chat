@@ -1,0 +1,3 @@
+# PRD 11 demo 5 (T2 match), then a sticky restriction
+I have eggs, onions, tomatoes, and rice. Suggest five recipes using as many as possible, no peanuts, at most six steps, fewest additional ingredients.
+Exclude eggs too.

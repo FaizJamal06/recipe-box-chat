@@ -1,33 +1,35 @@
-"""FastAPI app. M0/M1: only GET /api/health (record counts per source, from data/recipes.db).
+"""FastAPI app. So far only GET /api/health: per-source counts plus the build fingerprint (vocab size, line
+and tag counts, comma splits, garlic/onion family counts, vocab hash) to compare a local build with the live one.
 
 The runtime image ships recipes.db only (no raw JSON), so health reads the DB read-only.
 """
-import sqlite3
 from functools import lru_cache
-from pathlib import Path
 
 from fastapi import FastAPI
 
-DB = Path(__file__).resolve().parent.parent.parent / "data" / "recipes.db"
+from .config import DB
+from .db import connect, fingerprint
+
 app = FastAPI(title="Recipe Box")
 
 
 @lru_cache(maxsize=1)
-def counts() -> dict[str, dict[str, int]]:
-    """{source: {records, valid}} computed once; empty dict if the DB is missing."""
+def counts() -> dict:
+    """{'sources': {source: {records, valid}}, 'fingerprint': {...}} computed once; {} if the DB is missing."""
     if not DB.exists():
         return {}
-    con = sqlite3.connect(f"{DB.as_uri()}?mode=ro", uri=True)
+    con = connect(DB)
     try:
-        rows = con.execute("SELECT source, COUNT(*), SUM(valid) FROM recipes GROUP BY source").fetchall()
+        rows = con.execute("SELECT source, COUNT(*), SUM(valid) FROM recipes GROUP BY source ORDER BY source").fetchall()
+        return {"sources": {s: {"records": n, "valid": v} for s, n, v in rows}, "fingerprint": fingerprint(con)}
     finally:
         con.close()
-    return {s: {"records": n, "valid": v} for s, n, v in rows}
 
 
 @app.get("/api/health")
 def health() -> dict:
-    """Return status plus per-source counts; status is 'error' if the DB is missing."""
+    """Return status, per-source counts and the build fingerprint; status is 'error' if the DB is missing."""
     c = counts()
-    return {"status": "ok" if c else "error", "sources": c,
-            "total": sum(x["records"] for x in c.values()), "valid": sum(x["valid"] for x in c.values())}
+    src = c.get("sources", {})
+    return {"status": "ok" if c else "error", "sources": src, "total": sum(x["records"] for x in src.values()),
+            "valid": sum(x["valid"] for x in src.values()), "fingerprint": c.get("fingerprint", {})}

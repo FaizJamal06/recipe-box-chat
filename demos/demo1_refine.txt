@@ -1,0 +1,5 @@
+# PRD 11 demo 1 (T1 refine): restrictions persist; evidence lines shown
+Find a penne pasta recipe
+I cannot have dairy
+show me the steps for the second one
+also no garlic

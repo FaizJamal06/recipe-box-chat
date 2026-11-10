@@ -37,11 +37,13 @@ CREATE TABLE ingredient_lines(recipe_id TEXT, line_no INT, raw TEXT, name_clean 
     family TEXT, qty REAL, unit TEXT, unit_family TEXT, alt_group INT, is_header INT, is_alt INT, is_not_food INT);
 CREATE TABLE recipe_tags(recipe_id TEXT, tag TEXT, level TEXT, evidence_line_no INT);
 CREATE TABLE vocab(canonical TEXT PRIMARY KEY, family TEXT, recipe_count INT);
+CREATE TABLE meta(key TEXT PRIMARY KEY, value INT);
 CREATE VIRTUAL TABLE recipes_fts USING fts5(id UNINDEXED, title, ingredients, tokenize='porter');
 """
 INDEXES = """
 CREATE INDEX ix_lines_canonical ON ingredient_lines(canonical);
 CREATE INDEX ix_lines_recipe ON ingredient_lines(recipe_id);
+CREATE INDEX ix_lines_family ON ingredient_lines(family);
 CREATE INDEX ix_tags_tag ON recipe_tags(tag);
 """
 TAG_RANK = {"alt": 1, "may_contain": 2, "contains": 3}
@@ -193,8 +195,10 @@ def finalize(con: sqlite3.Connection, vocab_min: int) -> None:
     recipe_count counts valid recipes only (that is what stats and matching see)."""
     counts = dict(con.execute(COUNT_SQL).fetchall())
     vocab = {c for c, n in counts.items() if n >= vocab_min}
-    print(f"comma lists split: {resplit(con, vocab):,}")
+    splits = resplit(con, vocab)
+    print(f"comma lists split: {splits:,}")
     remap = [(c, m) for c, n in counts.items() if n < vocab_min and (m := nz.suffix_match(c, vocab))]
+    con.executemany("INSERT INTO meta VALUES (?,?)", [("comma_splits", splits), ("rare_remapped", len(remap))])
     del counts
     con.execute("CREATE TEMP TABLE remap(old TEXT PRIMARY KEY, new TEXT)")
     con.executemany("INSERT INTO remap VALUES (?,?)", remap)

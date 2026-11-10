@@ -24,7 +24,7 @@ LEVELS = {None: 0, "may_contain": 1, "contains": 2}
 
 def _alt(words) -> str:
     """Regex alternation, longest first so multi-word phrases win; spaces match any whitespace."""
-    return "|".join(re.escape(w).replace(r"\ ", r"\s+") for w in sorted(set(words), key=len, reverse=True))
+    return "|".join(re.escape(w).replace(r"\ ", r"\s+") for w in sorted(set(words), key=lambda w: (-len(w), w)))
 
 
 _UNITS, _SYN, _FAM, _TAGS = (yaml.safe_load((LEX / f"{n}.yaml").read_text(encoding="utf-8"))

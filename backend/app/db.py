@@ -3,6 +3,7 @@
 Dataset facts every answer states (total, valid, invalid breakdown) are queried once at startup, never
 hardcoded, so they always match the DB that is actually being served.
 """
+import hashlib
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,19 @@ class Dataset:
         """'N of {valid} valid recipes ({total} records; invalid: {breakdown})'."""
         bd = ", ".join(f"{reason} {k:,}" for reason, k in self.invalid) or "none"
         return f"{n:,} of {self.valid:,} valid recipes ({self.total:,} records; invalid: {bd})"
+
+
+def fingerprint(con: sqlite3.Connection) -> dict:
+    """Build-determinism numbers (also served by /api/health to compare local vs live builds)."""
+    one = lambda sql: con.execute(sql).fetchone()[0]
+    fam = "SELECT COUNT(DISTINCT l.recipe_id) FROM ingredient_lines l JOIN recipes r ON r.id = l.recipe_id " \
+          "WHERE r.valid = 1 AND l.is_alt = 0 AND l.family = '{}'"
+    rows = con.execute("SELECT canonical, family, recipe_count FROM vocab ORDER BY canonical").fetchall()
+    return {"vocab_size": len(rows), "ingredient_lines": one("SELECT COUNT(*) FROM ingredient_lines"),
+            "recipe_tags": one("SELECT COUNT(*) FROM recipe_tags"),
+            **dict(con.execute("SELECT key, value FROM meta ORDER BY key")),
+            "garlic_family_recipes": one(fam.format("garlic")), "onion_family_recipes": one(fam.format("onion")),
+            "vocab_sha1": hashlib.sha1(repr(rows).encode()).hexdigest()[:12]}
 
 
 def load_dataset(con: sqlite3.Connection) -> Dataset:

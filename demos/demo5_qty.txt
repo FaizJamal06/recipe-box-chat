@@ -1,0 +1,2 @@
+# PRD 11 demo 5, quantity variant (fresh session: in demo5_match eggs are excluded by then)
+I have 2 eggs and 1 cup rice

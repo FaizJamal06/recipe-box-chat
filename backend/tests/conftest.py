@@ -1,10 +1,12 @@
 """Shared fixture: the 30-recipe mini dataset written out like data/raw/ and built into a DB once."""
 import json
+import os
 from pathlib import Path
 
 import pytest
 
-from app.ingest import build
+os.environ["GEMINI_API_KEY"] = ""  # before app.config loads .env: tests never call the network
+from app.ingest import build  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini.json"
 

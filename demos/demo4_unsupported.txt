@@ -1,0 +1,7 @@
+# PRD 11 demo 4 (unsupported attributes): refuse with what is missing; labelled proxy / mentioned durations
+Find a banana bread recipe
+show me the first one
+How many calories are in that one?
+How long does it take to make?
+How many servings does it make?
+What's the average number of ingredients in desserts?

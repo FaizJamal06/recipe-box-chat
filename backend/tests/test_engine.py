@@ -4,7 +4,8 @@ import pytest
 import oracle
 from app import stats
 from app.db import connect, load_dataset
-from app.planner import rule_plan
+from app.planner import finish
+from app.rules import rule_plan
 from app.search import search
 from app.session import respond
 
@@ -23,16 +24,17 @@ def test_dataset_line_is_queried_not_hardcoded(eng):
 
 
 def test_rule_planner_demo_shapes():
-    s = rule_plan(oracle.DEMO2)["stats"]
+    plan = lambda t: finish(rule_plan(t))
+    s = plan(oracle.DEMO2)["stats"]
     assert (s["op"], s["all_of"], s["normalization"]) == ("percentage", ["garlic", "onion"], "both")
-    s = rule_plan(oracle.DEMO3)["stats"]
+    s = plan(oracle.DEMO3)["stats"]
     assert (s["op"], s["field"], s["order"], s["limit"], s["all_of"]) == ("rank", "n_steps", "asc", 5, ["tomato"])
-    s = rule_plan("What is the median number of steps in recipes containing chicken?")["stats"]
+    s = plan("What is the median number of steps in recipes containing chicken?")["stats"]
     assert (s["op"], s["field"], s["all_of"]) == ("median", "n_steps", ["chicken"])
-    assert rule_plan("How many recipes contain eggs?")["stats"]["all_of"] == ["eggs"]
-    assert rule_plan("Find a penne pasta recipe, I cannot have dairy")["state_patch"] == {
-        "mode": "new", "query_text": "penne pasta", "exclude_add": [], "exclude_tags_add": ["dairy"]}
-    assert rule_plan("tell me a joke")["intent"] == "clarify"
+    assert plan("How many recipes contain garlic?")["stats"]["all_of"] == ["garlic"]
+    p = plan("Find a penne pasta recipe, I cannot have dairy")["state_patch"]
+    assert (p["mode"], p["query_text"], p["exclude_add"], p["exclude_tags_add"]) == ("new", "penne pasta", [], ["dairy"])
+    assert plan("tell me a joke")["intent"] == "clarify"
 
 
 def test_presence_is_strict_and_broad(eng):
@@ -55,10 +57,10 @@ def test_answers_state_dataset_line_rule_and_definitions(eng):
     assert stats.STEP_RULE in text and ds.header(23) in text
 
 
-def test_rank_uses_effective_steps_and_id_tie_break(eng):
+def test_rank_uses_effective_steps_then_ingredients_then_id(eng):
     con, ds = eng
     r = stats.rank(con, ds, stats.Filters(), "n_steps", "asc", 30)
-    keys = [(row[2], row[0]) for row in r.rows]
+    keys = [(row[2], row[6], row[0]) for row in r.rows]  # n_steps, n_ingredients, id
     assert keys == sorted(keys) and len(keys) == 23
     para = {row[0]: row for row in r.rows}["fn:f04"]
     assert (para[2], para[3], para[5]) == (4, 1, 1)  # paragraph-format: effective steps = 4 sentences
