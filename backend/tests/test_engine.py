@@ -69,9 +69,10 @@ def test_rank_uses_effective_steps_then_ingredients_then_id(eng):
 def test_search_hard_filters_and_evidence(eng):
     con, ds = eng
     res = search(con, "", exclude_tags=["dairy"], limit=30)
+    shown = res.hits + res.more  # fully verified first, then the ones with an unverified ingredient
     dairy = {r for r, in con.execute("SELECT recipe_id FROM recipe_tags WHERE tag = 'dairy' AND level = 'contains'")}
-    assert res.total == len(res.hits) and not dairy & {h.id for h in res.hits}
-    assert all(h.evidence and h.evidence[0].startswith("no dairy") for h in res.hits)
+    assert res.total == len(shown) and not dairy & {h.id for h in shown}
+    assert all(h.evidence and h.evidence[0].startswith("no dairy") for h in shown)
     garlic = stats.term("garlic", ds)
     assert {h.id for h in search(con, "", exclude=[garlic], limit=30).hits} & {"ar:a04", "epi:e01", "epi:e02"} == set()
 

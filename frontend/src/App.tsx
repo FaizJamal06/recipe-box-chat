@@ -68,7 +68,8 @@ export default function App() {
       </header>
       <main className="grid min-h-0 flex-1 grid-cols-[3fr_2fr]">
         <ChatPane messages={messages} loading={loading} state={state} onSend={send} onPatch={patch} onReset={reset} onOpen={setDrawer} />
-        <EvidencePanel resp={resp} tab={tab} setTab={setTab} onOpen={setDrawer} />
+        <EvidencePanel resp={resp} tab={tab} setTab={setTab} onOpen={setDrawer}
+                       onStrict={() => patch("set", "strict_may_contain", true)} />
       </main>
       <RecipeDrawer id={drawer} onClose={closeDrawer} />
     </div>

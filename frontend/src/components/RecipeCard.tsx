@@ -62,12 +62,12 @@ function ScoreBar({ parts }: { parts: Record<string, number> }) {
   );
 }
 
-export function RecipeCard({ card, rank, onOpen, flagged }: { card: Card; rank?: number; onOpen: (id: string) => void;
-                                                              flagged?: boolean }) {
+export function RecipeCard({ card, rank, onOpen, flagged, warned }: { card: Card; rank?: number;
+  onOpen: (id: string) => void; flagged?: boolean; warned?: boolean }) {
   return (
     <article onClick={() => onOpen(card.id)}
              className={`group cursor-pointer rounded-lg border bg-paper p-3.5 shadow-[0_1px_0_rgba(43,36,32,0.06)] transition
-                         hover:-translate-y-px hover:shadow-md ${flagged ? "border-bad/40" : "border-rule hover:border-tomato/40"}`}>
+                         hover:-translate-y-px hover:shadow-md ${flagged ? "border-bad/40" : warned ? "border-warn/40" : "border-rule hover:border-tomato/40"}`}>
       <div className="flex items-start gap-2">
         {rank !== undefined && <span className="font-display text-lg leading-6 text-tomato">{rank}</span>}
         <div className="min-w-0 flex-1">

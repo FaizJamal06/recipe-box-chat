@@ -232,7 +232,7 @@ class Session:
                 return "Tell me which ingredients you have, e.g. 'I have eggs, rice and onions'.", None
             res = match.match(con, ds, s.have, terms(s.exclude), s.exclude_tags, s.max_steps, s.strict_may_contain,
                               s.prefs, s.limit or 5, () if "no_staples" in s.prefs else match.STAPLES)
-            rows = res.rows
+            rows = res.rows + res.more  # display order: fully verified first
             reply = compose.match_reply(res, ds)
         else:
             run = lambda q: search.search(con, q or "", terms(s.include), terms(s.exclude), s.exclude_tags,
@@ -246,7 +246,7 @@ class Session:
             elif p["keyword"] and not res.total:
                 notes.append("No recipe matches those words, and without the language model I can't tell what you "
                              "meant. I can only help with recipes: try 'find a pasta recipe' or 'I have eggs and rice'.")
-            rows = res.hits
+            rows = res.hits + res.more  # display order: fully verified first
             reply = compose.search_reply(res, ds)
         self.last_res, s.last_results, s.titles = res, [r.id for r in rows], {r.id: r.title for r in rows}
         return "\n".join(notes + [reply]), res

@@ -3,7 +3,8 @@
 Hard constraints are SQL filters on the complete set, never post-hoc checks on a top-k: included ingredients
 use the strict definition (asked for penne -> penne), excluded ones the broad one (no garlic -> no garlic
 powder either), excluded tags drop 'contains' (and 'may_contain' + unverified recipes in strict mode;
-lenient mode keeps unverified recipes with a warning naming the line, see safety.py).
+lenient mode keeps unverified recipes, ranked after every fully verified one and folded behind one summary
+line; each keeps its warning naming the line, see safety.py).
 """
 import re
 import sqlite3
@@ -32,9 +33,11 @@ class Hit:
 @dataclass
 class SearchResult:
     hits: list
-    total: int  # all eligible recipes, not just the ones shown
+    total: int  # all eligible recipes, not just the ones shown (verified + unverified)
     filters: str
     sql: str
+    more: list = field(default_factory=list)  # lenient mode: top recipes with an unverified ingredient, ranked last
+    n_unverified: int = 0  # eligible recipes with an unverified ingredient for an excluded tag
 
 
 @lru_cache(maxsize=2)
@@ -132,15 +135,18 @@ def search(con: sqlite3.Connection, query_text: str = "", include: list[Term] = 
             human.insert(0, f"matches '{query_text}'")
     else:
         frm, order = "recipes r", "r.id"
-    sql = f"SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps FROM {frm} WHERE {w} ORDER BY {order}"
+    flag, fp = safety.flag_sql(exclude_tags, strict_may_contain)  # fully verified recipes rank first
+    sql = (f"SELECT r.id, r.title, r.source, r.n_ingredients, r.n_steps, {flag} AS unverified FROM {frm} WHERE {w} "
+           f"ORDER BY unverified, {order}")
     tail = [f"%{' '.join((query_text or '').split())}%"] if q else []
-    rows = con.execute(sql, params + tail).fetchall()  # every eligible row once: the total is len(rows)
+    rows = con.execute(sql, fp + params + tail).fetchall()  # every eligible row once: the total is len(rows)
     total = len(rows)  # ponytail: one pass instead of a 2nd COUNT query; LIMIT + COUNT if result sets get huge
-    hits = [Hit(*r) for r in rows[:limit]]
-    for h in hits:
+    hits = [Hit(*r[:5]) for r in rows if not r[5]][:limit]
+    more = [Hit(*r[:5]) for r in rows if r[5]][:limit]
+    for h in hits + more:
         h.evidence = _evidence(con, h, include, exclude, exclude_tags, max_steps)
-    return SearchResult(hits, total, "; ".join(human) or "all valid recipes", render(sql, params + tail) +
-                        f" -- first {limit} shown")
+    return SearchResult(hits, total, "; ".join(human) or "all valid recipes", render(sql, fp + params + tail) +
+                        f" -- first {limit} shown", more, sum(r[5] for r in rows))
 
 
 def evidence(con: sqlite3.Connection, rid: str, include=(), exclude=(), exclude_tags=(), max_steps=None) -> list[str]:

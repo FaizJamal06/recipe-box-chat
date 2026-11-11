@@ -36,7 +36,11 @@ def clarify(question: str) -> str:
 def explain(res, rid: str, query: str | None) -> str | None:
     """Why `rid` ranked where it did in the last results (match score, search ranking, or stats rank)."""
     if isinstance(res, MatchResult):
-        for i, r in enumerate(res.rows, 1):
+        for i, r in enumerate(res.rows + res.more, 1):
+            if r.id == rid and r in res.more:
+                return (f"**{r.title.strip()}** `{rid}` is #{i}, after every fully verified recipe: it has an "
+                        f"ingredient I couldn't verify for your restrictions ({'; '.join(r.warnings)}). Its score is "
+                        f"{r.score:.2f}.")
             if r.id == rid:
                 parts = ", ".join(f"{k} {v:+.1f}" for k, v in r.parts.items())
                 return (f"**{r.title.strip()}** `{rid}` is #{i} because it uses {len(r.matched)} of your "
@@ -44,7 +48,10 @@ def explain(res, rid: str, query: str | None) -> str | None:
                         f"({', '.join(r.extra) or 'none'}) and has {r.n_steps} steps. Score {r.score:.2f} = {parts}. "
                         "Ties go to more matched, then fewer extra, fewer steps, and recipe id.")
     if isinstance(res, SearchResult):
-        for i, h in enumerate(res.hits, 1):
+        for i, h in enumerate(res.hits + res.more, 1):
+            if h.id == rid and h in res.more:
+                return (f"**{h.title.strip()}** `{rid}` is #{i}, after every fully verified match: it has an "
+                        f"ingredient I couldn't verify for your restrictions ({'; '.join(h.evidence)}).")
             if h.id == rid:
                 phrase = bool(query) and " ".join(query.lower().split()) in h.title.lower()
                 why = ("its title contains the exact phrase, and those rank first" if phrase else

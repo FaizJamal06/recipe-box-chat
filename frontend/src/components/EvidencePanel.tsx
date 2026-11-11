@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Calc, ChatResponse } from "../api";
 import { DiffView } from "./DiffView";
 import { CHIP_STYLE, RecipeCard } from "./RecipeCard";
@@ -54,9 +54,12 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 /** Right panel: Results (cards) · Calculation (filters, N, denominator, method, SQL, normalization) ·
  *  Evidence (per-recipe proof lines; T3 table in M5) · Trace (pipeline steps). */
-export function EvidencePanel({ resp, tab, setTab, onOpen }: { resp: ChatResponse | null; tab: Tab;
-                                                              setTab: (t: Tab) => void; onOpen: (id: string) => void }) {
+export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: ChatResponse | null; tab: Tab;
+  setTab: (t: Tab) => void; onOpen: (id: string) => void; onStrict: () => void }) {
   const p = resp?.payload;
+  const [showMore, setShowMore] = useState(false);
+  useEffect(() => { setShowMore(false); }, [resp]);  // fold again for every new answer
+  const nUnv = p?.n_unverified ?? 0;
   return (
     <aside className="flex min-h-0 flex-col border-l border-rule bg-cream/60">
       <nav className="flex gap-1 border-b border-rule px-4 pt-3" role="tablist">
@@ -70,13 +73,24 @@ export function EvidencePanel({ resp, tab, setTab, onOpen }: { resp: ChatRespons
         {!p && <Empty>Results, calculations and evidence for each answer appear here.</Empty>}
         {p && tab === "results" && <>
           {p.cards.length > 0 && <div className="flex items-center justify-between gap-2">
-            <span className="text-[12px] text-ink-soft">{p.total !== undefined ? `${p.total.toLocaleString()} eligible · showing ${p.cards.length}` : `${p.cards.length} shown`}</span>
+            <span className="text-[12px] text-ink-soft">{p.total !== undefined ? `${(p.total - nUnv).toLocaleString()} ${nUnv ? "fully verified" : "eligible"} · showing ${p.cards.length}` : `${p.cards.length} shown`}</span>
             <Legend /></div>}
           {p.cards.map((c, i) => <RecipeCard key={c.id} card={c} rank={p.cards.length > 1 ? i + 1 : undefined} onOpen={onOpen} />)}
+          {nUnv > 0 && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-[12.5px] text-warn"
+                            title="Unknown is not safe: these recipes name an ingredient the allergen lexicon doesn't know">
+            <span>⚠ {nUnv.toLocaleString()} more recipe{nUnv === 1 ? " matches" : "s match"} but {nUnv === 1 ? "has" : "have"} an ingredient I couldn't verify.</span>
+            <button type="button" onClick={onStrict} className="underline-offset-2 hover:underline cursor-pointer">Turn on strict to hide them</button>
+            {(p.more_cards ?? []).length > 0 && <><span aria-hidden>·</span>
+              <button type="button" aria-expanded={showMore} onClick={() => setShowMore(!showMore)}
+                      className="font-semibold underline-offset-2 hover:underline cursor-pointer">
+                {showMore ? "hide them" : `show ${p.more_cards!.length === nUnv ? "them" : `the top ${p.more_cards!.length}`}`}</button></>}
+          </div>}
+          {showMore && (p.more_cards ?? []).map((c, i) =>
+            <RecipeCard key={c.id} card={c} rank={p.cards.length + i + 1} onOpen={onOpen} warned />)}
           {p.rows && p.rows.length > 0 && <ol className="space-y-1 rounded-lg border border-rule bg-paper p-4 text-[13.5px]">
             {p.rows.map((r) => <li key={r.name} className="flex justify-between"><span>{r.name}</span>
               <span className="font-mono text-ink-soft">{r.recipes.toLocaleString()}</span></li>)}</ol>}
-          {p.type === "match" && p.cards.length === 0 && <>
+          {p.type === "match" && p.total === 0 && <>
             <div className="rounded-lg border-2 border-bad/50 bg-bad-soft p-3 text-[13.5px] font-semibold text-bad">
               No recipe satisfies all hard constraints</div>
             {(p.alternatives ?? []).map((a) => (
@@ -86,7 +100,7 @@ export function EvidencePanel({ resp, tab, setTab, onOpen }: { resp: ChatRespons
                   : <p className="text-[12.5px] text-ink-soft">None, even with this constraint relaxed.</p>}</div>
               </section>))}
           </>}
-          {p.cards.length === 0 && !p.rows?.length && p.type !== "match" && <Empty>No recipes in this answer.</Empty>}
+          {p.cards.length === 0 && !nUnv && !p.rows?.length && p.type !== "match" && <Empty>No recipes in this answer.</Empty>}
         </>}
         {p && tab === "calc" && ((p.calc ?? []).length ? p.calc!.map((c, i) => <CalcBlock key={i} c={c} />)
           : <Empty>This answer ran no calculation.</Empty>)}

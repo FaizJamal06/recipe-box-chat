@@ -40,7 +40,8 @@ def unv(con, rid: str) -> set[str]:
 
 
 def kept(con, tag: str, strict: bool) -> set[str]:
-    return {h.id[3:] for h in search(con, "", exclude_tags=[tag], strict_may_contain=strict, limit=50).hits}
+    r = search(con, "", exclude_tags=[tag], strict_may_contain=strict, limit=50)
+    return {h.id[3:] for h in r.hits + r.more}
 
 
 def test_unknown_ingredient_is_unverified_for_every_tag_it_could_hide(eng):
@@ -62,7 +63,8 @@ def test_lenient_warns_strict_excludes(eng):
     con, _ = eng
     lenient, strict = kept(con, "dairy", False), kept(con, "dairy", True)
     assert {"a1", "a2"} <= lenient and "a1" not in strict and "a2" in strict and "a4" in strict
-    hit = next(h for h in search(con, "", exclude_tags=["dairy"], limit=50).hits if h.id == "ar:a1")
+    r = search(con, "", exclude_tags=["dairy"], limit=50)
+    hit = next(h for h in r.hits + r.more if h.id == "ar:a1")
     assert any("1 ingredient couldn't be verified: '1 cup zorbleberry jam'" in e for e in hit.evidence)
     assert safety.warnings(con, "ar:a1", ["dairy"]) == ["no dairy: 1 ingredient couldn't be verified: "
                                                         "'1 cup zorbleberry jam'"]
@@ -146,3 +148,47 @@ def test_api_diet_chip_removal(eng, monkeypatch, tmp_path):
         r = c.patch(f"/api/session/{r['session_id']}/state", json={"op": "remove", "field": "diets", "value": "vegan"})
         st = r.json()["state"]
         assert [d["name"] for d in st["diets"]] == ["halal"] and set(st["exclude_tags"]) == {"pork", "alcohol"}
+
+
+def test_lenient_ranks_verified_first_and_folds_the_rest(eng):
+    con, ds = eng
+    r = search(con, "", exclude_tags=["dairy"], limit=50)
+    assert {h.id[3:] for h in r.more} == {"a1", "a6"} and r.n_unverified == 2 and r.total == 6
+    assert not {h.id for h in r.hits} & {h.id for h in r.more}  # every fully verified recipe comes first
+    assert all("couldn't be verified" in " ".join(h.evidence) for h in r.more)  # the detail stays on the card
+    assert not any("couldn't be verified" in " ".join(h.evidence) for h in r.hits)
+    strict = search(con, "", exclude_tags=["dairy"], strict_may_contain=True, limit=50)
+    assert strict.more == [] and strict.n_unverified == 0 and strict.total == 4
+    assert search(con, "", limit=50).n_unverified == 0  # no restriction, nothing to verify
+    from app import compose
+    text = compose.search_reply(r, ds)
+    assert "4 recipes match (no dairy (contains)) and are fully verified" in text
+    assert "⚠ 2 more recipes match but have an ingredient I couldn't verify; turn on strict to hide them" in text
+
+
+def test_match_ranks_verified_first(eng):
+    from app import match
+    con, ds = eng
+    ds = dataclasses.replace(ds, vocab=frozenset(c for c, in con.execute("SELECT canonical FROM vocab")))
+    res = match.match(con, ds, ["sugar"], exclude_tags=["dairy"], limit=10)
+    assert {r.id[3:] for r in res.more} == {"a1", "a6"} and res.n_unverified == 2 and res.total == 6
+    assert len(res.rows) == 4 and all(r.warnings for r in res.more)
+    one = match.match(con, ds, ["zorbleberry jam"], exclude_tags=["dairy"])  # only an unverified recipe uses it
+    assert one.rows == [] and [r.id for r in one.more] == ["ar:a1"] and one.alternatives == []  # not a no-match
+
+
+def test_api_summary_line_instead_of_per_card_noise(eng, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import api
+    con, _ = eng
+    monkeypatch.setattr(api, "DB", type(api.DB)(con.execute("PRAGMA database_list").fetchone()[2]))
+    monkeypatch.setattr(api, "SESSIONS", {})
+    with TestClient(api.app) as c:
+        r = c.post("/api/chat", json={"message": "find a cake recipe"}).json()
+        r = c.post("/api/chat", json={"session_id": r["session_id"], "message": "I cannot have dairy"}).json()
+        p = r["payload"]
+        assert p["n_unverified"] == 1 and [x["id"] for x in p["more_cards"]] == ["ar:a1"]
+        assert "1 more recipe matches but has an ingredient I couldn't verify" in r["reply_md"]
+        assert not any("unverified" in ch["label"] for c_ in p["cards"] for ch in c_["chips"])
+        assert any("unverified" in ch["label"] for ch in p["more_cards"][0]["chips"])
+        assert p["postcheck"]["stripped"] == [] and "ranked last" in " ".join(r["trace"])

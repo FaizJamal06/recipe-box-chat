@@ -52,6 +52,8 @@ export type Payload = {
   have?: string[];
   rows?: { name: string; recipes: number }[];
   recipe?: Recipe;
+  more_cards?: Card[];  // lenient mode: recipes with an ingredient that couldn't be verified, ranked last
+  n_unverified?: number;
   postcheck: { ids_in_reply: number; stripped: string[] };
 };
 

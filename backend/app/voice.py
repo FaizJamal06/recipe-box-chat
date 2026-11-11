@@ -42,10 +42,13 @@ def facts(user_text: str, payload: dict, filters: str, notes: list) -> dict | No
     """The only things the voice may say. None for answer types that keep the template (guard, help)."""
     t, f = payload["type"], {"user_said": user_text, "active_filters": filters, "notes": notes}
     if t == "search":
-        return f | {"kind": "search", "total_matches": payload["total"], "top": _cards(payload["cards"])}
+        return f | {"kind": "search", "fully_verified_matches": payload["total"] - payload.get("n_unverified", 0),
+                    "more_matches_with_an_unverified_ingredient": payload.get("n_unverified", 0),
+                    "top": _cards(payload["cards"])}
     if t == "match":
-        return f | {"kind": "match", "total_eligible": payload["total"], "your_ingredients": payload["have"],
-                    "no_match": not payload["cards"], "top": _cards(payload["cards"]),
+        return f | {"kind": "match", "fully_verified_eligible": payload["total"] - payload.get("n_unverified", 0),
+                    "more_eligible_with_an_unverified_ingredient": payload.get("n_unverified", 0),
+                    "your_ingredients": payload["have"], "no_match": not payload["total"], "top": _cards(payload["cards"]),
                     "alternatives_not_matches": [{"violates": a["violates"], "titles": [c["title"].strip() for c in
                                                   a["cards"]]} for a in payload.get("alternatives", [])]}
     if t == "stats":

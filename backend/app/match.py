@@ -69,7 +69,9 @@ class MatchResult:
     weights: dict
     staples: tuple
     sql: str = ""
-    alternatives: list = field(default_factory=list)  # (violated constraint, [Row]) when rows is empty
+    alternatives: list = field(default_factory=list)  # (violated constraint, [Row]) when nothing is eligible
+    more: list = field(default_factory=list)  # lenient mode: top eligible rows with an unverified ingredient
+    n_unverified: int = 0  # eligible recipes with an unverified ingredient for an excluded tag (ranked last)
 
 
 def _hits(t: Term, canonical: str | None, family: str | None) -> bool:
@@ -144,8 +146,9 @@ def _quantities(con: sqlite3.Connection, h: Have) -> dict[str, tuple[bool, str]]
     return out
 
 
-def _ranked(con, have, where, params, staples, w) -> tuple[list[tuple], str, dict]:
-    """Every eligible recipe as (score, -matched, extra, n_steps, id, title, parts), best first."""
+def _ranked(con, have, where, params, staples, w, flag=("0", [])) -> tuple[list[tuple], str, dict, set]:
+    """Every eligible recipe as (score, -matched, extra, n_steps, id, title, parts), best first, fully verified
+    recipes before those with an unverified ingredient (`flag`, see safety.flag_sql); plus the unverified ids."""
     conds = [h.term.cond("strict") for h in have]
     anyc, anyp = " OR ".join(f"({c})" for c, _ in conds), [x for _, p in conds for x in p]
     cols = ", ".join(f"MAX(CASE WHEN {c} THEN 1 ELSE 0 END)" for c, _ in conds)
@@ -154,18 +157,20 @@ def _ranked(con, have, where, params, staples, w) -> tuple[list[tuple], str, dic
     sql = (f"WITH cand AS (SELECT r.id, r.title, r.n_steps FROM recipes r WHERE {where} AND r.id IN (SELECT recipe_id "
            f"FROM ingredient_lines WHERE is_alt = 0 AND ({anyc}))) SELECT c.id, c.title, c.n_steps, COUNT(DISTINCT "
            f"CASE WHEN NOT COALESCE(({anyc}), 0) AND NOT COALESCE({st}, 0) THEN COALESCE(l.canonical, l.raw) END), "
-           f"{cols} FROM cand c JOIN ingredient_lines l ON l.recipe_id = c.id WHERE l.{LINES.replace(' AND ', ' AND l.')} "
-           f"GROUP BY c.id")
-    p = params + anyp + anyp + list(staples) + anyp
+           f"{cols}, {flag[0]} FROM cand c JOIN ingredient_lines l ON l.recipe_id = c.id "
+           f"WHERE l.{LINES.replace(' AND ', ' AND l.')} GROUP BY c.id")
+    p = params + anyp + anyp + list(staples) + anyp + list(flag[1])
     qty = {i: _quantities(con, h) for i, h in enumerate(have) if h.qty is not None}
-    out = []
-    for rid, title, n_steps, extra, *m in con.execute(sql, p):
+    out, unverified = [], set()
+    for rid, title, n_steps, extra, *m, unv in con.execute(sql, p):
+        if unv:
+            unverified.add(rid)
         short = sum(qty[i].get(rid, (False,))[0] for i in qty if m[i])
         parts = {"matched": w["m"] * sum(m), "extra": -w["e"] * extra, "steps": -w["s"] * n_steps,
                  "short": -w["q"] * short}
         out.append((-round(sum(parts.values()), 6), -sum(m), extra, n_steps, rid, title, parts))
-    out.sort(key=lambda x: x[:5])
-    return out, render(sql, p), qty
+    out.sort(key=lambda x: (x[4] in unverified, x[:5]))
+    return out, render(sql, p), qty, unverified
 
 
 def _row(con, r: tuple, have: list[Have], staples, qty: dict) -> Row:
@@ -200,9 +205,12 @@ def match(con: sqlite3.Connection, ds: Dataset, items: list[str], exclude: list[
     res = MatchResult([], 0, constraints, have, unknown, dropped, w, tuple(staples))
     if not have:
         return res
-    ranked, res.sql, qty = _ranked(con, have, where, params, staples, w)
-    res.total, res.rows = len(ranked), [_row(con, r, have, staples, qty) for r in ranked[:limit]]
-    for r in res.rows:  # lenient mode shows may_contain / unverified lines instead of hiding them
+    ranked, res.sql, qty, unv = _ranked(con, have, where, params, staples, w,
+                                        safety.flag_sql(exclude_tags, strict_may_contain, "c.id"))
+    res.total, res.n_unverified = len(ranked), len(unv)
+    res.rows = [_row(con, r, have, staples, qty) for r in [r for r in ranked if r[4] not in unv][:limit]]
+    res.more = [_row(con, r, have, staples, qty) for r in [r for r in ranked if r[4] in unv][:limit]]
+    for r in res.rows + res.more:  # may_contain / unverified lines are shown on the card, never hidden
         r.warnings = safety.warnings(con, r.id, exclude_tags)
     if not ranked and relax:
         kw = dict(items=items, exclude=list(exclude), exclude_tags=list(exclude_tags), max_steps=max_steps,

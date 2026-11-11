@@ -6,6 +6,7 @@ Every number in a reply comes from a stats/search Result, and every answer state
 import json
 import sqlite3
 
+from . import safety
 from .db import Dataset
 from .match import MatchResult, Row
 from .search import SearchResult
@@ -60,12 +61,17 @@ def stats_reply(res, ds: Dataset, plan: dict) -> str:
 
 def search_reply(res: SearchResult, ds: Dataset) -> str:
     """Search hits with evidence lines and the full eligible count."""
-    out = [f"{res.total:,} recipes match ({res.filters}); showing {len(res.hits)}.",
-           f"Eligible: {ds.header(res.total)}"]
-    for i, h in enumerate(res.hits, 1):
+    n = res.n_unverified
+    out = [f"{res.total - n:,} recipes match ({res.filters}){' and are fully verified' if n else ''}; showing "
+           f"{len(res.hits)}.", f"Eligible: {ds.header(res.total)}"]
+    for i, h in enumerate(res.hits + res.more, 1):  # fully verified first; the rest folded behind one line
+        if i == len(res.hits) + 1:
+            out.append(f"  ⚠ {safety.summary(n)}. Ranked last:")
         out.append(f"  {i}. {h.id}  {h.title} — {h.n_ingredients} ingredients, {h.n_steps} steps")
         out += [f"       · {e}" for e in h.evidence]
-    if not res.hits:
+    if n and not res.more:
+        out.append(f"  ⚠ {safety.summary(n)}.")
+    if not res.total:
         out.append("  No recipe satisfies every restriction; none were relaxed.")
     return "\n".join(out + [f"SQL: {res.sql}"])
 
@@ -87,7 +93,7 @@ def match_reply(res: MatchResult, ds: Dataset) -> str:
         out.append(f"Not found in the dataset vocabulary (ignored): {', '.join(res.unknown)}")
     out += [f"Removed from your ingredients because '{why}' excludes it: {h.term.text}" for h, why in res.dropped]
     out.append(f"Hard constraints: {'; '.join(res.constraints)}")
-    if not res.rows:
+    if not res.total:
         out.append("No recipe satisfies all hard constraints")
         if res.alternatives:
             out.append("!! CLOSEST ALTERNATIVES — these are NOT matches; each one violates the named constraint:")
@@ -95,12 +101,14 @@ def match_reply(res: MatchResult, ds: Dataset) -> str:
                 out.append(f"  Violates '{label}':")
                 out += [_match_line(i, r) for i, r in enumerate(rows, 1)] or ["    (none even with this relaxed)"]
         return "\n".join(out)
-    out.append(f"Eligible: {ds.header(res.total)}; showing the top {len(res.rows)}.")
+    out.append(f"Eligible: {ds.header(res.total)}; showing the top {len(res.rows)} fully verified.")
     out.append(f"Score = {w['m']:g}·matched − {w['e']:g}·extra − {w['s']:g}·steps − {w['q']:g}·short-quantity items; "
                "ties: more matched, fewer extra, fewer steps, then id. matched = U∩R, unused = U−R, extra = R−U "
                "(R = recipe's required ingredients minus P).")
     prev = None
-    for i, r in enumerate(res.rows, 1):
+    for i, r in enumerate(res.rows + res.more, 1):  # fully verified first; the rest folded behind one line
+        if i == len(res.rows) + 1:
+            out.append(f"  ⚠ {safety.summary(res.n_unverified)}. Ranked last:")
         bar = " | ".join(f"{k} {v:+.1f}" for k, v in r.parts.items())
         out.append(f"  {i}. {r.id}  {r.title} — score {r.score:.2f} [{bar}]")
         out.append(f"       matched ({len(r.matched)}): {', '.join(r.matched)} · unused: {', '.join(r.unused) or '-'}"
@@ -114,6 +122,8 @@ def match_reply(res: MatchResult, ds: Dataset) -> str:
         out += [f"       qty: {q}" for q in r.qty]
         out += [f"       ⚠ {w}" for w in r.warnings]
         prev = r.score
+    if res.n_unverified and not res.more:
+        out.append(f"  ⚠ {safety.summary(res.n_unverified)}.")
     unq = [h.term.text for h in res.have if h.qty is None]
     if any(h.qty is not None for h in res.have) and unq:
         out.append(f"Quantities not given for {', '.join(unq)}: name-level match only.")

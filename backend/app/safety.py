@@ -110,3 +110,19 @@ def warnings(con: sqlite3.Connection, rid: str, tags) -> list[str]:
         if row:
             out.append(f"no {tag}: {row[0]!r} may contain {tag} (check the label)")
     return out + [f"no {tag}: {warning(raws)}" for tag, raws in lines(con, rid, tags).items()]
+
+
+def flag_sql(tags, strict: bool, rid: str = "r.id") -> tuple[str, list]:
+    """SQL expression: 1 when the recipe has an unverified ingredient for any of `tags` (lenient mode ranks those
+    recipes last and folds them behind one summary line). Strict mode already excludes them: constant 0."""
+    tags = list(tags)
+    if strict or not tags:
+        return "0", []
+    return (f"EXISTS(SELECT 1 FROM unverified u WHERE u.recipe_id = {rid} AND u.tag IN "
+            f"({','.join('?' * len(tags))}))", tags)
+
+
+def summary(n: int) -> str:
+    """The one line that replaces per-card noise: unverified recipes are ranked last and folded."""
+    return (f"{n:,} more recipe{' matches' if n == 1 else 's match'} but {'has' if n == 1 else 'have'} an "
+            "ingredient I couldn't verify; turn on strict to hide them")
