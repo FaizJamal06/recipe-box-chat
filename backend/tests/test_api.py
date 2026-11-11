@@ -30,7 +30,7 @@ def test_chat_shape_postcheck_and_sticky_refine(client):
     r = client.post("/api/chat", json={"session_id": sid, "message": "I cannot have dairy"}).json()
     assert r["state"]["exclude_tags"] == ["dairy"] and r["planner"]["detail"] == "rule_direct"
     assert any(t.startswith(f"Filtered: {before} → ") for t in r["trace"])
-    assert all(any(ch["label"] == "no dairy" for ch in c["chips"]) for c in r["payload"]["cards"])
+    assert all(any(ch["label"].startswith("no dairy") for ch in c["chips"]) for c in r["payload"]["cards"])
 
 
 def test_patch_removes_chip_and_reruns(client):

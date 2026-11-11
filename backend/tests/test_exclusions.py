@@ -33,7 +33,7 @@ def eng(tmp_path_factory):
     d = tmp_path_factory.mktemp("excl")
     raw = {k: {"title": t, "ingredients": ing, "instructions": "Mix.\nBake."} for k, (t, ing) in RECIPES.items()}
     (d / "x.json").write_text(json.dumps(raw), encoding="utf-8")
-    build(d / "x.db", {"ar": d / "x.json"})
+    build(d / "x.db", {"ar": d / "x.json"}, vocab_min=1)  # every name known: these tests are about tags
     con = connect(d / "x.db")
     ds = load_dataset(con)
     yield con, dataclasses.replace(ds, vocab=frozenset(c for c, in con.execute("SELECT canonical FROM vocab")))

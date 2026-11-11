@@ -8,11 +8,14 @@ import json
 from dataclasses import dataclass, field
 
 from . import llm
+from . import rules
 from .rules import confident, keyword_plan, rule_plan
 
 INTENTS = ["search", "recipe_detail", "stats", "match", "unsupported", "clarify", "smalltalk", "explain", "offtopic"]
 TALK = ["none", "greeting", "thanks", "capabilities", "bye"]
-TAGS = ["dairy", "egg", "peanut", "tree_nut", "gluten", "meat", "pork", "poultry", "fish", "shellfish"]
+TAGS = ["dairy", "egg", "peanut", "tree_nut", "gluten", "soy", "sesame", "meat", "pork", "poultry", "fish",
+        "shellfish", "gelatin", "honey", "alcohol", "root_veg"]
+DIETS = list(rules.DIETS)
 OPS = ["count", "percentage", "top_ingredients", "mean", "median", "rank"]
 PREFS = ["use_most", "fewest_extra", "fewest_steps", "no_staples"]
 ATTRS = ["none", "nutrition", "cook_time", "servings", "rating", "category", "other"]
@@ -25,7 +28,8 @@ SCHEMA = obj({
     "intent": enum(INTENTS),
     "state_patch": obj({"mode": enum(["refine", "new"]), "query_text": S, "include_add": L, "exclude_add": L,
                         "exclude_remove": L, "exclude_tags_add": lenum(TAGS), "exclude_tags_remove": lenum(TAGS),
-                        "max_steps": I, "have_set": L, "prefs_add": lenum(PREFS), "limit": I}),
+                        "max_steps": I, "have_set": L, "prefs_add": lenum(PREFS), "limit": I,
+                        "diets_add": lenum(DIETS)}),
     "stats": obj({"op": enum(OPS), "field": enum(["n_ingredients", "n_steps"]), "order": enum(["asc", "desc"]),
                   "limit": I, "all_of": L, "any_of": L, "none_of": L, "title_contains": L, "tags": lenum(TAGS),
                   "tag_mode": enum(["free", "contains"])}),
@@ -42,8 +46,9 @@ written incl. quantity: "2 eggs") | recipe_detail (target) | stats (counts, %, r
 greeting/thanks/capabilities/bye) | offtopic (not about food or these recipes) | clarify (only when truly
 ambiguous: put ONE short question, no numbers, in question).
 state_patch.mode: new = new dish or have-list; refine = only adds/removes restrictions. Allergen/diet words ->
-exclude_tags_add (eggs -> egg; wheat/celiac -> gluten; vegetarian -> meat, poultry, fish, shellfish; vegan ->
-also dairy, egg); other "no X" -> exclude_add. Messages may have typos, slang or Hinglish: plan by meaning.
+exclude_tags_add (eggs -> egg; wheat -> gluten); a diet or allergy preset (vegetarian, vegan, pescatarian, halal,
+jain, kosher, lactose intolerant, celiac / wheat, nut allergy) -> diets_add (the executor expands it); other
+"no X" -> exclude_add. Messages may have typos, slang or Hinglish: plan by meaning.
 "X is fine now" -> *_remove. max_steps: "at most 6" -> 6, "under 5" -> 4, drop limit -> -1.
 prefs_add: as many as possible -> use_most; fewest additional -> fewest_extra; fewest steps -> fewest_steps;
 no salt/pepper/water assumed -> no_staples. limit = recipes asked for.
@@ -67,7 +72,7 @@ def finish(plan: dict) -> dict:
     st = plan.get("stats") or {}
     patch = {"mode": p.get("mode") or "refine", "query_text": p.get("query_text") or None}
     for k in ("include_add", "exclude_add", "exclude_remove", "exclude_tags_add", "exclude_tags_remove",
-              "have_set", "prefs_add"):
+              "have_set", "prefs_add", "diets_add"):
         patch[k] = [str(x).strip() for x in p.get(k) or [] if str(x).strip()]
     patch["max_steps"] = p.get("max_steps") or None  # 0 / None = unchanged
     patch["limit"] = p.get("limit") or None
@@ -92,7 +97,8 @@ def validate(d: dict) -> dict:
     if d.get("intent") not in INTENTS:
         raise ValueError("intent")
     p, st = d.get("state_patch") or {}, d.get("stats") or {}
-    if not set(p.get("exclude_tags_add") or []) <= set(TAGS) or not set(st.get("tags") or []) <= set(TAGS):
+    if not (set(p.get("exclude_tags_add") or []) <= set(TAGS) and set(st.get("tags") or []) <= set(TAGS)
+            and set(p.get("diets_add") or []) <= set(DIETS)):
         raise ValueError("tags")
     if d["intent"] == "stats" and st.get("op") not in OPS:
         raise ValueError("op")

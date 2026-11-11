@@ -78,7 +78,7 @@ def test_recipe_tags(con):
     assert tags(con, "fn:f09")["dairy"] == "may_contain"
     assert tags(con, "ar:a06")["peanut"] == "contains" and tags(con, "ar:a06")["egg"] == "contains"
     assert tags(con, "fn:f10")["pork"] == "alt" and tags(con, "fn:f10")["meat"] == "contains"
-    assert tags(con, "epi:e07") == {"dairy": "may_contain", "tree_nut": "contains"}  # cocoa butter is not dairy
+    assert tags(con, "epi:e07") == {"dairy": "may_contain", "tree_nut": "contains", "soy": "may_contain"}  # cocoa butter is not dairy; chocolate: soy lecithin
     assert tags(con, "epi:e08")["egg"] == "contains"  # mayonnaise, not eggplant
     assert "gluten" not in tags(con, "fn:f08")
     t = tags(con, "epi:e09")

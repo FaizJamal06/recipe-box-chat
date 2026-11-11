@@ -146,7 +146,7 @@ def tags_for(name: str) -> tuple:
     """((tag, level), ...) per lexicon/tags.yaml rules; equipment masked first ('cookie cutter' is not gluten)."""
     out = []
     name = _NOT_FOOD.sub(" ", name)
-    for tag, (free, exc, contains, may, down) in _TAG_RE.items():
+    for tag, (free, exc, contains, may, down) in TAG_RE.items():
         if free and free.search(name):
             continue
         t = exc.sub(" ", name) if exc else name
@@ -166,7 +166,7 @@ def _word_re(words, edge=(r"\b", r"\b")) -> re.Pattern | None:
 
 # hyphen-aware ('pan-fried' stays); breads named 'pan ...' are food ('pan dulce', 'pan de mie')
 _NOT_FOOD = _word_re(_TAGS.pop("not_food"), (r"(?<![\w-])", r"(?![\w-]|\s+(?:dulce|de\s+(?:mie|sal|muerto|bono)))"))
-_TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain", "downgrade"))
+TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain", "downgrade"))
            for t, d in _TAGS.items()}
 # 'Caramel Mousse, recipe follows': a sub-recipe whose components are listed as their own lines
 _SUBRECIPE = re.compile(r"\brecipes?\s+follows?\b|\(see recipe\)|\bsee recipe (?:below|above)\b")

@@ -2,7 +2,8 @@
 
 Hard constraints are SQL filters on the complete set, never post-hoc checks on a top-k: included ingredients
 use the strict definition (asked for penne -> penne), excluded ones the broad one (no garlic -> no garlic
-powder either), excluded tags drop 'contains' (and 'may_contain' in strict mode).
+powder either), excluded tags drop 'contains' (and 'may_contain' + unverified recipes in strict mode;
+lenient mode keeps unverified recipes with a warning naming the line, see safety.py).
 """
 import re
 import sqlite3
@@ -13,6 +14,7 @@ from functools import lru_cache
 import yaml
 
 from . import normalize as nz
+from . import safety
 from .stats import Filters, Term, render
 
 
@@ -94,7 +96,10 @@ def hard_where(include: list[Term] = (), exclude: list[Term] = (), exclude_tags:
         where.append(f"r.id NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = ? AND level IN "
                      f"({','.join('?' * len(levels))}))")
         params += [tag, *levels]
-        human.append(f"no {tag} ({' or '.join(levels)})")
+        if strict_may_contain:  # unknown is not safe: strict mode also drops recipes it couldn't verify
+            where.append("r.id NOT IN (SELECT recipe_id FROM unverified WHERE tag = ?)")
+            params.append(tag)
+        human.append(f"no {tag} ({' or '.join(levels + (('unverified',) if strict_may_contain else ()))})")
     if max_steps is not None:
         where.append("r.n_steps <= ?")
         params.append(max_steps)
@@ -161,17 +166,21 @@ def _evidence(con: sqlite3.Connection, h: Hit, include, exclude, exclude_tags, m
         bad = row[0] if row else next((x for x in lines if _mentions(t, x)), None)
         out.append(f"VIOLATES no {t.text}: {bad!r}" if bad else
                    f"no {t.text}: 0 lines name or mention it; checked {h.n_ingredients} lines")
+    unv = safety.lines(con, h.id, exclude_tags)
     for tag in exclude_tags:
         row = one("SELECT t.level, l.raw FROM recipe_tags t JOIN ingredient_lines l ON l.recipe_id = t.recipe_id "
                   "AND l.line_no = t.evidence_line_no WHERE t.recipe_id = ? AND t.tag = ? LIMIT 1", tag)
-        if not row:
-            out.append(f"no {tag}: 0 {tag}-tagged lines; checked {h.n_ingredients} lines")
-        elif row[0] == "contains":
+        if row and row[0] == "contains":
             out.append(f"VIOLATES no {tag}: {row[1]!r}")
-        elif row[0] == "alt":
-            out.append(f"no {tag}: only as an alternative, use the {tag}-free option in {row[1]!r}")
-        else:
+            continue
+        if row and row[0] == "may_contain":
             out.append(f"no {tag}: {row[1]!r} may contain {tag} (check the label)")
+        elif row and row[1] not in unv.get(tag, []):  # 'alt' with a verified tag-free option
+            out.append(f"no {tag}: only as an alternative, use the {tag}-free option in {row[1]!r}")
+        if unv.get(tag):  # unknown is not safe: name the lines we couldn't verify
+            out.append(f"no {tag}: {safety.warning(unv[tag])}")
+        elif not row:
+            out.append(f"no {tag}: 0 {tag}-tagged lines, all {h.n_ingredients} lines verified")
     if max_steps is not None:
         out.append(f"{'VIOLATES ' if h.n_steps > max_steps else ''}{h.n_steps} steps (limit {max_steps})")
     return out

@@ -1,0 +1,1307 @@
+{
+"ar:/MbDqJW6ErCOM2jhbRyUvnBPfVImTZS": {
+"contains": [
+"egg",
+"gluten",
+"meat",
+"poultry",
+"root_veg",
+"tree_nut"
+],
+"may_contain": []
+},
+"ar:3K/y.AA9ys6hxKwcA3uJ87.WZKJeN1u": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:3govdQdRuAr/7Mu/OD5UReyFZGIbaO2": {
+"contains": [
+"egg",
+"gluten",
+"peanut"
+],
+"may_contain": [
+"dairy"
+]
+},
+"ar:4NVLuZT/2f20SJSx5P4kLs/d8ocIeDK": {
+"contains": [
+"gluten",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:4mousMrl/FetbvnWHUIYgymU.13UH2.": {
+"contains": [
+"gluten",
+"tree_nut"
+],
+"may_contain": [
+"dairy"
+]
+},
+"ar:4s058sM5aWFDhZezVk74rvY4B0r2.H2": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"tree_nut"
+],
+"may_contain": []
+},
+"ar:7LzQx22r8puIzzIWK2lX2bRWAYjeLtK": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"ar:7tAU6nfeDEXsumiR1.RNHqqIHuRqCfC": {
+"contains": [
+"gluten",
+"honey",
+"meat",
+"poultry",
+"root_veg",
+"soy"
+],
+"may_contain": []
+},
+"ar:A0QZGQFQuEf4Q6u44V9..GTtXrJfArO": {
+"contains": [
+"alcohol",
+"dairy",
+"tree_nut"
+],
+"may_contain": []
+},
+"ar:CEmreZAPHva.msNsjVVjA/cNrPFaFuC": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:Cy1ltk1x.IcxJszO9s9CoFc16HkK2La": {
+"contains": [
+"gluten",
+"root_veg",
+"shellfish",
+"soy"
+],
+"may_contain": []
+},
+"ar:DMPtvN8i7cVpNSDwBQfU27Frv.yRjBe": {
+"contains": [
+"alcohol"
+],
+"may_contain": []
+},
+"ar:EuH58BbCK1opeVr8hrIM/iCQcoH7pVO": {
+"contains": [
+"dairy",
+"egg",
+"tree_nut"
+],
+"may_contain": []
+},
+"ar:F7f9hZYkX6FgpGOiQ478eKVi0/4SDUy": {
+"contains": [
+"egg",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:GeJyZmRDL5asLOysh8xjkL2mi6GIumK": {
+"contains": [
+"dairy",
+"egg"
+],
+"may_contain": []
+},
+"ar:HswoevEfp6JuiSm.DfRg/U6lXqllzSy": {
+"contains": [
+"alcohol",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:I1IBuPxWSewzf0pV8ipuqgEtE88LeVG": {
+"contains": [
+"meat",
+"pork",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:IjJA8uQfwGNeSYH/wRsnna3SvUQ/jKy": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:JhPIZWi1zkOamsniEzctQutYn7MOiTi": {
+"contains": [
+"alcohol",
+"fish",
+"gluten",
+"meat",
+"pork",
+"root_veg",
+"soy"
+],
+"may_contain": []
+},
+"ar:Jx9JfECccWyzVCGHZ/GU4bTsjmiDnX2": {
+"contains": [
+"meat",
+"poultry"
+],
+"may_contain": []
+},
+"ar:K/npQs6ViN.K0A7M0aiTY2KsBfU3apO": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg"
+],
+"may_contain": [
+"dairy",
+"soy",
+"tree_nut"
+]
+},
+"ar:Ly8EYxJfG.uLu82SwlQSMWghEkfa.Ke": {
+"contains": [
+"alcohol",
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork",
+"poultry",
+"root_veg"
+],
+"may_contain": [
+"dairy",
+"gluten"
+]
+},
+"ar:OjlhQ9st7CEqn7VO.LLIkyKikxJR34q": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork"
+],
+"may_contain": []
+},
+"ar:RlyCorbpGo1BipQdEimqIEaCn9F/c2C": {
+"contains": [
+"dairy",
+"egg",
+"honey",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:V6chpgzjEhxhTSYvzzjql1nTt30/TGS": {
+"contains": [
+"root_veg"
+],
+"may_contain": [
+"gluten"
+]
+},
+"ar:W2yCKClcXG6HkR8y7BO4lRYeiQSnD2u": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": [
+"dairy"
+]
+},
+"ar:WgqFwKJjbI0AqzxndlFxG1s46QyyWWm": {
+"contains": [
+"honey",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:WrXrV8pEbPHV.Q90BztpwLEy8g52Qka": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": [
+"dairy"
+]
+},
+"ar:YVnKOdV3JwjbbTx2g7defZYm/OL496u": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:cv/WShVm9tmQbsS2uf/EFYOFfE1yBye": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": [
+"dairy"
+]
+},
+"ar:eMdW70A/SaYriqAkkmjEn5OgPyvNmOS": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:gehEOcDPtU3SmNSXrwWwWD4ulPpUdMO": {
+"contains": [
+"root_veg",
+"soy"
+],
+"may_contain": []
+},
+"ar:gz2wHWJaYyfRNjYaZzvyL2oLO5TBSwu": {
+"contains": [
+"gluten",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:hIl8Yjb3h7dVcpjLznUSmP8OIhl7HsK": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:hpuTwcfI81MqDaiTAwH5P.6TPItTnf6": {
+"contains": [
+"root_veg",
+"sesame"
+],
+"may_contain": []
+},
+"ar:iWn.XWwS62SHay8m/PSP8UUnWqk5QUu": {
+"contains": [
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:ikN/AHjSjpLyZWcnJIzJS9QfulCsVfy": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg",
+"tree_nut"
+],
+"may_contain": []
+},
+"ar:iwzkmd1CpG6fXWl6JGW0/E04N4nZ3C2": {
+"contains": [
+"root_veg",
+"sesame"
+],
+"may_contain": []
+},
+"ar:jVY6QxEaxkiHYkj4B.r5YrIBplhrEk.": {
+"contains": [
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:kZAuT/04iwtdM9HyZgdk3AJdQf41O7y": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:koGqYg.ZVqkx68XVVEvp/ktkN7q7Bae": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"pork",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:lX5wq0GsqRLEaR1S0sbRCbS5xUA2/NW": {
+"contains": [
+"dairy",
+"egg",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:lZLMpO2d8UT.X7an0.NWzU20I9lD8ZK": {
+"contains": [
+"alcohol",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:o4VVc.0XokfLDNGK60rxBVAlDT960qW": {
+"contains": [
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"ar:o5hmXZhF0Q.KBALpOqr/hSXXXbemcBe": {
+"contains": [
+"alcohol",
+"dairy",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:sDUxO3sVPoYSUEFrRI5nMrC9wc7lan2": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:sjuCvoV7NpIRebD037bXI8o4cEG9HsW": {
+"contains": [
+"dairy",
+"meat"
+],
+"may_contain": []
+},
+"ar:swl8bHuXyvb/d8dgzMjSEFkjFkjLfJW": {
+"contains": [
+"alcohol",
+"dairy",
+"honey",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:tKUw0l0Ye0L9TTfKutDltIUMRAOmBdG": {
+"contains": [
+"dairy",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:uTvfhyuwgXX8qiR2uPZtaLchs8l3Lj6": {
+"contains": [
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:v5GP.yKm2/BeIgrUkfZ145KomocsxWu": {
+"contains": [
+"dairy",
+"peanut",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:v6ejpSAqsUko/q8ZkWRXk8BhY/GfBgW": {
+"contains": [
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:v98MAtrtoibpVzVDeOisuCoU3kNmE0a": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"peanut"
+],
+"may_contain": []
+},
+"ar:xTmI350hYKOp81j.Kp7VX30Pzjh7ag2": {
+"contains": [
+"dairy",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"ar:yF/tNCod7wBeNoepx/J.tJEmpyF9Hya": {
+"contains": [
+"dairy",
+"gluten",
+"tree_nut"
+],
+"may_contain": []
+},
+"epi:2Oy96.gdyfbD9U/isgHFPD034O8tQei": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:2iC74.mbqmlL81LKcr72QcUYudhQ8tu": {
+"contains": [
+"dairy",
+"gluten"
+],
+"may_contain": []
+},
+"epi:5oCSyt9tTxFzDmWmVHGx2CgjnRyCKTO": {
+"contains": [
+"honey",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:A36sS/gc8iahHzRXTZCCzvwPnvAF8LG": {
+"contains": [
+"dairy",
+"fish",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:BM6fwencxD8afui9DFxKyChKA5Kifx.": {
+"contains": [
+"dairy",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:CYU3VCt5rK15Npds2b41Tr6X4yxe5vS": {
+"contains": [],
+"may_contain": [
+"dairy",
+"soy"
+]
+},
+"epi:G7nftgxvo9yrCYurpBtOzRfuNnLxa1S": {
+"contains": [
+"root_veg"
+],
+"may_contain": []
+},
+"epi:HJ/mR5oY2sXwYk2wSWeL/priQPrEP.W": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"tree_nut"
+],
+"may_contain": []
+},
+"epi:I9r3cBJU6XL/f50jrDyupyCHNsozgaW": {
+"contains": [
+"dairy",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:J9kZB6VkGaBzldiKYxGnXZBd45uwspG": {
+"contains": [
+"alcohol",
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"epi:KvEZQtjyC8JxwKS1FJueE9bJBEq9LKG": {
+"contains": [],
+"may_contain": []
+},
+"epi:Ngv5I5.9VePtTJlHV8snWFn9il0GmK2": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"pork",
+"poultry",
+"root_veg",
+"soy"
+],
+"may_contain": []
+},
+"epi:Nw6cPvlyB5DAAe.DJysAtDdvo55KI.m": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg"
+],
+"may_contain": [
+"soy"
+]
+},
+"epi:O3sdJp0WqpxwJBiggdbQbKxQYGYUOLy": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:O8WRkgQkoNyfsjjV87mgL/LKjqLTPNi": {
+"contains": [
+"root_veg"
+],
+"may_contain": []
+},
+"epi:TKy.nrnD/z8pz5NZTM.DZNrJ56sslEO": {
+"contains": [
+"alcohol"
+],
+"may_contain": []
+},
+"epi:VEew2zfBpRg3T8IVCG8VvZtJklkOZPa": {
+"contains": [
+"dairy"
+],
+"may_contain": []
+},
+"epi:bN5.qK1daEpPOVhsYKkbYqq4snWbYBa": {
+"contains": [
+"honey"
+],
+"may_contain": []
+},
+"epi:c95XyPAja4guRxRCKrfAl6zGNansv96": {
+"contains": [
+"dairy",
+"gluten"
+],
+"may_contain": []
+},
+"epi:cNZ2kyq/d5OSFXPUdibycYYTwARVvUe": {
+"contains": [
+"alcohol",
+"dairy",
+"gluten",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:lM7rWKaiBOmmvjV19BrsP4UnJex6tpW": {
+"contains": [
+"gluten",
+"pork",
+"root_veg",
+"soy"
+],
+"may_contain": []
+},
+"epi:mlY3VQPFWr/4idQPuZB6PFWMu3tI96S": {
+"contains": [
+"dairy",
+"egg",
+"fish",
+"root_veg"
+],
+"may_contain": []
+},
+"epi:oZ67FJ7SIvTg66EUA28L5wrwPsz4YFe": {
+"contains": [
+"root_veg"
+],
+"may_contain": []
+},
+"epi:ojBzeR/U83i4DeFME1JlV7ubPv5cWpW": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg",
+"tree_nut"
+],
+"may_contain": []
+},
+"epi:poKR9NdIAmTpe1iInO1P0s1a.IcECwC": {
+"contains": [
+"alcohol",
+"dairy",
+"egg"
+],
+"may_contain": []
+},
+"fn:.iIf0CSTE/Ee56jEe3bYH42YPCjWKsC": {
+"contains": [
+"alcohol",
+"dairy",
+"egg",
+"gluten",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:/azFy9h9qtvzEY3mBFxBeLy3SUP3clK": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:3kaax/pz68Du1Oq0mM5v3TASzgkLc1m": {
+"contains": [
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:42gue1ZJrurMCpEcLSvQlLErLX/AfgC": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"root_veg",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:5FToq0LhcprqQOxAErkfFFjaDZ2ap.y": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:5JVsvQFaVX7Mg5e4YeEZcCMgxbC9Gg2": {
+"contains": [
+"dairy"
+],
+"may_contain": []
+},
+"fn:6KDClRh7bJfJxfn0tpvZoFsKxqEApmi": {
+"contains": [
+"alcohol",
+"egg",
+"gluten",
+"honey",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:73eLjXbQjPQ6TY7ADEWlzo6XkEoPu6u": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:7ffn/nyfDnYnWRmrEYT0vwWo0Xsd.TC": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:8YzM8metNq3Xwp3scW3uoV/i1qSyOEe": {
+"contains": [
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:A/DP3BamoXJx33UOHZg41Kzm78tKmkO": {
+"contains": [
+"alcohol",
+"honey"
+],
+"may_contain": []
+},
+"fn:BkpWz.3CxJD2VB3fkI/SAt2hhZPmL0e": {
+"contains": [
+"dairy",
+"gluten"
+],
+"may_contain": []
+},
+"fn:Bw9NhSOi19Tin1JFAJcdXZWImQXX7ZS": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:DY53kXMHRcXjRsYQfxfaHmX4osEznBq": {
+"contains": [
+"dairy",
+"root_veg",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:DodAzhBPOmKv1/KiWlW9OssYF5WJ1mG": {
+"contains": [
+"dairy",
+"egg",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:EZHYEeNHuGQzJqn.wRxppvyvsaCYVSy": {
+"contains": [
+"dairy",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:Fu4s7b4dMp7iRHYBls6C4mM0HC3m5oy": {
+"contains": [
+"egg",
+"fish",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:HObTNgHhRSnydr5eWIHav2ztXdZJJjC": {
+"contains": [
+"fish",
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:IJqvVvDAb5Wr36owEWT7cbFK1ulTH9G": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:IQw/IdK0RwsP3HfPg9RyB.oRrBVBwwW": {
+"contains": [
+"dairy",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:IzkXDBvZsvq7qqIeETKMKiEEE2O7rDm": {
+"contains": [],
+"may_contain": []
+},
+"fn:J3RRCBpvQSFFHVbAmHHussEEQscjkL6": {
+"contains": [
+"egg",
+"gluten",
+"meat",
+"pork",
+"poultry",
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:JTPKhhHQ9pB6XluNDi73ZXO1U.Ks18O": {
+"contains": [
+"alcohol",
+"dairy",
+"gluten",
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:KDsde7l8rDiQv2PaiOaXIgDySfbJ1Mu": {
+"contains": [
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:KVcvrXmtLhPoF7oMx5fZ.WrbzByv.WS": {
+"contains": [
+"dairy",
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:LFgfPHcFF2aEdXEcJas16dFaB.8e7Hi": {
+"contains": [
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:M3BTwLTZrkL2El4PkTn7/c7qDOddh16": {
+"contains": [
+"root_veg"
+],
+"may_contain": []
+},
+"fn:NOivqBeZO.nNg9nq7U7pG76AqT.yanq": {
+"contains": [
+"gluten",
+"meat",
+"peanut",
+"root_veg",
+"sesame",
+"soy"
+],
+"may_contain": []
+},
+"fn:OKmZ3pmeBgw1hHxUGjvMPrdwipPe8jK": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"poultry",
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:PKM66iyySpctNlLO2IW8Ybjru1hgYFS": {
+"contains": [
+"alcohol",
+"dairy",
+"root_veg",
+"tree_nut"
+],
+"may_contain": []
+},
+"fn:PU68ImSRoFg5N0NvoMgRXTsqmXybGXi": {
+"contains": [
+"dairy",
+"egg",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:PzuViIyt.s49wTM5CZFOPzWIMhN9uNO": {
+"contains": [
+"alcohol"
+],
+"may_contain": []
+},
+"fn:RQPa4eqENRs/Krec9ZdILfognQuV6xK": {
+"contains": [
+"honey",
+"root_veg",
+"sesame",
+"soy"
+],
+"may_contain": []
+},
+"fn:RtYUZTgjF6aDg1AkYxOeD9B2Mw6sA7a": {
+"contains": [
+"alcohol",
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:RxL80xalXQSg4cQBSJpf.ZbOxfiDxFG": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:SLAIcK90mLeON/Twd2FdxlXaeZ.O40m": {
+"contains": [
+"dairy",
+"egg",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:TyRRmvUAfWQznELkAsAxZffLCBfotr2": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:UE4Vv.P91BbdhhoDzfJTqkkHnioAsPm": {
+"contains": [
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:VsT7JFOEyLIsQMd6C2BrR20iE6q/nOy": {
+"contains": [
+"alcohol",
+"dairy",
+"egg",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:VyAdOsfdvXM4BnLW0wIeupcRGzF.Aja": {
+"contains": [
+"egg",
+"gluten",
+"meat",
+"pork",
+"poultry",
+"root_veg"
+],
+"may_contain": [
+"dairy"
+]
+},
+"fn:Ww64rLkcH.Cb8MB4KW.ZuQX6098WmGe": {
+"contains": [
+"dairy",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:XWVyIv1oQ8Q9OpYMOVhaSqj7RqRsubu": {
+"contains": [
+"alcohol",
+"gluten",
+"meat",
+"pork",
+"poultry",
+"root_veg"
+],
+"may_contain": [
+"dairy"
+]
+},
+"fn:XegvIjdiLw5geE8Yo.MEkV4lX9XAGzy": {
+"contains": [
+"gluten",
+"root_veg"
+],
+"may_contain": [
+"dairy"
+]
+},
+"fn:aBXL.NsiG7elVEMPpkcFhHDfdTtBOtu": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:atryF/asHX6ifBxAEpZBZDNgPMnVISO": {
+"contains": [
+"dairy",
+"tree_nut"
+],
+"may_contain": [
+"gluten",
+"soy"
+]
+},
+"fn:bbIv.OUq9E5mMGmmqtNRsuKbrQFWZky": {
+"contains": [
+"poultry",
+"root_veg",
+"sesame"
+],
+"may_contain": []
+},
+"fn:cEF7YsNYLFZ/fxDCteCNxe4IrHEuQK6": {
+"contains": [
+"root_veg"
+],
+"may_contain": []
+},
+"fn:cfUosmRyCYWYkkG8eL.Ekv2gancgnQ.": {
+"contains": [
+"dairy",
+"gluten",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:groAAyTYDTzmlR8iJLIe6vZtwpczGCi": {
+"contains": [
+"dairy",
+"egg"
+],
+"may_contain": []
+},
+"fn:gxv4XDOBZ7JMt3DtOEDMmgH32vJlU7G": {
+"contains": [
+"dairy",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:h7QyFir/lGE3PxnjOlAkstzjuOmETwe": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:hUHDfF37jA7goMB5L1jwnTO4PJGEBay": {
+"contains": [
+"meat",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:jED3PPkzOlhMOZ8dv0yzWZMsmUBsTqi": {
+"contains": [
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:kLB0xmEwZeEarXy2j3NuVAW8dXTNCsy": {
+"contains": [
+"dairy",
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:l2MErOvH.SuN6A33BTwQVGwRdFM9xgu": {
+"contains": [
+"dairy",
+"gluten",
+"peanut",
+"poultry",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:mFQizwC7TObOHB7hweU7MG6qu94DsmC": {
+"contains": [
+"root_veg"
+],
+"may_contain": []
+},
+"fn:mw8IX9IQGOAyX6gp6pMsjKL4BB8jqda": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:o7PelqW15ULZGIH3SusuH4DWc4V0k2G": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"peanut",
+"pork",
+"poultry"
+],
+"may_contain": []
+},
+"fn:p/AmUxBwFj.tS5JFtzLxA0iYCUgubDm": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:pglJL.SvDyE3GZcYmE86akfzRGPaeUe": {
+"contains": [
+"dairy",
+"egg"
+],
+"may_contain": []
+},
+"fn:q7JECnhFZZridrVi7vRImGvt0A91e.C": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:r9yH4dL2QZKAjKSaOzolqVQjp/wPMiC": {
+"contains": [
+"alcohol",
+"dairy",
+"gluten",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:sKRGg.N.AS1Jm9qUMu5vwWEFj9zfk0K": {
+"contains": [
+"alcohol"
+],
+"may_contain": []
+},
+"fn:sQqSrz2XN.Z6YfLRN3rhXqNgubX6bwW": {
+"contains": [
+"alcohol",
+"gluten",
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:tOF.yJsrxTmxgrwbAyYe8AXbu6He9PO": {
+"contains": [
+"alcohol",
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:wL4NY1sObBZI85ybdtKpEIARjrEEOPq": {
+"contains": [
+"dairy",
+"egg",
+"gluten"
+],
+"may_contain": []
+},
+"fn:wYWpmFImGJi.j5g04Aq1nfob3Jzx5Ki": {
+"contains": [
+"dairy",
+"egg",
+"gluten",
+"meat",
+"pork",
+"root_veg",
+"shellfish"
+],
+"may_contain": []
+},
+"fn:xiavrw0sh/Q6a2hoQsecwiJLcTF5vHe": {
+"contains": [
+"alcohol"
+],
+"may_contain": []
+},
+"fn:y8jzctDanW/c8a00iOf8GvZrGFugdZe": {
+"contains": [
+"meat",
+"root_veg"
+],
+"may_contain": []
+},
+"fn:zm1bLh6SlO.L.OpeSGWMQ3WjfxUPnWi": {
+"contains": [
+"meat",
+"root_veg"
+],
+"may_contain": []
+}
+}

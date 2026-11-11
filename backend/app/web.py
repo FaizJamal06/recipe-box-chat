@@ -10,7 +10,7 @@ import logging
 import re
 import sqlite3
 
-from . import search, stats
+from . import safety, search, stats
 from .db import Dataset
 from .match import MatchResult
 from .search import SearchResult
@@ -39,15 +39,19 @@ def recipe(con: sqlite3.Connection, rid: str) -> dict | None:
               for r in con.execute("SELECT line_no, raw, canonical, family, qty, unit, is_alt, is_header, is_not_food "
                                    "FROM ingredient_lines WHERE recipe_id = ? ORDER BY line_no, alt_group, is_alt", (rid,))]
     tags = dict(con.execute("SELECT tag, level FROM recipe_tags WHERE recipe_id = ? ORDER BY tag", (rid,)).fetchall())
+    unv = safety.lines(con, rid, safety.TAGS)  # unknown is not safe: lines no tag could be verified for
     return {"id": rid, "source": source, "title": title, "ingredients": lines, "steps": steps, "paragraph": bool(para),
-            "n_ingredients": n_ing, "n_steps": n_steps, "valid": bool(valid), "parsed": parsed, "tags": tags}
+            "n_ingredients": n_ing, "n_steps": n_steps, "valid": bool(valid), "parsed": parsed, "tags": tags,
+            "unverified": unv}
 
 
 def _chip(e: str) -> dict:
     """Evidence line -> colored chip (violation red / may-contain warning / satisfied)."""
-    kind = ("violation" if e.startswith("VIOLATES") else "may_contain" if "may contain" in e or "alternative" in e
-            else "matched" if e.startswith("has ") else "ok")
-    return {"kind": kind, "label": e.split(":")[0].replace("VIOLATES ", "✗ ") if ":" in e else e, "detail": e}
+    unverified = "couldn't be verified" in e
+    kind = ("violation" if e.startswith("VIOLATES") else "may_contain" if unverified or "may contain" in e or
+            "alternative" in e else "matched" if e.startswith("has ") else "ok")
+    label = e.split(":")[0].replace("VIOLATES ", "✗ ") if ":" in e else e
+    return {"kind": kind, "label": f"{label} · unverified" if unverified else label, "detail": e}
 
 
 def _base(con: sqlite3.Connection, ids: list[str]) -> dict:
@@ -75,7 +79,8 @@ def _match_card(con, r) -> dict:
             [{"kind": "extra", "label": x, "detail": "extra ingredient needed"} for x in r.extra] + \
             [{"kind": "unused", "label": x, "detail": "yours, not used here"} for x in r.unused] + \
             [{"kind": "violation" if "short by" in q else "unused" if "not verified" in q else "ok",
-              "label": q.split(" (")[0].split(";")[0], "detail": q} for q in r.qty]
+              "label": q.split(" (")[0].split(";")[0], "detail": q} for q in r.qty] + \
+            [_chip(w) for w in r.warnings]
     return _card(r.id, t, src, n_ing, n_steps, chips, score=round(r.score, 2), parts=r.parts, staples=r.staples)
 
 

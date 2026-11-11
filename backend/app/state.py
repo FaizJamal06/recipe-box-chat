@@ -13,6 +13,7 @@ class SessionState:
     include: list = field(default_factory=list)
     exclude: list = field(default_factory=list)  # plain words, canonicalized at execution
     exclude_tags: list = field(default_factory=list)
+    diets: list = field(default_factory=list)  # presets ('vegan') whose tags are all in exclude_tags
     max_steps: int | None = None
     have: list = field(default_factory=list)  # as typed, quantities included ("2 eggs")
     prefs: list = field(default_factory=list)  # use_most / fewest_extra / fewest_steps / no_staples
@@ -32,6 +33,7 @@ class SessionState:
         """One-line view of the state."""
         c = [f"task={self.active_task}"] if self.active_task else []
         c += [f"dish='{self.query_text or self.query_label}'"] if self.query_text or self.query_label else []
+        c += [f"diet: {d}" for d in self.diets]
         c += [f"no {x}" for x in self.exclude_tags + self.exclude]
         c += [f"max {self.max_steps} steps"] if self.max_steps is not None else []
         c += [f"have: {', '.join(self.have)}"] if self.have else []

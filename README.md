@@ -26,6 +26,7 @@ Each `make` target is one command you can run directly (no `make` needed; PowerS
 | `make db` | `python -m backend.app.ingest` | build `data/recipes.db` (~3.5 min, peak RSS ~330 MB; prints peak memory) |
 | `make test` | `python -m pytest -q -x` | unit tests + a DB build from `backend/tests/fixtures/mini.json` |
 | `make coverage` | `python scripts/coverage.py ; python scripts/audit_tags.py` | normalization report (rewrites the coverage section of `docs/DATA_PROFILE.md`) + family-tag consistency audit (members whose tags differ from their family) |
+| — | `python scripts/llm_audit.py canonicals \| sample \| report` | offline LLM audit of the allergen rules (cached, resumable); writes `docs/tag_audit.md` |
 | — | `python eval/explore.py` | exploratory run of `eval/explore.txt` through the API; transcripts in `eval/explore_transcripts/` |
 | `make cli` | `python -m backend.app.cli` (or `--ask "..."`, `--session demos/demo1_refine.txt`, `--no-llm`) | chat in the terminal; one sticky session; prints planner (LLM / rule parser + why), LLM calls and latency per turn |
 | `make oracle` | `python eval/oracle.py` | recompute demos 2 and 3 from the raw JSON in pure Python and check the CLI answers (~2.5 min) |
@@ -46,7 +47,21 @@ record total and invalid breakdown are read from the DB at startup). Steps = eff
 sentences when the instructions are one paragraph). Ingredient presence is reported **strict** (the family, e.g.
 fresh garlic forms) and **broad** (plus the family's `broad` list in `backend/app/lexicon/families.yaml`).
 Rankings break ties by n_steps, then n_ingredients, then id. Tag stats ("how many are dairy-free") report
-lenient (only `contains` counts) and strict (`may_contain` counts too).
+lenient (only `contains` counts) and strict (`may_contain` and unverified recipes count too).
+
+Allergens and diets. Tags: dairy, egg, peanut, tree_nut, gluten, soy, sesame, meat, pork, poultry, fish,
+shellfish, gelatin, honey, alcohol, root_veg (`lexicon/tags.yaml`). Presets are compositions of tags, shown in the
+reply and as one chip (`lexicon/diets.yaml`): vegetarian, vegan, pescatarian, halal (pork + alcohol; the
+slaughter method can't be verified from text), Jain (no meat/fish/egg/gelatin, onion, garlic or root
+vegetables), lactose intolerant → dairy, celiac / wheat → gluten, nut allergy → peanut + tree_nut; kosher is
+stated as not verifiable from recipe text and filters nothing.
+**Unknown is not safe** (`backend/app/safety.py`): an ingredient counts as verified free of a tag only if its
+canonical is known (≥ 5 valid recipes, not via the suffix fallback) or the line scanner explicitly cleared that
+tag ("dairy-free", "rice noodles"); an "or" option only counts if it is itself verified. Otherwise the recipe is
+shown with ⚠ "1 ingredient couldn't be verified: '…'" and excluded in strict mode. About 30% of valid recipes have
+such an ingredient for a given tag (29.1% dairy … 33.6% peanut): that is the price of not guessing.
+The rules decide at runtime; an LLM audited them offline (`python scripts/llm_audit.py`, cached): 3,000
+canonicals and a fixed sample of 150 recipes. Results, per-tag miss rates and every fix: [docs/tag_audit.md](docs/tag_audit.md).
 
 LLM: Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`, thinking `minimal`) only turns text into a JSON
 plan; at most 2 requests per turn (the 2nd only to retry invalid JSON); responses cached in
@@ -64,8 +79,7 @@ Conversation: greetings / thanks / "what can you do" / off-topic get short fixed
 answered from the score breakdown or ranking evidence; a contradiction ("vegan chicken curry") gets one short
 question; each answer offers 2–3 follow-up chips. Cuisine questions (no cuisine field) run a labelled
 title-keyword proxy (`lexicon/cuisines.yaml` + optional LLM dish names), honest count even when zero.
-Wheat allergy maps to the gluten tag, said in the reply (stricter: also excludes barley and rye). Nutrition, cook time, servings,
-ratings and categories have no field: the guard answers those without the LLM (category → a labelled
+Nutrition, cook time, servings, ratings and categories have no field: the guard answers those without the LLM (category → a labelled
 title-keyword proxy; cook time → durations mentioned in the instructions).
 
 Matching (T2): U = your ingredients, P = pantry staples assumed available (salt, black pepper, water; say "no

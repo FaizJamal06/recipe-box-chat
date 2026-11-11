@@ -1,0 +1,38 @@
+# Diet / allergy presets: what a person says -> the tags.yaml tags it excludes. The reply states the expansion
+# once and the UI shows the preset as one chip. `say`: phrases matched anywhere in a message. `after_no`: words
+# that only count as a restriction ("no wheat", "allergic to nuts", "wheat allergy", "nut-free").
+vegetarian:
+  say: [vegetarian, veggie only, pure veg]
+  tags: [meat, fish, shellfish, gelatin]
+vegan:
+  say: [vegan, plant-based, plant based]
+  tags: [meat, fish, shellfish, gelatin, dairy, egg, honey]
+pescatarian:
+  say: [pescatarian, pescetarian]
+  tags: [meat, gelatin]
+halal:
+  say: [halal]
+  tags: [pork, alcohol]
+  note: "I can't verify the slaughter method from recipe text: this only checks that no ingredient line names pork or alcohol."
+jain:
+  say: [jain]
+  tags: [meat, fish, shellfish, egg, gelatin, root_veg]
+  note: "Many Jains also avoid honey and mushrooms: say 'no honey' or 'no mushroom' to add them."
+kosher:
+  say: [kosher]
+  tags: []
+  note: "Kosher can't be verified from recipe text (it depends on certification and on how ingredients are combined), so I haven't filtered anything. Say 'no pork' or 'no shellfish' to exclude those."
+lactose intolerant:
+  say: [lactose intolerant, lactose intolerance, lactose-free, lactose free]
+  after_no: [lactose]
+  tags: [dairy]
+  note: "Stricter than needed: lactose-free dairy and aged cheeses are excluded too."
+celiac / wheat:
+  say: [celiac, coeliac]
+  after_no: [wheat]
+  tags: [gluten]
+  note: "Stricter than needed for a wheat allergy: the gluten tag also excludes barley and rye."
+nut allergy:
+  say: [nut allergy, nut allergies]
+  after_no: [nuts, nut]
+  tags: [peanut, tree_nut]

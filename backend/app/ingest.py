@@ -6,7 +6,8 @@ rows, recipe_tags. Rows sharing (recipe_id, line_no, alt_group) are alternatives
 different alt_group values on one line are separate items ("salt and pepper"); is_alt=0 marks the
 primary. Originals are stored verbatim (ingredients_raw keeps ADVERTISEMENT); derived columns are separate.
 Recipe tags = parsed items' tags + a keyword scan of each whole line (normalize.line_tags) as a safety net.
-Pass 2 (SQL): comma lists of known canonicals are split (resplit), canonicals seen in < VOCAB_MIN valid
+Pass 2 (SQL): comma lists of known canonicals are split (resplit), items no allergen tag can be verified
+for go to `unverified` (safety.py), canonicals seen in < VOCAB_MIN valid
 recipes fall back to their longest safe in-vocab word suffix (normalize.suffix_match), then
 vocab(canonical, family, recipe_count) and the family column are filled.
 Run: python -m backend.app.ingest   (from the repo root)
@@ -20,6 +21,7 @@ import time
 from pathlib import Path
 
 from . import normalize as nz
+from . import safety
 from .config import VOCAB_MIN  # PRD 4.5 coverage target: canonical with recipe frequency >= 5
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -38,6 +40,7 @@ CREATE TABLE ingredient_lines(recipe_id TEXT, line_no INT, raw TEXT, name_clean 
 CREATE TABLE recipe_tags(recipe_id TEXT, tag TEXT, level TEXT, evidence_line_no INT);
 CREATE TABLE vocab(canonical TEXT PRIMARY KEY, family TEXT, recipe_count INT);
 CREATE TABLE meta(key TEXT PRIMARY KEY, value INT);
+CREATE TABLE unverified(recipe_id TEXT, tag TEXT, line_no INT);
 CREATE VIRTUAL TABLE recipes_fts USING fts5(id UNINDEXED, title, ingredients, tokenize='porter');
 """
 INDEXES = """
@@ -199,6 +202,9 @@ def finalize(con: sqlite3.Connection, vocab_min: int) -> None:
     vocab = {c for c, n in counts.items() if n >= vocab_min}
     splits = resplit(con, vocab)
     print(f"comma lists split: {splits:,}")
+    unv = safety.build_table(con, vocab)  # before the remap: canonicals as parsed (unknown is not safe)
+    print("unverified recipes per tag: " + ", ".join(f"{t} {n:,}" for t, n in unv.items()))
+    con.executemany("INSERT INTO meta VALUES (?,?)", [(f"unverified_{t}", n) for t, n in unv.items()])
     remap = [(c, m) for c, n in counts.items() if n < vocab_min and (m := nz.suffix_match(c, vocab))]
     con.executemany("INSERT INTO meta VALUES (?,?)", [("comma_splits", splits), ("rare_remapped", len(remap))])
     del counts

@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import llm, talk, voice, web
+from . import llm, rules, talk, voice, web
 from .config import DB, ROOT
 from .db import connect, fingerprint, load_dataset
 from .session import Session, SessionState
@@ -90,7 +90,7 @@ def _entry(sid: str | None, create: bool = True) -> tuple[str, Entry]:
 
 def _state(s: SessionState) -> dict:
     return {"active_task": s.active_task, "query_text": s.query_text or s.query_label, "include": s.include,
-            "exclude": s.exclude,
+            "exclude": s.exclude, "diets": [{"name": n, "tags": rules.DIETS[n]["tags"]} for n in s.diets],
             "exclude_tags": s.exclude_tags, "max_steps": s.max_steps, "have": s.have, "prefs": s.prefs,
             "staples": "no_staples" not in s.prefs, "strict_may_contain": s.strict_may_contain,
             "selected_recipe_id": s.selected_recipe_id, "last_results": s.last_results}
@@ -168,11 +168,19 @@ def patch_state(sid: str, body: StateIn):
     s = e.session.state
     lists = {"exclude": s.exclude, "exclude_tags": s.exclude_tags, "have": s.have, "prefs": s.prefs,
              "include": s.include}
-    if body.op == "remove" and body.field in lists:
+    if body.op == "remove" and body.field == "diets":  # drop the preset and the tags only it needed
+        if body.value not in s.diets:
+            raise HTTPException(400, f"{body.value!r} is not an active diet")
+        s.diets.remove(body.value)
+        keep = {t for n in s.diets for t in rules.DIETS[n]["tags"]}
+        s.exclude_tags[:] = [t for t in s.exclude_tags if t in keep or t not in rules.DIETS[body.value]["tags"]]
+    elif body.op == "remove" and body.field in lists:
         lst = lists[body.field]
         if body.value not in lst:
             raise HTTPException(400, f"{body.value!r} is not in {body.field}")
         lst.remove(body.value)
+        if body.field == "exclude_tags":  # a preset is only shown while all its tags are active
+            s.diets[:] = [n for n in s.diets if set(rules.DIETS[n]["tags"]) <= set(s.exclude_tags)]
     elif body.op == "remove" and body.field in ("max_steps", "query_text"):
         setattr(s, body.field, None)
         if body.field == "query_text":

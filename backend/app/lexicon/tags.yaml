@@ -24,26 +24,40 @@ dairy:
            apple butter, pumpkin butter, cocoa butter, shea butter, butter bean, butter lettuce, butterhead,
            cream of tartar, coconut milk powder, coconut yogurt, cream soda, milk thistle, bread flour,
            pastry flour, butter flavored, butter-flavored, butter flavor, cream-style, cream style,
-           butter shortening, crisco butter]
+           butter shortening, crisco butter,
+           cream sherry, marshmallow cream, marshmallow creme, butter pickle, bread and butter pickle,
+           swiss chard, cake flour, cake yeast, rice cake]
   contains: [milk, cream, butter, cheese, yogurt, yoghurt, ghee, whey, casein, buttermilk, sour cream,
              half and half, half-and-half, creme fraiche, kefir, quark, mascarpone, ricotta, parmesan,
              parmigiano-reggiano, parmigiano, mozzarella, cheddar, feta, gruyere, brie, camembert, pecorino,
              romano, asiago, provolone, gouda, fontina, gorgonzola, emmental, emmentaler, havarti, manchego,
              burrata, halloumi, cotija, colby, monterey jack, queso, paneer, neufchatel, roquefort, stilton,
              gelato, custard, eggnog, alfredo, bechamel, tzatziki, ranch dressing, lassi, dulce de leche,
-             condensed milk, evaporated milk, powdered milk, nonfat dry milk, lactose]
+             condensed milk, evaporated milk, powdered milk, nonfat dry milk, lactose,
+             swiss, crema, mexican crema, bocconcini, boursin, pepper jack, pepperjack, lemon curd, sherbet, fromage
+             blanc]
   may_contain: [margarine, chocolate, bread, cake mix, brownie mix, biscuit mix, pancake mix, bisquick,
                 cookie, cracker, pastry, pie crust, croissant, brioche, caramel, toffee, butterscotch,
                 coffee creamer, creamer, whipped topping, cool whip, pesto, ranch, cream of mushroom soup,
-                mashed potato flake, nougat, frosting, icing, pudding mix, ravioli, tortellini, tortelloni]
+                mashed potato flake, nougat, frosting, icing, pudding mix, ravioli, tortellini, tortelloni,
+                cake, cupcake, brownie, biscuit, biscuit dough, crescent roll, pie shell, pie dough,
+                cake, cupcake, brownie, biscuit, biscuit dough, crescent roll, pie shell, pie dough, tart shell, naan,
+                fudge, buffalo wing sauce, wing sauce, creamed corn, muffin mix, baking mix, crepe, pudding, peanut
+                butter chip, creamy salad dressing, cheese sauce, nutella, chocolate-hazelnut spread]
 
 egg:
   free_if: [egg-free, eggless, vegan, egg replacer]
-  except: [eggplant, rice noodle, bread flour, pastry flour]
+  except: [eggplant, rice noodle, bread flour, pastry flour,
+           cake flour, cake yeast, rice cake, bread and butter pickle, butter pickle]
   contains: [egg, egg white, egg yolk, yolk, mayonnaise, mayo, egg noodle, meringue, aioli, eggnog,
-             hollandaise, egg substitute, egg beater, custard, challah, brioche]
+             hollandaise, egg substitute, egg beater, custard, challah, brioche,
+             lemon curd, angel food cake, crepe]
   may_contain: [fresh pasta, cake mix, brownie mix, pancake mix, biscuit mix, cookie, bread, tartar sauce,
-                caesar dressing, ladyfinger, puff pastry, pastry, wonton wrapper, egg roll wrapper, marshmallow]
+                caesar dressing, ladyfinger, puff pastry, pastry, wonton wrapper, egg roll wrapper, marshmallow,
+                ice cream, gelato, meatball, wonton, fettuccine, fettuccini, pappardelle, tagliatelle, ravioli,
+                tortellini, ranch dressing, ranch salad dressing, blue cheese dressing, thousand island, creamy salad
+                dressing, cake, cupcake, brownie, biscotti, muffin mix, corn muffin mix, pound cake, sponge cake,
+                waffle]
 
 peanut:
   free_if: [peanut-free]
@@ -56,8 +70,10 @@ tree_nut:
   except: [water chestnut, butternut, nutmeg, coconut, doughnut, donut]
   contains: [almond, cashew, walnut, pecan, pistachio, hazelnut, filbert, macadamia, brazil nut, pine nut,
              pignoli, chestnut, praline, marzipan, almond paste, nutella, gianduja, frangelico, amaretto,
-             almond extract, almond flour, almond meal, almond milk]
-  may_contain: [pesto, mixed nuts, nut, granola, trail mix, nougat, baklava, biscotti]
+             almond extract, almond flour, almond meal, almond milk,
+             amaretti]
+  may_contain: [pesto, mixed nuts, nut, granola, trail mix, nougat, baklava, biscotti,
+                mexican chocolate, amaretto cookie]
 
 gluten:
   # wheat allergy maps here too (stricter than needed: gluten also covers barley and rye)
@@ -71,7 +87,10 @@ gluten:
            lentil pasta, red lentil pasta, quinoa pasta, bean pasta, black bean pasta, edamame pasta,
            bean thread, glass noodle, cellophane noodle, mung bean noodle, sweet potato noodle, shirataki,
            kelp noodle, zucchini noodle, zoodle, cauliflower crust, cauliflower pizza crust, cannelloni bean,
-           cannellini bean]
+           cannellini bean,
+           bean thread noodle, rice stick noodle, bread machine yeast, cake yeast, bread and butter pickle, butter
+           pickle,
+           pie filling, pie spice, pumpkin pie spice, apple pie spice, pie cherries, pie pumpkin, cherry pie filling]
   contains: [flour, wheat, whole wheat, bread, breadcrumb, bread crumb, panko, crouton, pasta, spaghetti,
              macaroni, noodle, couscous, bulgur, barley, rye, semolina, farro, spelt, seitan, orzo, penne,
              linguine, fettuccine, fettuccini, lasagna, lasagne, tortellini, ravioli, rigatoni, ziti, rotini,
@@ -89,12 +108,19 @@ gluten:
              lo mein, chow mein, dumpling, gyoza wrapper, potsticker wrapper, dumpling wrapper, durum,
              freekeh, kamut, einkorn, emmer, triticale, breadstick, flatbread, chapati, chapatti, roti,
              paratha, puri, bhatura, kulcha, atta, maida, sooji, suji, rava, sevai, seviyan, dalia, pie dough,
-             pastry dough, pizza crust, pan dulce, pan de mie, pan de sal, pan de muerto, linguini, spaghettini]
+             pastry dough, pizza crust, pan dulce, pan de mie, pan de sal, pan de muerto, linguini, spaghettini,
+             toast, texas toast, pie, crostini, pumpernickel, tart shell, cupcake, brownie, biscotti, crepe, wafer,
+             gingersnap, baking mix, buttermilk baking mix, french-fried onion, french fried onion, malted, malted
+             milk, amaretti]
   # soba / buckwheat: gluten-free grain, but soba is often cut with wheat -> at most may_contain
-  downgrade: [buckwheat, buckwheat flour, soba, soba noodle, kasha]
+  downgrade: [buckwheat, buckwheat flour, soba, soba noodle, kasha,
+              rice cereal, crisp rice cereal, puffed rice cereal, corn flake, cornflake]
   may_contain: [oat, oats, rolled oats, oatmeal, granola, worcestershire, bouillon, gravy, seasoning mix,
                 licorice, imitation crab, hoisin, miso, cornbread, tamari, cream of mushroom soup,
-                cream of chicken soup, sausage, meatball]
+                cream of chicken soup, sausage, meatball,
+                oyster sauce, barbecue sauce, bbq sauce, steak sauce, onion soup mix, soup mix, tomato
+                oyster sauce, barbecue sauce, bbq sauce, steak sauce, onion soup mix, soup mix, tomato soup, cream of
+                celery soup, cheese soup, french onion soup, cheese sauce, gochujang, imitation crabmeat]
 
 meat:
   free_if: [vegetarian, vegan, meatless, meat-free, plant-based, veggie, soy-based, imitation,
@@ -105,7 +131,12 @@ meat:
            vegetable broth, vegetable stock, mushroom broth, chickpea, goat cheese, goat milk,
            goats milk, goat yogurt, poultry seasoning, quail egg, duck egg, vegetable bouillon, mushroom stock,
            fish stock, fish broth, seafood stock, shrimp stock, lobster stock, clam broth, clam juice,
-           beefsteak tomato, beef steak tomato, beefsteak mushroom]
+           beefsteak tomato, beef steak tomato, beefsteak mushroom,
+           tuna steak, salmon steak, swordfish steak, halibut steak, fish steak, ahi tuna steak, tuna loin, cod loin,
+           steak sauce, steak seasoning, montreal steak seasoning,
+           dark roast, medium roast, light roast, french roast, italian roast, espresso roast, roast coffee, wing
+           sauce, buffalo wing sauce, wing seasoning, chicken wing sauce,
+           steak spice, steak rub, meat glue, meat tenderizer, meat thermometer]
   contains: [meat, beef, steak, sirloin, brisket, chuck, flank, skirt steak, veal, lamb, mutton, goat,
              venison, bison, elk, rabbit, pork, bacon, ham, prosciutto, pancetta, guanciale,
              salami, pepperoni, chorizo, sausage, kielbasa, bratwurst, andouille, hot dog, frankfurter,
@@ -114,9 +145,12 @@ meat:
              mortadella, jerky, spam, lard, suet, bone broth, beef broth, beef stock, beef bouillon,
              chicken, turkey, duck, goose, quail, cornish hen, game hen, poultry, pheasant, squab,
              chicken broth, chicken stock, chicken bouillon, ground round, roast beef, pot roast,
-             foie gras, gelatin]
-  may_contain: [broth, stock, bouillon, gravy, demi-glace, consomme, stuffing, jell-o,
-                marshmallow, refried beans, baked beans, pork and beans]
+             foie gras,
+             thigh, drumstick, breast, neck, shoulder, bone, roast, filet mignon, soppressata, wing, giblets]
+  # gelatin has its own tag (vegetarian/vegan presets exclude it); pork keeps gelatin as may_contain (halal)
+  may_contain: [broth, stock, bouillon, gravy, demi-glace, consomme, stuffing, refried beans, baked beans,
+                pork and beans,
+                pate, french onion soup]
 
 pork:
   free_if: [vegetarian, vegan, meatless, turkey bacon, turkey ham, turkey sausage, chicken sausage,
@@ -124,18 +158,22 @@ pork:
   except: [hamburger, graham, hot dog bun, hot dog roll]
   contains: [pork, bacon, ham, prosciutto, pancetta, guanciale, lard, chorizo, capicola, mortadella,
              kielbasa, bratwurst, andouille, spare rib, baby back rib, pork rind, chicharron, hog, ham hock,
-             salt pork, fatback, italian sausage, breakfast sausage, pork sausage, pork and beans]
+             salt pork, fatback, italian sausage, breakfast sausage, pork sausage, pork and beans,
+             soppressata]
   may_contain: [sausage, salami, pepperoni, hot dog, frankfurter, wiener, meatball, meatloaf, gelatin,
                 refried beans, baked beans, spam]
 
 poultry:
   free_if: [vegetarian, vegan, meatless, plant-based]
-  except: [grey goose, chickpea, hen of the woods, chicken of the woods, duck sauce, poultry seasoning, quail egg, duck egg,
+  except: [grey goose, chickpea, hen of the woods, chicken of the woods, duck sauce, poultry seasoning, quail egg,
+  duck egg,
            beef broth, beef stock, beef bouillon, beef gravy, veal stock, lamb stock, pork stock, vegetable broth,
            vegetable stock, vegetable bouillon, mushroom stock, mushroom broth, fish stock, fish broth, seafood stock,
-           shrimp stock, lobster stock, clam broth]
+           shrimp stock, lobster stock, clam broth,
+           wing sauce, buffalo wing sauce, wing seasoning]
   contains: [chicken, turkey, duck, goose, quail, cornish hen, game hen, hen, poultry, pheasant, squab,
-             foie gras, chicken broth, chicken stock, chicken bouillon, turkey bacon, turkey sausage]
+             foie gras, chicken broth, chicken stock, chicken bouillon, turkey bacon, turkey sausage,
+             thigh, drumstick, wing]
   may_contain: [broth, stock, bouillon, gravy, stuffing]
 
 fish:
@@ -144,13 +182,97 @@ fish:
   contains: [fish, salmon, tuna, cod, halibut, tilapia, trout, anchovy, anchovies, sardine, mackerel, snapper,
              sea bass, striped bass, haddock, sole, swordfish, catfish, mahi, mahi-mahi, flounder, herring,
              fish sauce, worcestershire, bonito, caviar, roe, lox, smoked salmon, pollock, grouper, perch,
-             branzino, monkfish, arctic char, whitefish, pike, carp, eel, nam pla, imitation crab]
-  may_contain: [caesar dressing, dashi, kimchi, shrimp paste, oyster sauce, furikake]
+             branzino, monkfish, arctic char, whitefish, pike, carp, eel, nam pla, imitation crab,
+             imitation crabmeat]
+  may_contain: [caesar dressing, dashi, kimchi, shrimp paste, oyster sauce, furikake,
+                tapenade, seafood stock, caesar]
 
 shellfish:
   free_if: [vegan, vegetarian]
-  except: [oyster mushroom, oyster cracker, oyster sauce substitute]
+  except: [oyster mushroom, oyster cracker, oyster sauce substitute,
+           crab boil, crab boil seasoning]
   contains: [shrimp, prawn, crab, crabmeat, lobster, scallop, clam, mussel, oyster, crawfish, crayfish,
              langoustine, squid, calamari, octopus, shellfish, oyster sauce, shrimp paste, cockle, conch,
-             abalone, sea urchin, uni, imitation crab]
+             abalone, sea urchin, uni, imitation crab,
+             tentacle]
   may_contain: [fish sauce, seafood seasoning, bouillabaisse, seafood]
+
+soy:
+  free_if: [soy-free, soy free]
+  except: [soy-free sauce]
+  contains: [soy, soya, soybean, soy bean, soy sauce, soy milk, soymilk, tofu, tempeh, edamame, miso, tamari, shoyu,
+             natto, yuba, teriyaki, hoisin, ponzu, textured vegetable protein, tvp, soy lecithin, black bean sauce,
+             bean curd, kecap manis, ketjap manis, gochujang, doenjang, soy protein,
+             fermented black bean, salted black bean, douchi]
+  may_contain: [margarine, vegetable shortening, bouillon, imitation crab, veggie burger, meat substitute,
+                worcestershire, stir-fry sauce, stir fry sauce, oyster sauce, fish sauce substitute, seasoning mix,
+                chocolate, butterscotch, candy, fudge, nutella, chocolate-hazelnut spread, cooking spray, barbecue
+                sauce, bbq sauce, steak sauce, onion soup mix, cream of mushroom soup, cake mix, imitation crabmeat,
+                beef base, chicken base]
+
+sesame:
+  free_if: [sesame-free, sesame free]
+  except: []
+  contains: [sesame, sesame oil, sesame seed, tahini, tahina, benne, gomasio, gomashio, halva, halvah, furikake,
+             hummus, houmous, everything bagel seasoning, til, gingelly]
+  may_contain: [za'atar, zaatar, dukkah, dukka, sesame bun, hamburger bun, bagel, baba ganoush, sushi rice seasoning,
+                hoisin, everything bagel, sushi]
+
+honey:
+  free_if: [honey-free, honey free, vegan honey]
+  except: [honeydew, honeydew melon, honeycrisp, honey crisp, honeysuckle, honey bun squash]
+  contains: [honey, honeycomb, honey mustard, mead, clover honey, manuka honey, honey-roasted, honey roasted]
+  may_contain: [granola, graham cracker, graham, barbecue sauce, bbq sauce, teriyaki, baklava, nougat, energy bar,
+                cereal]
+
+gelatin:
+  free_if: [vegan gelatin, agar, agar-agar, kosher gelatin substitute, gelatin-free, plant-based]
+  except: []
+  contains: [gelatin, gelatine, jell-o, jello, aspic, gelatin dessert, jelly powder, isinglass]
+  may_contain: [marshmallow, marshmallow cream, marshmallow creme, gummy, gummies, gummy bear, panna cotta,
+                cream cheese, sour cream, yogurt, frosting, candy corn]
+
+alcohol:
+  # halal preset; vinegars (wine/cider/rice vinegar) are not alcohol
+  free_if: [non-alcoholic, nonalcoholic, alcohol-free, alcohol free, dealcoholized, virgin]
+  except: [wine vinegar, red wine vinegar, white wine vinegar, rice wine vinegar, rice vinegar, sherry vinegar,
+           champagne vinegar, cider vinegar, apple cider vinegar, malt vinegar, root beer, ginger beer, ginger ale,
+           birch beer, apple cider, sweet cider, cream soda, rum extract, brandy extract, wine-colored, beer bread
+           mix,
+           sherry wine vinegar, scotch bonnet, rum flavored extract, rum-flavored extract]
+  contains: [wine, red wine, white wine, cooking wine, rice wine, shaoxing, mirin, sake, beer, ale, lager, stout,
+             porter, rum, vodka, gin, whiskey, whisky, bourbon, scotch, brandy, cognac, armagnac, sherry, port wine,
+             tawny port, ruby port, marsala, madeira, vermouth, tequila, mezcal, liqueur, liquor, amaretto, kahlua,
+             triple sec, cointreau, grand marnier, curacao, schnapps, champagne, prosecco, cava, hard cider, kirsch,
+             kirschwasser, frangelico, baileys, irish cream, absinthe, ouzo, pernod, sambuca, limoncello, chambord,
+             creme de menthe, creme de cacao, creme de cassis, bitters, angostura, calvados, grappa, pisco, cachaca,
+             soju, mead, chartreuse, galliano, drambuie, advocaat, eggnog with rum, wine cooler, sangria, alcohol,
+             port, campari, aperol, chardonnay, cabernet, sauvignon blanc, riesling, merlot, pinot noir, pinot grigio,
+             zinfandel, applejack, framboise, shiraz, malbec, chianti, moscato, sauternes,
+             claret, lambrusco, beaujolais, bordeaux, sancerre, muscat, vin santo, rose wine, vinho verde, asti spumante, retsina, tokaji, barolo, rioja]
+  may_contain: [vanilla extract, almond extract, rum extract, brandy extract, mint extract, rum cake, fruitcake,
+                tiramisu, beer bread mix,
+                extract, dijon, demi-glace, pate]
+
+root_veg:
+  # Jain preset: onion and garlic family plus root and tuber vegetables
+  free_if: []
+  except: [ginger ale, ginger beer, gingersnap, ginger snap, gingerbread, carrot cake mix, onion-free, garlic-free]
+  contains: [onion, garlic, shallot, leek, scallion, green onion, spring onion, chive, ramp, potato, sweet potato,
+             yam, carrot, beet, beetroot, radish, daikon, turnip, parsnip, rutabaga, swede, celeriac, celery root,
+             ginger, horseradish, wasabi, taro, cassava, yuca, arrowroot, burdock, jicama, galangal, fresh turmeric,
+             turmeric root, jerusalem artichoke, sunchoke, kohlrabi, salsify, lotus root, water chestnut,
+             onion powder, garlic powder, onion salt, garlic salt, potato starch, potato flake, hash brown,
+             french fry, french fries, tater tot,
+             yukon gold, russet, mixed vegetable, coleslaw mix, pesto, pico de gallo, kimchi, harissa, aioli, garlic
+             paste, ginger paste, tzatziki, salsa verde]
+  may_contain: [curry paste, sofrito, mirepoix, soup mix, onion soup mix, seasoning mix, salsa, ketchup, bouillon,
+                stock, broth, worcestershire, barbecue sauce, bbq sauce, pickle relish, chutney,
+                marinara, pasta sauce, spaghetti sauce, pizza sauce, sriracha, hoisin, chili sauce,
+                marinara, pasta sauce, spaghetti sauce, pizza sauce, sriracha, hoisin, chili sauce, chile sauce,
+                adobo, chipotle in adobo, cajun seasoning, creole seasoning, seasoning salt, seasoned salt, taco
+                seasoning, steak seasoning, grill seasoning, seasoning, guacamole, enchilada sauce, sambal, chili
+                paste, chile paste, vinaigrette, salad dressing, italian dressing, ranch dressing mix, sausage,
+                chorizo, pepperoni, andouille, kielbasa, rotisserie chicken, stewed tomato, condensed soup, cream of
+                mushroom, cream of chicken, cream of celery, dill pickle, pickled jalapeno, teriyaki, cocktail sauce,
+                steak sauce, curry powder, garam masala, chili powder]

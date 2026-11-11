@@ -112,6 +112,7 @@ def match_reply(res: MatchResult, ds: Dataset) -> str:
             why += f"; same score as #{i - 1}, ordered by the tie-break"
         out.append(f"       why here: {why}.")
         out += [f"       qty: {q}" for q in r.qty]
+        out += [f"       ⚠ {w}" for w in r.warnings]
         prev = r.score
     unq = [h.term.text for h in res.have if h.qty is None]
     if any(h.qty is not None for h in res.have) and unq:

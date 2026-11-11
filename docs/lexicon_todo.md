@@ -32,7 +32,20 @@ Format: `- [area] example line -> what happens now -> what it should do`
   "sausage" pork = may_contain; ravioli/tortellini dairy = may_contain (fillings vary); buckwheat flour gluten =
   may_contain; peanut/walnut/hazelnut oil keep their nut tag; malt vinegar gluten; egg pasta egg
 
+- [audit] left after the 2026-11-12 rebuild (docs/tag_audit.md has the full list): "pie weight" is equipment
+  (gluten over-tag, should be not_food); "vanilla wafer" dairy/egg may_contain; "peanut butter chip" dairy (the
+  "peanut butter" dairy exception masks the may_contain word); "rum extract" alcohol (its except entry beats
+  may_contain); "crisp" (fruit-crisp topping) gluten/dairy may_contain; "smoked sausage" poultry may_contain
+- [unverified] ~30% of valid recipes have at least one ingredient no tag could be verified for (long-tail compound
+  names: "small-diced yellow onion", "havarti dill cheese", "jerk sauce"). Strict mode excludes them by design.
+  Shrinking it honestly = more synonyms/descriptors so those names land on known canonicals, not a looser rule.
+  Note-like lines ("Ingredient info: ... available at ...", "*Also known as ...") are ~2% of them: make them not_food.
+
 ## Done
+
+- 2026-11-12 [safety] unknown is not safe (safety.py, `unverified` table); soy, sesame, honey, gelatin, alcohol,
+  root_veg tags; diet presets (lexicon/diets.yaml); LLM canonical audit + sample accuracy (docs/tag_audit.md) and the
+  fixes it found (see eval/llm_audit/review.md)
 
 - 2026-11-10 [tags] wheat pasta / wheat products all gluten:contains (bucatini, cavatappi/cavatapi, orecchiette,
   linguini, spaghettini, lo mein, atta, maida, sooji, roti, ...); rice/corn/chickpea/lentil/quinoa pasta and noodles

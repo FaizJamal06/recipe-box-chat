@@ -1,5 +1,8 @@
 import type { State } from "../api";
 
+const TAG_LABEL: Record<string, string> = { tree_nut: "tree nuts", root_veg: "onion/garlic/root veg" };
+const label = (t: string) => TAG_LABEL[t] ?? t;
+
 type Patch = (op: "remove" | "set", field: string, value: unknown) => void;
 
 const PREF_LABEL: Record<string, string> = { use_most: "use as many as possible", fewest_extra: "fewest extra",
@@ -31,18 +34,21 @@ function Toggle({ label, on, onChange, title, warn }: { label: string; on: boole
 /** Sticky chips for the session's active state. Removing / toggling PATCHes the state and re-runs the task. */
 export function ConstraintBar({ state, onPatch, onReset }: { state: State | null; onPatch: Patch; onReset: () => void }) {
   if (!state || !state.active_task) return null;
+  const covered = new Set((state.diets ?? []).flatMap((d) => d.tags));  // shown inside their preset chip
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-t border-rule px-5 py-2.5">
       <span className="mr-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">Active</span>
       {state.query_text && <Removable label={`dish: ${state.query_text}`} onRemove={() => onPatch("remove", "query_text", null)} />}
-      {state.exclude_tags.map((t) => <Removable key={t} tone="tomato" label={`no ${t}`} onRemove={() => onPatch("remove", "exclude_tags", t)} />)}
+      {(state.diets ?? []).map((d) => <Removable key={d.name} tone="tomato" label={`${d.name}: no ${d.tags.map(label).join(", ")}`}
+                                                onRemove={() => onPatch("remove", "diets", d.name)} />)}
+      {state.exclude_tags.filter((t) => !covered.has(t)).map((t) => <Removable key={t} tone="tomato" label={`no ${label(t)}`} onRemove={() => onPatch("remove", "exclude_tags", t)} />)}
       {state.exclude.map((t) => <Removable key={t} tone="tomato" label={`no ${t}`} onRemove={() => onPatch("remove", "exclude", t)} />)}
       {state.max_steps !== null && <Removable tone="tomato" label={`≤ ${state.max_steps} step${state.max_steps === 1 ? "" : "s"}`} onRemove={() => onPatch("remove", "max_steps", null)} />}
       {state.have.map((h) => <Removable key={h} label={`have: ${h}`} onRemove={() => onPatch("remove", "have", h)} />)}
       {state.prefs.filter((p) => p !== "no_staples").map((p) => <Removable key={p} label={PREF_LABEL[p] ?? p} onRemove={() => onPatch("remove", "prefs", p)} />)}
       <span className="mx-1 h-4 w-px bg-rule" />
-      <Toggle warn label="strict ⚠ may-contain" on={state.strict_may_contain} onChange={(v) => onPatch("set", "strict_may_contain", v)}
-              title="Also exclude recipes whose lines only MAY contain an excluded allergen (e.g. margarine, chocolate)" />
+      <Toggle warn label="strict: may-contain + unverified" on={state.strict_may_contain} onChange={(v) => onPatch("set", "strict_may_contain", v)}
+              title="Also exclude recipes whose lines only MAY contain an excluded allergen (e.g. margarine, chocolate), and recipes with an ingredient that couldn't be verified (unknown is not safe)" />
       {state.active_task === "match" && <Toggle label="pantry staples" on={state.staples} onChange={(v) => onPatch("set", "staples", v)}
               title="Assume salt, black pepper and water are available" />}
       <button type="button" onClick={onReset} className="ml-auto text-[12px] text-ink-soft underline-offset-2 hover:text-tomato hover:underline cursor-pointer">

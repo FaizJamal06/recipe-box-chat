@@ -5,17 +5,28 @@ Covers the demo conversations plus generic phrasings: "how many recipes contain 
 Ingredient words stay plain; the executor canonicalizes them with normalize(). Anything else -> 'clarify'.
 """
 import re
+from pathlib import Path
+
+import yaml
 
 NUMBERS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten".split())}
 ORDINALS = {w: i for i, w in enumerate("first second third fourth fifth sixth seventh eighth ninth tenth".split(), 1)}
 # words people use for a restriction -> recipe_tags tags (anything else is treated as an ingredient)
-TAG_WORDS = {"dairy": ["dairy"], "milk products": ["dairy"], "lactose": ["dairy"], "eggs": ["egg"], "egg": ["egg"],
-             "gluten": ["gluten"], "wheat": ["gluten"], "peanuts": ["peanut"], "peanut": ["peanut"],
-             "tree nuts": ["tree_nut"], "tree nut": ["tree_nut"], "nuts": ["tree_nut", "peanut"],
-             "nut": ["tree_nut", "peanut"], "meat": ["meat"],
-             "pork": ["pork"], "fish": ["fish"], "shellfish": ["shellfish"], "seafood": ["fish", "shellfish"],
-             "poultry": ["poultry"], "vegetarian": ["meat", "fish", "shellfish"],
-             "vegan": ["meat", "fish", "shellfish", "dairy", "egg"]}
+TAG_WORDS = {"dairy": ["dairy"], "milk products": ["dairy"], "eggs": ["egg"], "egg": ["egg"], "gluten": ["gluten"],
+             "peanuts": ["peanut"], "peanut": ["peanut"], "tree nuts": ["tree_nut"], "tree nut": ["tree_nut"],
+             "meat": ["meat"], "pork": ["pork"], "fish": ["fish"], "shellfish": ["shellfish"],
+             "seafood": ["fish", "shellfish"], "poultry": ["poultry"], "soy": ["soy"], "soya": ["soy"],
+             "sesame": ["sesame"], "honey": ["honey"], "gelatin": ["gelatin"], "gelatine": ["gelatin"],
+             "alcohol": ["alcohol"], "booze": ["alcohol"], "root vegetables": ["root_veg"]}
+TAG_LABEL = {"tree_nut": "tree nuts", "root_veg": "onion, garlic or root vegetables", "egg": "eggs"}
+# diet / allergy presets (lexicon/diets.yaml): compositions of tags, shown as one chip with their expansion
+DIETS = yaml.safe_load((Path(__file__).resolve().parent / "lexicon" / "diets.yaml").read_text(encoding="utf-8"))
+for _name, _d in DIETS.items():
+    for _w in [*_d.get("say", []), *_d.get("after_no", [])]:
+        TAG_WORDS.setdefault(_w, list(_d["tags"]))
+_SAY = {w: n for n, d in DIETS.items() for w in d.get("say", [])}
+_AFTER = {w: n for n, d in DIETS.items() for w in d.get("after_no", [])}
+_DIET_SAY = re.compile(r"\b(" + "|".join(sorted(map(re.escape, _SAY), key=len, reverse=True)) + r")\b(?![- ]salt)")
 NUM = r"(\d+|" + "|".join(NUMBERS) + r")"
 _SPLIT = re.compile(r"\s*(?:,|\band\b|&)\s*")
 _FILLER = re.compile(r"^(?:both|the|a|an|some|any|also|my)\s+|"
@@ -75,13 +86,22 @@ def _allergies(t: str) -> list[str]:
     return out + (["gluten"] if re.search(r"\b(?:celiac|coeliac)\b", t) else [])
 
 
+def diets_in(t: str, excl: list[str] | None = None) -> list[str]:
+    """Diet / allergy presets a message names: 'I'm vegan' -> ['vegan'], 'no nuts' -> ['nut allergy'],
+    'allergic to wheat' -> ['celiac / wheat']. 'kosher salt' is an ingredient, not a diet."""
+    t = " ".join(t.lower().replace("’", "'").split())
+    if excl is None:
+        excl = [_ALIAS.get(w, w) for g in _EXCL.findall(t) for w in _words(g)] + _allergies(t) + _FREE.findall(t)
+    found = [_SAY[m] for m in _DIET_SAY.findall(t)] + [_AFTER[w] for w in excl if w in _AFTER]
+    return list(dict.fromkeys(found))
+
+
 def _restrictions(t: str) -> dict:
     """exclude_add / exclude_tags_add / *_remove / max_steps / prefs found anywhere in the message."""
     excl = [w for g in _EXCL.findall(t) for w in _words(g)] + _allergies(t)
     excl = [_ALIAS.get(w, w) for w in excl]
     excl += [m for m in _FREE.findall(t) if m in TAG_WORDS]
-    excl += [w for w in ("vegetarian", "vegan") if re.search(rf"\b{w}\b", t)]
-    rem = [w for g in re.findall(r"(?:^|\b(?:actually|now)\s+)([a-z ,&'-]+?)\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b"
+    rem =[w for g in re.findall(r"(?:^|\b(?:actually|now)\s+)([a-z ,&'-]+?)\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b"
                                  r"|\ballow\s+([a-z ,&'-]+?)(?:\.|,|\?|!|$| again)", t) for x in g for w in _words(x)]
     prefs = [p for p, rx in (("use_most", r"as many as possible|use as many|most of (?:my|these|them)"),
                              ("fewest_extra", r"fewest (?:additional|extra|other|more|new)|least (?:additional|extra)|"
@@ -89,10 +109,14 @@ def _restrictions(t: str) -> dict:
                              ("fewest_steps", r"fewest steps|quickest|simplest"),
                              ("no_staples", r"(?:no|without|don't assume|do not assume) (?:pantry )?staples"))
              if re.search(rx, t)]
+    diets = [n for n in diets_in(t, excl)  # 'vegan is fine now' removes the preset, never re-adds it
+             if not set(rem) & {*DIETS[n].get("say", []), *DIETS[n].get("after_no", [])}]
+    rm_tags = {x for w in rem if w in TAG_WORDS for x in TAG_WORDS[w]}
     return {"exclude_add": sorted({w for w in excl if w not in TAG_WORDS}),
-            "exclude_tags_add": sorted({x for w in excl if w in TAG_WORDS for x in TAG_WORDS[w]}),
-            "exclude_remove": [w for w in rem if w not in TAG_WORDS],
-            "exclude_tags_remove": sorted({x for w in rem if w in TAG_WORDS for x in TAG_WORDS[w]}),
+            "exclude_tags_add": sorted(({x for w in excl if w in TAG_WORDS for x in TAG_WORDS[w]}
+                                        | {x for n in diets for x in DIETS[n]["tags"]}) - rm_tags),
+            "diets_add": diets, "exclude_remove": [w for w in rem if w not in TAG_WORDS],
+            "exclude_tags_remove": sorted(rm_tags),
             "max_steps": _max_steps(t), "prefs_add": prefs}
 
 
@@ -137,7 +161,7 @@ STOP = set("a an the and or of for to in on with without me my i im i'm you u yo
            "would like ki koi batao hai ka ke ko mujhe chahiye what whats how which is are do does there that this it "
            "good nice best also too either just really dinner lunch breakfast tonight today meal meals quick easy "
            "fast simple ideas idea suggest suggestion steps step most least have has got had fewer more less "
-           "ingredient ingredients".split())
+           "ingredient ingredients intolerant intolerance allergic allergy allergies diet please".split())
 _DIET = re.compile(r"\b(?:vegan|vegetarian|[a-z]+[- ]free|no [a-z]+|without [a-z]+|allergic to [a-z ]+|"
                    r"[a-z]+ allerg(?:y|ies)|at most \w+ steps?)\b")
 _REF = re.compile(r"^(?:(?:show|open|give)(?: me)? )?(?:the )?(" + "|".join(ORDINALS) + r"|last|\d+(?:st|nd|rd|th))"
@@ -147,7 +171,7 @@ _REF = re.compile(r"^(?:(?:show|open|give)(?: me)? )?(?:the )?(" + "|".join(ORDI
 def leftover(t: str) -> str:
     """Dish words left after removing restriction phrases and filler: 'vegan chicken curry' -> 'chicken curry',
     'I cannot have dairy' / 'dairy is fine now' -> ''."""
-    t = _EXCL.sub(" ", t)
+    t = _DIET_SAY.sub(" ", _EXCL.sub(" ", t))
     t = re.sub(r"[a-z ,&'-]+?\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b.*|\ballow\s+.*", " ", t)
     t = re.sub(r"as many as possible|use as many|fewest \w+|least \w+|(?:no|without) (?:pantry )?staples", " ", t)
     return " ".join(w for w in re.findall(r"[a-z]+", _DIET.sub(" ", t))

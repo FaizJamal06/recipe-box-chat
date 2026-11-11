@@ -6,7 +6,6 @@ restrictions (they are about the person, not the dish), said once. "The second o
 from last_results / selected_recipe_id only, so a recipe id the planner made up is never used.
 The CLI, the API and eval/oracle.py all go through Session.respond (respond() = a fresh one-turn session).
 """
-import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
@@ -15,7 +14,7 @@ from . import compose, guard, llm, match, search, stats, talk
 from . import normalize as nz
 from .db import Dataset
 from .planner import PlanInfo, finish, plan as make_plan
-from .rules import TAG_WORDS, rule_plan, target as rule_target
+from .rules import DIETS, TAG_LABEL, TAG_WORDS, diets_in, rule_plan, target as rule_target
 from .state import SessionState  # noqa: F401 (re-exported)
 
 HELP = ("I can answer, for example: 'How many recipes contain garlic and onion?', 'Among recipes containing "
@@ -114,8 +113,9 @@ class Session:
             return s.selected_recipe_id or (s.last_results[0] if len(s.last_results) == 1 else None)
         return None
 
-    def _apply(self, d: dict) -> list[str]:
-        """Merge a state_patch into the sticky state; returns notes for the reply."""
+    def _apply(self, d: dict, text: str = "") -> list[str]:
+        """Merge a state_patch into the sticky state; returns notes for the reply. Diet presets named in the
+        plan or the text (rules.diets_in) add their tags, and the reply states each expansion once."""
         s, notes = self.state, []
         if d["mode"] == "new" and (d["query_text"] or d["have_set"] or d.get("reset")):
             kept = s.exclude_tags + s.exclude + ([f"max {s.max_steps} steps"] if s.max_steps is not None else [])
@@ -146,6 +146,16 @@ class Session:
         s.exclude_tags = [t for t in s.exclude_tags if t not in rm_tags]
         if removed:
             notes.append(f"Removed restriction(s): {', '.join(removed)}.")
+        for name in dict.fromkeys([*d.get("diets_add", []), *diets_in(text)]):
+            tags = DIETS[name]["tags"]
+            if set(tags) & set(rm_tags):  # 'vegan is fine now'
+                continue
+            s.exclude_tags += [t for t in tags if t not in s.exclude_tags]
+            if name not in s.diets:
+                notes.append(f"{name[0].upper() + name[1:]} → " + (f"no {', '.join(TAG_LABEL.get(t, t) for t in tags)}."
+                             if tags else "no filter.") + (f" {DIETS[name]['note']}" if DIETS[name].get("note") else ""))
+                s.diets += [name] if tags else []
+        s.diets = [n for n in s.diets if set(DIETS[n]["tags"]) <= set(s.exclude_tags)]  # a removed tag ends the preset
         if d["max_steps"]:
             s.max_steps = None if d["max_steps"] < 0 else d["max_steps"]
         if d["have_set"]:
@@ -195,7 +205,7 @@ class Session:
             c = guard.cuisine_of(text)
             base, extra, self.extra_calls = guard.cuisine_keywords(c, self.use_llm)
             rp = finish(rule_plan(text))["state_patch"]  # 'italian recipes without meat': keep the restriction
-            pre = self._apply({**rp, "mode": "new", "query_text": "_", "have_set": []})  # new dish, keeps restrictions
+            pre = self._apply({**rp, "mode": "new", "query_text": "_", "have_set": []}, text)  # new dish, keeps restrictions
             d = finish({})["state_patch"]  # already applied
             s.query_text, s.query_any, s.query_label, intent = None, base + extra, f"{c} (title keywords)", "search"
             s.active_task = "search"
@@ -206,11 +216,7 @@ class Session:
             return HELP, None
         if not d["query_text"] and not d["have_set"] and s.active_task and not p["keyword"] and not d.get("reset"):
             intent = s.active_task  # a bare restriction re-runs the current task
-        notes = self.notes = pre + self._apply(d)
-        if "gluten" in d["exclude_tags_add"] + [t for w in d["exclude_add"] for t in TAG_WORDS.get(w.lower(), [])] \
-                and re.search(r"\bwheat\b", text.lower()):
-            notes.append("Wheat allergy → I'm excluding the gluten tag. That is stricter than needed: it also "
-                         "excludes barley and rye.")
+        notes = self.notes = pre + self._apply(d, text)
         if p["keyword"]:
             notes.append(f"I couldn't use the language model, so I ran your message as a keyword search for "
                          f"'{d['query_text']}' in titles and ingredients.")

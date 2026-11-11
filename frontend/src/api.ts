@@ -38,6 +38,7 @@ export type Recipe = {
   n_ingredients: number;
   n_steps: number;
   tags: Record<string, string>;
+  unverified: Record<string, string[]>;
   parsed: { line_no: number; raw: string; canonical: string | null; qty: number | null; unit: string | null;
             is_alt: number; is_header: number; is_not_food: number }[];
 };
@@ -60,6 +61,7 @@ export type State = {
   include: string[];
   exclude: string[];
   exclude_tags: string[];
+  diets: { name: string; tags: string[] }[];
   max_steps: number | null;
   have: string[];
   prefs: string[];

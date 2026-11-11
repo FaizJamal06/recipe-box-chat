@@ -214,26 +214,29 @@ def top_ingredients(con: sqlite3.Connection, ds: Dataset, f: Filters, k: int = 1
 
 TAG_LEVELS = ("Tag levels (recipe_tags): contains = a required item has it; may_contain = label-dependent "
               "(e.g. margarine, chocolate chips); alt = only in an 'or' option that has a tag-free alternative, so "
-              "the recipe can be made without it (counted as free).")
+              "the recipe can be made without it (counted as free); unverified = an ingredient no tag could be "
+              "verified for (unknown is not safe: strict counts it as not free).")
 
 
 def tag_count(con: sqlite3.Connection, ds: Dataset, tags: list[str], want: str = "free",
               op: str = "count") -> list[Result]:
     """'How many recipes are dairy-free / contain dairy' over recipe_tags, reported at two strictness levels:
-    lenient reads only 'contains'; strict also treats 'may_contain' as containing."""
+    lenient reads only 'contains'; strict also treats 'may_contain' and unverified recipes as not free."""
     assert want in ("free", "contains")
     out, tph = [], ",".join("?" * len(tags))
     for mode, levels in (("lenient", ("contains",)), ("strict", ("contains", "may_contain"))):
         sub = (f"r.id IN (SELECT recipe_id FROM recipe_tags WHERE tag IN ({tph}) AND level IN "
                f"({','.join('?' * len(levels))}))")
+        if mode == "strict":
+            sub = f"({sub} OR r.id IN (SELECT recipe_id FROM unverified WHERE tag IN ({tph})))"
         sql = f"SELECT COUNT(*) FROM recipes r WHERE r.valid = 1 AND {'NOT ' if want == 'free' else ''}{sub}"
-        p = [*tags, *levels]
+        p = [*tags, *levels] + (list(tags) if mode == "strict" else [])
         n = con.execute(sql, p).fetchone()[0]
         name = "/".join(tags)
         method = (f"lenient = valid recipes with no {name} line at level 'contains' (may_contain and alt count as "
-                  f"free); strict = no {name} line at 'contains' or 'may_contain'" if want == "free" else
+                  f"free); strict = no {name} line at 'contains' or 'may_contain' and every line verified" if want == "free" else
                   f"lenient = valid recipes with a {name} line at level 'contains'; strict = at 'contains' or "
-                  "'may_contain'")
+                  "'may_contain', or with a line that couldn't be verified")
         out.append(Result(op, n, f"{name}-{want} recipes", n, ds.valid,
                           method + "; percentage = count / valid recipes.", render(sql, p), mode, TAG_LEVELS))
     return out

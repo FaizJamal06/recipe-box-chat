@@ -69,7 +69,12 @@ def test_category_proxy_is_labelled_and_computed(eng):
 def test_tag_stats_state_both_levels(eng):
     con, ds = eng
     r = stats.tag_count(con, ds, ["dairy"], "free")
-    assert [(x.mode, x.value) for x in r] == [("lenient", 15), ("strict", 12)]  # 8 contains, + 3 may_contain
+    unverified = con.execute("SELECT COUNT(DISTINCT u.recipe_id) FROM unverified u WHERE u.tag = 'dairy' AND u.recipe_id "
+                             "NOT IN (SELECT recipe_id FROM recipe_tags WHERE tag = 'dairy' AND level IN "
+                             "('contains', 'may_contain'))").fetchone()[0]
+    assert unverified > 0  # the fixture vocab is tiny (VOCAB_MIN 5), so most names are unknown
+    # 8 contain dairy; strict also drops 3 may_contain and every recipe it couldn't verify
+    assert [(x.mode, x.value) for x in r] == [("lenient", 15), ("strict", 12 - unverified)]
     assert "may_contain" in r[0].method and "alt" in r[0].normalization_note
 
 

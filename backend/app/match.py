@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 import yaml
 
 from . import normalize as nz
+from . import safety
 from .db import Dataset
 from .search import hard_where, steps_label
 from .stats import Term, render
@@ -54,6 +55,7 @@ class Row:
     extra: list = field(default_factory=list)
     staples: list = field(default_factory=list)  # staples the recipe uses (assumed available)
     qty: list = field(default_factory=list)  # one note per matched item with a user quantity
+    warnings: list = field(default_factory=list)  # may_contain / unverified lines for excluded tags
 
 
 @dataclass
@@ -200,6 +202,8 @@ def match(con: sqlite3.Connection, ds: Dataset, items: list[str], exclude: list[
         return res
     ranked, res.sql, qty = _ranked(con, have, where, params, staples, w)
     res.total, res.rows = len(ranked), [_row(con, r, have, staples, qty) for r in ranked[:limit]]
+    for r in res.rows:  # lenient mode shows may_contain / unverified lines instead of hiding them
+        r.warnings = safety.warnings(con, r.id, exclude_tags)
     if not ranked and relax:
         kw = dict(items=items, exclude=list(exclude), exclude_tags=list(exclude_tags), max_steps=max_steps,
                   strict_may_contain=strict_may_contain, prefs=prefs, limit=3, staples=staples, relax=False)
