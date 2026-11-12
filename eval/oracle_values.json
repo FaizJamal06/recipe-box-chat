@@ -1,19 +1,23 @@
 {
- "total": 30,
- "valid": 23,
+ "total": 125164,
+ "valid": 122933,
  "invalid": {
-  "empty_record": 1,
-  "no_ingredients": 2,
-  "no_title": 2,
-  "no_instructions": 2
+  "empty_record": 517,
+  "no_ingredients": 1629,
+  "no_instructions": 33,
+  "no_title": 52
  },
  "demo2": {
-  "strict": 1,
-  "broad": 1
+  "strict": 16065,
+  "broad": 23068
  },
- "demo3_n": 1,
+ "demo3_n": 14703,
  "demo3_ids": [
-  "ar:a10"
+  "fn:Cv.LzyOIGtSJN3dvLIBqPQo8ac.K97G",
+  "ar:mkK6Tvis28vdP.VVri6zUKoiSXP.2bW",
+  "fn:qghRY30sgJjcP5lpqMZ95qozeMkSFuW",
+  "ar:BqfGsVgk7WHPebuzDH3IIRDAo0Vy8Hy",
+  "ar:fldTuwcDEVmNTCD6/bhJPqsBE8W79.."
  ],
- "demo3_broad": 1
+ "demo3_broad": 17707
 }

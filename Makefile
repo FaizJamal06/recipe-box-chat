@@ -1,7 +1,7 @@
 # Every target is one plain command; on Windows run them directly (see README).
 # Activate the venv first: .venv\Scripts\Activate.ps1 (Windows) or . .venv/bin/activate
 # More targets (cli, eval, ui build) are added with their milestones.
-.PHONY: setup data db test coverage cli oracle peek profile ui run docker
+.PHONY: setup data db test coverage cli oracle eval eval-live baseline peek profile ui run docker
 
 setup:
 	python scripts/setup.py
@@ -23,6 +23,15 @@ cli:
 
 oracle:
 	python eval/oracle.py
+
+eval:
+	python eval/run.py --replay
+
+eval-live:
+	python eval/run.py
+
+baseline:
+	python eval/baseline_oneshot.py
 
 peek:
 	python scripts/peek.py --n 3

@@ -367,3 +367,19 @@ def test_recipe_canon_and_size_are_exact(eng):
     assert dict(con.execute("SELECT recipe_id, n FROM recipe_size")) == want
     assert con.execute("SELECT COUNT(*) FROM recipe_canon").fetchone()[0] == sum(want.values())
     assert evidence.sizes(con) == want  # L2's Jaccard set sizes
+
+
+def test_a_question_for_recipes_is_not_a_substitution():
+    from app.rules import rule_plan
+    q = "which recipes in the dataset are egg-free banana breads that use applesauce instead of eggs?"
+    assert rule_plan(q)["intent"] != "substitute"
+    assert rule_plan("use applesauce instead of eggs")["intent"] == "substitute"  # an edit of the open recipe
+
+
+def test_per_result_tag_lookup_uses_the_recipe_index(eng):
+    con, _ = eng
+    # ingest ends with ANALYZE; without ix_tags_recipe its stats turned this into a 30k-row scan per result
+    plan = " ".join(r[3] for r in con.execute(
+        "EXPLAIN QUERY PLAN SELECT t.level, l.raw FROM recipe_tags t JOIN ingredient_lines l ON l.recipe_id = "
+        "t.recipe_id AND l.line_no = t.evidence_line_no WHERE t.recipe_id = ? AND t.tag = ? LIMIT 1", ("ar:p1", "dairy")))
+    assert "ix_tags_recipe" in plan

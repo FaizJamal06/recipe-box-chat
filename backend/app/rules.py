@@ -11,6 +11,7 @@ import yaml
 
 NUMBERS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten".split())}
 ORDINALS = {w: i for i, w in enumerate("first second third fourth fifth sixth seventh eighth ninth tenth".split(), 1)}
+ORDINALS |= {"frist": 1, "fisrt": 1, "frst": 1, "secnd": 2, "seond": 2, "scond": 2, "thrid": 3}  # typos, after the real words
 # words people use for a restriction -> recipe_tags tags (anything else is treated as an ingredient)
 TAG_WORDS = {"dairy": ["dairy"], "milk products": ["dairy"], "eggs": ["egg"], "egg": ["egg"], "gluten": ["gluten"],
              "peanuts": ["peanut"], "peanut": ["peanut"], "tree nuts": ["tree_nut"], "tree nut": ["tree_nut"],
@@ -158,7 +159,7 @@ _TALK = (("greeting", r"^(?:hi+|hello+|hey+|hiya|yo|namaste|hola|good (?:morning
          ("capabilities", r"\bw(?:h)?at (?:can|cn) (?:you|u) do|what do (?:you|u) do|how do(?:es)? (?:this|you|u) work|"
                           r"who are (?:you|u)|what are (?:you|u)\b|^help\b"))
 _FOODISH = re.compile(r"recipe|find|show|cook|make|have|how many|ingredient|dish|food|eat|meal|step")
-STOP = set("a an the and or of for to in on with without me my i im i'm you u your please pls plz some any recipe "
+STOP = set("dataset database ids id a an the and or of for to in on with without me my i im i'm you u your please pls plz some any recipe "
            "recipes dish dishes food make cook cooking want need give show find get something anything can could "
            "would like ki koi batao hai ka ke ko mujhe chahiye what whats how which is are do does there that this it "
            "good nice best also too either just really dinner lunch breakfast tonight today meal meals quick easy "

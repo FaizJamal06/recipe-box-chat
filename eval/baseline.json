@@ -1,0 +1,42 @@
+{
+ "model": "gemini-3.5-flash-lite",
+ "summary": "2 of 6 answers cite recipe ids that don't exist in the dataset; 3 answers state counts or rankings that don't match the oracle. Recipe Box answers every one from the DB (ids re-checked, counts equal to the oracle).",
+ "rows": [
+  {
+   "question": "How many recipes are in the dataset, and how many of them are valid (have a title, ingredients and instructions)?",
+   "llm": "The dataset contains a total of 125,164 recipe records.",
+   "verdict": "oracle: 125,164 records, 122,933 valid; no number matches the valid count",
+   "ours": "125,164 records, 122,933 valid"
+  },
+  {
+   "question": "How many recipes contain both garlic and onion? What percentage of the dataset is that?",
+   "llm": "There are 45,210 recipes in the dataset that contain both garlic and onion, which represents approximately 36.1% of the total dataset.",
+   "verdict": "oracle: strict 16,065, broad 23,068; no number matches",
+   "ours": "strict 16,065 = 13.07%; broad 23,068 = 18.76%"
+  },
+  {
+   "question": "Among recipes containing tomato, which five have the fewest instruction steps? Give their recipe ids.",
+   "llm": "Dataset is not directly queryable in this environment to return specific recipe IDs for tomato recipes with the fewest instruction steps.",
+   "verdict": "no recipe id given; 0 of 5 match the oracle's ids",
+   "ours": "5 ids, all in the DB: `fn:Cv.LzyOIGtSJN3dvLIBqPQo8ac.K97G`, `ar:mkK6Tvis28vdP.VVri6zUKoiSXP.2bW`, `fn:qghRY30sgJjcP5lpqMZ95qozeMkSFuW` \u2026"
+  },
+  {
+   "question": "Find a penne pasta recipe without dairy. Give its recipe id.",
+   "llm": "A dairy-free penne pasta recipe can be found with the ID epi:241470. ids: epi:241470",
+   "verdict": "1 of 1 ids don't exist in the dataset",
+   "ours": "10 ids, all in the DB: `ar:23to8XzUux0FF.g5ZFsqnxvhByMzfJ.`, `fn:ck/foCIv1g.W0SyPMLF5DWS/ZdeQBRi`, `ar:zwRAInNlhnKD1jMf/HOm5a9oKhjC8Om` \u2026"
+  },
+  {
+   "question": "Which recipes in the dataset are egg-free banana breads that use applesauce instead of eggs? Give recipe ids.",
+   "llm": "I do not have access to the full dataset contents to query specific recipe formulations like egg-free banana breads using applesauce.",
+   "verdict": "no recipe id given",
+   "ours": "1 ids, all in the DB: `ar:.GLWQH0bkiU3fRzwc68PqTCqGHJj2fy`"
+  },
+  {
+   "question": "I have eggs, onions, tomatoes, and rice. Suggest five recipes using as many as possible, no peanuts, at most six steps. Give recipe ids.",
+   "llm": "I cannot provide specific recipe suggestions from the dataset as I do not have direct access to run a search query, but here is a placeholder response indicating five recipes using eggs, onions, tomatoes, and rice with no peanuts and at most six steps. ids: ar:0123456789abcdef0123456789abcdef, ar:123456789abcdef0123456789abcdef0, epi:23456789abcdef0123456789abcdef01",
+   "verdict": "5 of 5 ids don't exist in the dataset",
+   "ours": "5 ids, all in the DB: `ar:YrORiIjDlCOz7InEOviK5wKjubaNccC`, `fn:acDMAvfOXqTStpzy3eogF301HowU3im`, `ar:QyVarQzRar/zTLW7ExZpc6qbYC1xQF6` \u2026"
+  }
+ ]
+}

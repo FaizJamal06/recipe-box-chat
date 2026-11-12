@@ -87,10 +87,11 @@ def compute(files: dict, vocab_min: int = VOCAB_MIN) -> dict:
             "demo3_broad": tomato_broad}
 
 
-def check(files: dict, db: Path = DB, vocab_min: int = VOCAB_MIN) -> list[tuple]:
+def check(files: dict, db: Path = DB, vocab_min: int = VOCAB_MIN, values: bool = False) -> list[tuple]:
     """[(check, expected, got, ok)] comparing the oracle with what the CLI answers."""
     exp = compute(files, vocab_min)
-    VALUES.write_text(json.dumps(exp, indent=1), encoding="utf-8")  # eval/run.py asserts stats against these
+    if values:  # only the CLI run saves them (tests call check() on fixtures)
+        VALUES.write_text(json.dumps(exp, indent=1), encoding="utf-8")  # eval/run.py asserts stats against these
     con = connect(db)
     ds = load_dataset(con)
     text2, _, r2 = respond(con, ds, DEMO2, use_llm=False)  # rule parser: no quota, no timeouts, deterministic
@@ -112,7 +113,7 @@ def main() -> None:
     """Print each check and exit 1 on any mismatch."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", type=Path, default=DB)
-    results = check({s: RAW / f for s, f in SOURCES.items()}, ap.parse_args().db)
+    results = check({s: RAW / f for s, f in SOURCES.items()}, ap.parse_args().db, values=True)
     for name, e, g, ok in results:
         print(f"{'PASS' if ok else 'FAIL'}  {name}: expected {e}" + ("" if ok else f", CLI said {g}"))
     sys.exit(0 if all(ok for *_, ok in results) else 1)

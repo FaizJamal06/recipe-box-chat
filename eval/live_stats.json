@@ -1,0 +1,9 @@
+{
+ "p50_p90_all": "3,926 / 15,378 ms (n=40)",
+ "p50_p90_substitute": "2,870 / 6,678 ms (n=7)",
+ "calls_mean": 1.23,
+ "calls_max": 2,
+ "llm_errors": 18,
+ "turns": 40,
+ "when": "2026-11-13 01:48"
+}

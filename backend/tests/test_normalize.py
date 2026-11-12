@@ -256,3 +256,13 @@ def test_audit_kept_out(name, tag):
                                             ("1/4 cup Asiago cheese for topping", "asiago cheese")])
 def test_purpose_phrase_is_not_the_ingredient(raw, canonical):
     assert nz.parse_line(raw)[0].name.canonical == canonical
+
+
+def test_no_sugar_also_drops_sugar_made_sweets():
+    assert {"marshmallow", "miniature marshmallow", "caramel", "candy"} <= set(BROAD["sugar"])
+
+
+def test_ordinal_typos_are_result_references():
+    from app.rules import rule_plan
+    assert rule_plan("show me the frist one")["target"] == {"kind": "result_index", "value": "1"}
+    assert rule_plan("show me the secnd one")["target"] == {"kind": "result_index", "value": "2"}

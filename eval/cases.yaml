@@ -1,1 +1,190 @@
-# eval cases (>=15): turns + programmatic assertions. Filled in M6 (PRD 13).
+# Eval cases (PRD 13): each case is a fresh session, a list of turns, and programmatic assertions on the API
+# response (the same JSON the UI renders). eval/run.py implements every assertion key; nothing here is judged by
+# eye or by an LLM. A turn is either `say: <message>` or `patch: {op, field, value}` (a UI chip toggle).
+#
+# Assertion keys (see eval/run.py CHECKS for the exact code):
+#   type, total_gt, total_eq, n_cards_ge, ids_exist, max_steps_le, all_results_lack_tag, all_results_lack_ingredient,
+#   strict_results_lack_tag, verified_before_unverified, recipe_is_result, stat_equals_oracle, rank_equals_oracle,
+#   no_match, alternatives_flagged, dropped, all_results_lack_ingredient_broad, match_has_qty_chip, refusal, reply_contains, state_tags_include,
+#   state_tags_exclude, sub_strength_in, sub_chosen_not, sub_rejected, sub_cited_ids_valid, sub_dataset_only,
+#   sub_steps_valid, sub_gate_fails, sub_gate_passes, sub_question, sub_adapted, llm_calls_le
+
+- id: demo1_refine
+  name: "Demo 1: penne, then no dairy, the second one's steps, no garlic"
+  turns:
+    - say: Find a penne pasta recipe
+      expect: {type: search, total_gt: 0, ids_exist: true}
+    - say: I cannot have dairy
+      expect: {type: search, state_tags_include: [dairy], all_results_lack_tag: dairy}
+    - say: show me the steps for the second one
+      expect: {type: recipe, recipe_is_result: 2}
+    - say: also no garlic
+      expect: {state_tags_include: [dairy], all_results_lack_tag: dairy, all_results_lack_ingredient: garlic}
+
+- id: demo2_stats
+  name: "Demo 2: garlic and onion count + percentage equals the oracle"
+  turns:
+    - say: How many recipes contain both garlic and onion? What percentage of the dataset is that?
+      expect: {type: stats, stat_equals_oracle: {strict: demo2.strict, broad: demo2.broad}}
+
+- id: demo3_rank
+  name: "Demo 3: five tomato recipes with the fewest steps equal the oracle"
+  turns:
+    - say: Among recipes containing tomato, which five have the fewest instruction steps?
+      expect: {type: stats, rank_equals_oracle: demo3_ids, ids_exist: true}
+
+- id: demo4_calories
+  name: "Demo 4a: calories are refused (no nutrition field)"
+  turns:
+    - say: Find a penne pasta recipe
+      expect: {type: search}
+    - say: How many calories are in that one?
+      expect: {refusal: true}
+
+- id: demo4_category_proxy
+  name: "Demo 4b: desserts are a labelled title-keyword proxy"
+  turns:
+    - say: What's the average number of ingredients in desserts?
+      expect: {refusal: true, reply_contains: [no category field, proxy, title]}
+
+- id: demo5_match
+  name: "Demo 5: pantry match, no peanuts, at most 6 steps, then exclude eggs"
+  turns:
+    - say: I have eggs, onions, tomatoes, and rice. Suggest five recipes using as many as possible, no peanuts, at most six steps, fewest additional ingredients.
+      expect: {type: match, n_cards_ge: 1, ids_exist: true, max_steps_le: 6, all_results_lack_tag: peanut}
+    - say: Exclude eggs too.
+      expect: {type: match, max_steps_le: 6, all_results_lack_tag: peanut, all_results_lack_ingredient: egg}
+
+- id: quantity_sufficiency
+  name: "Quantities: 2 eggs and 1 cup rice are checked against the recipe's amounts"
+  turns:
+    - say: I have 2 eggs and 1 cup rice
+      expect: {type: match, n_cards_ge: 1, match_has_qty_chip: true}
+
+- id: demo6_conflict
+  name: "Demo 6: saffron + marshmallows, no sugar, at most 2 steps: marshmallow dropped (it is sugar), results obey both"
+  turns:
+    - say: I have saffron and marshmallows, no sugar, at most 2 steps
+      expect: {type: match, dropped: [marshmallow], max_steps_le: 2, all_results_lack_ingredient: sugar,
+               all_results_lack_ingredient_broad: sugar}
+
+- id: demo6_no_match
+  name: "No-match: the same at most 1 step: explicit no-match, alternatives flagged by the constraint they break"
+  turns:
+    - say: I have saffron and marshmallows, no sugar, at most 1 step
+      expect: {type: match, no_match: true, alternatives_flagged: true}
+
+- id: demo7_banana_bread
+  name: "Demo 7: banana bread without eggs, dataset only, Strong evidence, cited ids re-checked"
+  turns:
+    - say: Take this banana bread recipe and remove eggs. Use only ingredients that appear in the dataset. What replacements have evidence from related baked recipes, and how might the texture change?
+      expect: {type: substitute, sub_strength_in: [Strong, Moderate], sub_cited_ids_valid: true, sub_dataset_only: true,
+               sub_adapted: true, sub_steps_valid: true, sub_gate_passes: true}
+
+- id: demo8_cream_tree_nut
+  name: "Demo 8: cream without dairy, then a tree-nut allergy re-grades (cashew drops out)"
+  turns:
+    - say: Replace cream in this pasta recipe without dairy. Prefer examples from the database.
+      expect: {type: substitute, state_tags_include: [dairy], sub_rejected: [half and half], sub_cited_ids_valid: true}
+    - say: I'm also allergic to tree nuts
+      expect: {type: substitute, state_tags_include: [dairy, tree_nut], sub_chosen_not: [cashew], sub_rejected: [cashew],
+               sub_cited_ids_valid: true}
+
+- id: demo9_meringue
+  name: "Demo 9: meringue egg whites: Weak or None, and it asks before adapting"
+  turns:
+    - say: Remove the egg whites from this meringue / angel food cake
+      expect: {type: substitute, sub_strength_in: [Weak, None], sub_question: true, sub_adapted: false}
+
+- id: substitution_gate_failure
+  name: "Gate: the adapted pasta still has Parmesan, so it is not called dairy-free"
+  turns:
+    - say: Replace cream in this pasta recipe without dairy. Prefer examples from the database.
+      expect: {type: substitute, sub_adapted: true, sub_gate_fails: true}
+    - say: remove the parmesan too
+      expect: {type: substitute, sub_gate_passes: true}
+
+- id: restriction_removal
+  name: "Removing a restriction: 'dairy is fine now' drops the dairy filter"
+  turns:
+    - say: Find a penne pasta recipe
+      expect: {type: search}
+    - say: I cannot have dairy
+      expect: {state_tags_include: [dairy]}
+    - say: dairy is fine now
+      expect: {type: search, state_tags_exclude: [dairy]}
+
+- id: second_one
+  name: "Reference resolution: 'the second one' opens result #2"
+  turns:
+    - say: Find a banana bread recipe
+      expect: {type: search, total_gt: 1}
+    - say: show me the second one
+      expect: {type: recipe, recipe_is_result: 2}
+
+- id: typo_reference
+  name: "Typos: 'frist' still means the first result"
+  turns:
+    - say: Find a banana bread recipe
+      expect: {type: search}
+    - say: show me the frist one
+      expect: {type: recipe, recipe_is_result: 1}
+
+- id: strict_may_contain
+  name: "Strict mode: no result even may contain dairy or has an unverified ingredient"
+  turns:
+    - say: Find a chocolate cake recipe without dairy
+      expect: {type: search, all_results_lack_tag: dairy}
+    - patch: {op: set, field: strict_may_contain, value: true}
+      expect: {type: search, strict_results_lack_tag: dairy}
+
+- id: unknown_is_not_safe
+  name: "Unknown is not safe: fully verified results come before unverified ones"
+  turns:
+    - say: Find a jerk chicken recipe without soy
+      expect: {type: search, all_results_lack_tag: soy, verified_before_unverified: soy}
+
+- id: dataset_only
+  name: "dataset_only: every proposed substitute is a dataset ingredient"
+  turns:
+    - say: Find a chocolate chip cookie recipe
+      expect: {type: search}
+    - say: show me the first one
+      expect: {type: recipe}
+    - say: remove the eggs, use only ingredients from the dataset
+      expect: {type: substitute, sub_dataset_only: true, sub_cited_ids_valid: true}
+
+- id: cook_time_refusal
+  name: "Cook time is refused (no time field)"
+  turns:
+    - say: Which recipes take less than 30 minutes to cook?
+      expect: {refusal: true}
+
+- id: wheat_allergy
+  name: "A wheat allergy excludes gluten (stricter than needed, and said so)"
+  turns:
+    - say: I'm allergic to wheat. Find a pancake recipe
+      expect: {type: search, state_tags_include: [gluten], all_results_lack_tag: gluten}
+
+- id: vegan_preset
+  name: "Vegan preset: no meat, fish, shellfish, dairy, egg, honey or gelatin in results"
+  turns:
+    - say: Find a vegan curry recipe
+      expect: {type: search, state_tags_include: [meat, dairy, egg, honey],
+               all_results_lack_tag: [meat, fish, shellfish, dairy, egg, honey, gelatin]}
+
+- id: cuisine_proxy
+  name: "Cuisine: no cuisine field, so a labelled title-keyword proxy"
+  turns:
+    - say: Show me some Mexican recipes
+      expect: {type: search, total_gt: 0, reply_contains: [cuisine]}
+
+- id: llm_budget
+  name: "At most 2 LLM calls per turn, even on a long conversation"
+  turns:
+    - say: Find a penne pasta recipe
+      expect: {llm_calls_le: 2}
+    - say: I cannot have dairy
+      expect: {llm_calls_le: 2}
+    - say: show me the steps for the second one
+      expect: {llm_calls_le: 2}

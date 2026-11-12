@@ -58,7 +58,10 @@ flour:
 sugar:
   members: [brown sugar, powdered sugar, turbinado sugar, raw sugar, coconut sugar, demerara sugar,
             sanding sugar, coarse sugar, palm sugar]
-  broad: [honey, maple syrup, corn syrup, molasses, agave nectar]
+  broad: [honey, maple syrup, corn syrup, molasses, agave nectar,  # 'no sugar' also drops sugar-made sweets:
+         marshmallow, miniature marshmallow, mini marshmallow, regular marshmallow, marshmallow creme,
+         marshmallow cream, marshmallow fluff, candy, caramel, caramel sauce, caramel topping,
+         caramel ice cream topping, individually wrapped caramel]
 milk:
   members: [evaporated milk, sweetened condensed milk, condensed milk, nonfat dry milk, powdered milk]
   broad: [buttermilk, half and half, heavy cream, coconut milk, almond milk, soy milk]

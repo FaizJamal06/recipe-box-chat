@@ -48,6 +48,7 @@ CREATE INDEX ix_lines_canonical ON ingredient_lines(canonical, recipe_id, is_alt
 CREATE INDEX ix_lines_recipe ON ingredient_lines(recipe_id);
 CREATE INDEX ix_lines_family ON ingredient_lines(family, recipe_id, is_alt);
 CREATE INDEX ix_tags_tag ON recipe_tags(tag);
+CREATE INDEX ix_tags_recipe ON recipe_tags(recipe_id, tag);  -- per-result evidence lines (search.py)
 """
 # after finalize (canonicals remapped): one row per (recipe, distinct required canonical), indexed both ways, and
 # each recipe's exact canonical count, so substitution's L2 Jaccard is exact and reads only covering indexes
