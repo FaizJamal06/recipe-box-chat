@@ -6,12 +6,13 @@ so engine calls run under a single lock. llm.warm() starts at startup on a pool 
 at once and the first chat turn doesn't pay google-genai's ~6 s import + connect.
 Run: python -m uvicorn app.api:app --app-dir backend --port 8000
 """
+import logging
 import time
 import uuid
 from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from threading import Lock
+from threading import Lock, Thread
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -39,6 +40,24 @@ class Entry:
 
 
 SESSIONS: dict[str, Entry] = {}
+WARM_DEMOS = ("Take this banana bread recipe and remove eggs. Use only ingredients that appear in the dataset.",
+              "Replace cream in this pasta recipe without dairy. Prefer examples from the database.",
+              "Remove the egg whites from this meringue / angel food cake")
+log = logging.getLogger("recipebox")
+
+
+def _warm_substitution(ds) -> None:
+    """Replay demos 7-9 with the rule parser on a private connection, so their evidence (search, L1 phrases, L2,
+    candidate sets) is cached before anyone asks; the caches are keyed by DB path, so requests share them."""
+    t = time.perf_counter()
+    try:
+        con = connect(DB)
+        for q in WARM_DEMOS:
+            Session(con, ds, use_llm=False).respond(q)
+        con.close()
+        log.info("substitution warm-up done in %.1f s", time.perf_counter() - t)
+    except Exception:  # noqa: BLE001  (a failed warm-up only means a slower first substitution)
+        log.exception("substitution warm-up failed")
 
 
 @asynccontextmanager
@@ -50,6 +69,8 @@ async def lifespan(_: FastAPI):
         evidence.contexts(con), evidence.sizes(con)  # substitution warm-up, built once so the first one is fast
         rows = con.execute("SELECT source, COUNT(*), SUM(valid) FROM recipes GROUP BY source ORDER BY source")
         APP["health"] = {"sources": {s: {"records": n, "valid": v} for s, n, v in rows}, "fingerprint": fingerprint(con)}
+        APP["sub_warm"] = Thread(target=_warm_substitution, args=(APP["ds"],), daemon=True)
+        APP["sub_warm"].start()
     APP["warm"] = llm.warm()
     yield
     if "con" in APP:

@@ -38,6 +38,7 @@ _UNIT = re.compile(rf"^(?:(?:small|medium|large)\s+)?({_alt(_UNIT_OF)})\.?(?=\s|
 _SIZE = re.compile(rf"^\(?\s*({NUM})\s*-?\s*({_alt(_UNIT_OF)})\.?\s*\)?\s*(?=(?:{_alt(_CONTAINERS)})\b)")
 _PLUS = re.compile(rf"^plus\s+{NUM}\s*(?:{_alt(_UNIT_OF)})?\.?\s+")
 _PAREN = re.compile(r"\([^)]*\)?")
+_FOR = re.compile(r"\s+for\s+[a-z _'-]*(?=,|$)")  # 'buttermilk for brushing' names buttermilk, not 'for brushing'
 _UNIT_WORD = re.compile(rf"\b(?:{_alt(_UNIT_OF)})\b")
 _DIGIT_TOKEN = re.compile(r"\S*\d\S*")
 _PUNCT = re.compile(r"[^a-z\s,/&+_-]")
@@ -95,9 +96,7 @@ def clean_text(raw: str) -> str:
 
 def is_header(s: str) -> bool:
     """Section header such as 'For the sauce:' or 'For the topping' (expects clean_text output)."""
-    if s.endswith(":"):
-        return True
-    return bool(re.fullmatch(r"for (?:the )?[a-z ,&-]+", s)) and len(s.split()) <= 5
+    return s.endswith(":") or (bool(re.fullmatch(r"for (?:the )?[a-z ,&-]+", s)) and len(s.split()) <= 5)
 
 
 def _num(t: str) -> float:
@@ -144,16 +143,15 @@ def suffix_match(key: str, vocab) -> str | None:
 @lru_cache(maxsize=100_000)
 def tags_for(name: str) -> tuple:
     """((tag, level), ...) per lexicon/tags.yaml rules; equipment masked first ('cookie cutter' is not gluten)."""
-    out = []
-    name = _NOT_FOOD.sub(" ", name)
-    for tag, (free, exc, contains, may, down) in TAG_RE.items():
-        if free and free.search(name):
-            continue
-        t = exc.sub(" ", name) if exc else name
+    out, name, hit = [], _NOT_FOOD.sub(" ", name), lambda rx, s: bool(rx and rx.search(s))
+    for tag, (free, exc, contains, may, down, whole_c, whole_m) in TAG_RE.items():
+        t = exc.sub(" ", name) if exc else name  # *_whole lists are matched before this mask: 'peanut butter cup'
         d = down.sub(" ", t) if down else t  # downgrade phrases ('soba noodle') cap the level at may_contain
-        if contains.search(d):
+        if hit(free, name):
+            continue
+        if hit(whole_c, name) or (not hit(whole_m, name) and hit(contains, d)):
             out.append((tag, "contains"))
-        elif (may and may.search(t)) or (down and down.search(t)):
+        elif hit(whole_m, name) or hit(may, t) or hit(down, t):
             out.append((tag, "may_contain"))
     return tuple(out)
 
@@ -166,7 +164,8 @@ def _word_re(words, edge=(r"\b", r"\b")) -> re.Pattern | None:
 
 # hyphen-aware ('pan-fried' stays); breads named 'pan ...' are food ('pan dulce', 'pan de mie')
 _NOT_FOOD = _word_re(_TAGS.pop("not_food"), (r"(?<![\w-])", r"(?![\w-]|\s+(?:dulce|de\s+(?:mie|sal|muerto|bono)))"))
-TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain", "downgrade"))
+TAG_RE = {t: tuple(_word_re(d.get(k) or []) for k in ("free_if", "except", "contains", "may_contain", "downgrade",
+                                                       "contains_whole", "may_contain_whole"))
            for t, d in _TAGS.items()}
 # 'Caramel Mousse, recipe follows': a sub-recipe whose components are listed as their own lines
 _SUBRECIPE = re.compile(r"\brecipes?\s+follows?\b|\(see recipe\)|\bsee recipe (?:below|above)\b")
@@ -261,7 +260,7 @@ def _parse(raw: str) -> tuple:
         if UNIT_FAMILY[su] in ("mass", "volume"):
             qty, unit, qty_range = (qty or 1.0) * _num(size.group(1)), su, None
     line_tags = tags_for(f"{s} {notes}")  # keyword scan of everything after the amount (all comma parts)
-    s = _PUNCT.sub(" ", _DIGIT_TOKEN.sub(" ", s))
+    s = _FOR.sub("", _PUNCT.sub(" ", _DIGIT_TOKEN.sub(" ", s)))
     head = (qty, qty_range, unit, UNIT_FAMILY.get(unit))  # first item only; the others' amounts are unknown
     mk = lambda items: tuple(ParsedLine(raw, *(head if i == 0 else (None,) * 4), o[0], tuple(o[1:]))
                              for i, o in enumerate(items))

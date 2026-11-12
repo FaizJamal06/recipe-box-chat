@@ -32,10 +32,16 @@ Format: `- [area] example line -> what happens now -> what it should do`
   "sausage" pork = may_contain; ravioli/tortellini dairy = may_contain (fillings vary); buckwheat flour gluten =
   may_contain; peanut/walnut/hazelnut oil keep their nut tag; malt vinegar gluten; egg pasta egg
 
-- [audit] left after the 2026-11-12 rebuild (docs/tag_audit.md has the full list): "pie weight" is equipment
-  (gluten over-tag, should be not_food); "vanilla wafer" dairy/egg may_contain; "peanut butter chip" dairy (the
-  "peanut butter" dairy exception masks the may_contain word); "rum extract" alcohol (its except entry beats
-  may_contain); "crisp" (fruit-crisp topping) gluten/dairy may_contain; "smoked sausage" poultry may_contain
+- [audit, M6] reviewed and kept as is (not misses): whiskey/bourbon/scotch gluten (distilled spirits are gluten-free);
+  ginger beer, margarita mix alcohol (usually non-alcoholic); condensed tomato soup dairy (Campbell's has none);
+  creme de cacao dairy (a liqueur, no cream); cocktail sauce shellfish, oyster cracker shellfish (no shellfish in
+  them); lobster stock fish (shellfish already); crisco oil soy (refined oil); meatloaf mix egg/gluten (it is ground
+  meat); candied pecan honey (usually sugar); unflavored gelatin meat (gelatin has its own tag); white american
+  cheese soy, butter-flavored cooking spray dairy (label-dependent flavourings). Too ambiguous to tag safely: "crisp"
+  (fruit-crisp topping vs crisp apples), "frank" (Frank's RedHot), "jiffy" (Jif peanut butter vs Jiffy mix), plain
+  "cooking spray" soy (lecithin; would flag thousands of recipes), "burger" gluten.
+- [parse] equipment lines that start with "for" after masking ("Parchment paper for lining baking sheets" ->
+  "for lining", 11 recipes): the purpose-phrase strip needs leading whitespace; allow line start at the next rebuild
 - [unverified] ~30% of valid recipes have at least one ingredient no tag could be verified for (long-tail compound
   names: "small-diced yellow onion", "havarti dill cheese", "jerk sauce"). Strict mode excludes them by design.
   Shrinking it honestly = more synonyms/descriptors so those names land on known canonicals, not a looser rule.
@@ -53,6 +59,25 @@ Format: `- [area] example line -> what happens now -> what it should do`
 
 ## Done
 
+- 2026-11-13 [M6 rebuild] audit misses tagged (docs/tag_audit.md rows llm=contains, ours=-): chevre, grana padano,
+  velveeta, philadelphia, jack (dairy); peanut butter cup (dairy contains) / chip (may_contain) via the new
+  `contains_whole` / `may_contain_whole` keys matched before `except`; vanilla wafer, texas toast, crouton, cocoa mix,
+  waffle, pizza, caesar, golden mushroom soup, pepperidge farm, hershey (dairy may); royal icing, hellmann (egg);
+  vanilla wafer, won ton wrapper/skin, ranch, gnocchi, caesar, pasta dough (egg may); saltine, piecrust, guinness,
+  self-rising cornmeal (gluten); pillsbury, shaoxing, fried onion, cream of potato, baking spray, ponzu, pizza
+  (gluten may); london broil, speck, pig, schmaltz, poussin, giblet (meat); dripping, burger, luncheon meat (meat
+  may); speck, pig (pork), pate (pork/poultry may); schmaltz, poussin, giblet (poultry); smoked sausage, breast
+  (poultry may); bass, orange roughy, bluefish (fish); snail, escargot (shellfish); chinese sausage, bean paste, sweet
+  and sour sauce, ritz, baking spray (soy may); aquavit, bacardi, benedictine, jack daniel, poire william, spirits,
+  guinness, hard apple cider (alcohol); rum/brandy extract alcohol may_contain (their `except` entries removed); pie
+  weight is not_food
+- 2026-11-13 [parse] "buttermilk for brushing", "asiago cheese for topping": a trailing "for <purpose>" phrase is
+  stripped before naming, so the ingredient survives (it used to collapse to the canonical "for brushing" via the
+  suffix fallback; 944 recipes had "for dusting")
+- 2026-11-13 [db] covering indexes (canonical|family, recipe_id, is_alt), recipe_canon + recipe_size (exact L2
+  Jaccard), ANALYZE
+- 2026-11-13 [lexicon] "sugar cookies", "egg salad" are L1 phrases ("sugar"/"egg" may start one unless "free" follows)
+
 - 2026-11-12 [safety] unknown is not safe (safety.py, `unverified` table); soy, sesame, honey, gelatin, alcohol,
   root_veg tags; diet presets (lexicon/diets.yaml); LLM canonical audit + sample accuracy (docs/tag_audit.md) and the
   fixes it found (see eval/llm_audit/review.md)
@@ -68,10 +93,3 @@ Format: `- [area] example line -> what happens now -> what it should do`
 - 2026-11-10 [not_food] "pan dulce", "pan de mie", "pan de sal" are breads, not pans
 - 2026-11-10 [parse] "X, recipe follows" lines are sub-recipe references: stored, not counted as ingredients,
   their words still tag the recipe
-- 2026-11-12 [parse] "for dusting" survives as a canonical (seen as a discovered co-occurrence in banana bread L2);
-  "for X" fragments should be not_food / dropped
-- 2026-11-12 [db] next rebuild: covering index ingredient_lines(canonical, recipe_id, is_alt) and (family, recipe_id,
-  is_alt), and a distinct-canonical count per recipe (L2 Jaccard uses n_ingredients today); candidate sets cost
-  ~0.25 s each cold on common items (baking powder, butter)
-- 2026-11-12 [lexicon] "sugar cookies", "egg salad": descriptor words (sugar, egg) can't start an L1 phrase, so these
-  fall back to "cookies" / "salad"

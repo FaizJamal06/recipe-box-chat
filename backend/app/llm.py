@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from .config import LLM_CACHE
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
+FALLBACK_MODEL = "gemini-3.5-flash"  # one retry on 503/504 when the call's time budget allows (GEMINI_FALLBACK_MODEL)
+FALLBACK_MIN_MS = 2_500  # below this much budget left, a second model can't answer in time: fail fast instead
 TIMEOUT_MS = 6_000  # past this the turn falls back to the rule parser (a slow free-tier reply is worse than rules)
 log = logging.getLogger("recipebox.llm")
 THINKING = "minimal"  # lowest level gemini-3.5-flash-lite supports (it cannot be fully off); docs checked Nov 2026
@@ -48,6 +50,10 @@ def model() -> str:
     return os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
 
 
+def fallback_model() -> str:
+    return os.environ.get("GEMINI_FALLBACK_MODEL", FALLBACK_MODEL)
+
+
 def available() -> bool:
     return bool(os.environ.get("GEMINI_API_KEY"))
 
@@ -70,9 +76,9 @@ def _get_client():
     return _client
 
 
-def _request(system: str, prompt: str, schema: dict):
+def _request(system: str, prompt: str, schema: dict, model_name: str | None = None):
     from google.genai import types
-    return _get_client().models.generate_content(model=model(), contents=prompt, config=types.GenerateContentConfig(
+    return _get_client().models.generate_content(model=model_name or model(), contents=prompt, config=types.GenerateContentConfig(
         system_instruction=system, response_mime_type="application/json", response_json_schema=schema,
         temperature=0, thinking_config=types.ThinkingConfig(thinking_level=THINKING)))
 
@@ -88,12 +94,13 @@ def warm():
     return _pool.submit(_warm) if available() else None
 
 
-def _remote(system: str, prompt: str, schema: dict, timeout_ms: int | None = None) -> tuple[str, dict]:
+def _remote(system: str, prompt: str, schema: dict, timeout_ms: int | None = None,
+            model_name: str | None = None) -> tuple[str, dict]:
     """The network request (patched in tests): (text, token usage). Raises LLMError on API errors / timeout.
     Client setup and request both run in a worker, so nothing waits longer than the timeout (TIMEOUT_MS by
     default); a request still running then finishes in its thread and is discarded."""
     timeout_ms = timeout_ms or TIMEOUT_MS
-    fut = _pool.submit(_request, system, prompt, schema)
+    fut = _pool.submit(_request, system, prompt, schema, model_name)
     try:
         r = fut.result(timeout=timeout_ms / 1000)
     except FutureTimeout as e:
@@ -121,6 +128,26 @@ def error_kind(msg: str) -> str:
             "overloaded" if "503" in msg else "invalid" if msg.startswith("invalid") else "error")
 
 
+def _request_once(system, prompt, schema, budget: int, t0: float, calls: list, label: str) -> tuple[str, dict]:
+    """One request, plus one retry on the fallback model after a 503/504 if >= FALLBACK_MIN_MS of the budget is
+    left. Appends a Call per request; raises LLMError (with the calls) when nothing answered."""
+    for name in (None, fallback_model()):
+        t, ms = time.perf_counter(), max(1, round(budget - (time.perf_counter() - t0) * 1000))
+        try:
+            text, usage = _remote(system, prompt, schema, ms, name) if name else _remote(system, prompt, schema, ms)
+        except LLMError as e:
+            calls.append(Call(False, round((time.perf_counter() - t) * 1000), error=error_kind(str(e)),
+                              label=label + (" (fallback)" if name else "")))
+            log.warning("LLM %s call failed: %s (%s)", label, error_kind(str(e)), e)
+            left = budget - (time.perf_counter() - t0) * 1000
+            if name or not ("503" in str(e) or "504" in str(e)) or left < FALLBACK_MIN_MS or not fallback_model():
+                raise LLMError(str(e), calls) from e
+            continue
+        calls.append(Call(False, round((time.perf_counter() - t) * 1000), label=label + (" (fallback)" if name else ""),
+                          **usage))
+        return text, usage
+
+
 def generate_json(system: str, prompt: str, schema: dict, validate, timeout_ms: int | None = None,
                   attempts: int = 2, label: str = "planner") -> tuple[object, list[Call]]:
     """validate(json.loads(text)) for the first valid response: cache first, then up to `attempts` requests
@@ -133,16 +160,11 @@ def generate_json(system: str, prompt: str, schema: dict, validate, timeout_ms: 
         row = con.execute("SELECT response FROM cache WHERE key = ?", (key,)).fetchone()
         if row:
             return validate(json.loads(row[0])), [Call(True, 0, label=label)]
-        calls = []
-        for _ in range(attempts):
-            t = time.perf_counter()
-            try:
-                text, usage = _remote(system, prompt, schema, timeout_ms)
-            except LLMError as e:
-                calls.append(Call(False, round((time.perf_counter() - t) * 1000), error=error_kind(str(e)), label=label))
-                log.warning("LLM %s call failed: %s (%s)", label, error_kind(str(e)), e)
-                raise LLMError(str(e), calls) from e
-            calls.append(Call(False, round((time.perf_counter() - t) * 1000), label=label, **usage))
+        if os.environ.get("LLM_REPLAY"):  # eval --replay: cache only, never the network
+            raise LLMError("replay: not in the LLM cache")
+        calls, budget = [], timeout_ms or TIMEOUT_MS
+        for _ in range(attempts):  # each attempt has the full budget; a fallback shares its attempt's budget
+            text, usage = _request_once(system, prompt, schema, budget, time.perf_counter(), calls, label)
             try:
                 out = validate(json.loads(text))
             except (ValueError, TypeError, KeyError) as e:

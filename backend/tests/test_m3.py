@@ -206,3 +206,23 @@ def test_planner_validation_rejects_unknown_enums():
     with pytest.raises(ValueError):
         planner.validate({"intent": "search", "state_patch": {"exclude_tags_add": ["sugar"]}})
     assert planner.validate({"intent": "stats", "stats": {"op": "rank"}})["stats"]["limit"] == 5
+
+
+def test_503_retries_once_on_the_fallback_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.setattr(llm, "LLM_CACHE", tmp_path / "cache.sqlite")
+    seen = []
+
+    def remote(system, prompt, schema, timeout_ms=None, model_name=None):
+        seen.append(model_name)
+        if model_name is None:
+            raise llm.LLMError("HTTP 503 UNAVAILABLE")
+        return '{"x": 1}', {}
+    monkeypatch.setattr(llm, "_remote", remote)
+    out, calls = llm.generate_json("s", "p", {"type": "object"}, lambda d: d, timeout_ms=6000, attempts=1, label="t")
+    assert out == {"x": 1} and seen == [None, llm.fallback_model()]
+    assert [c.label for c in calls] == ["t", "t (fallback)"] and calls[0].error == "overloaded"
+    seen.clear()  # too little budget left: no second model, fail fast
+    with pytest.raises(llm.LLMError):
+        llm.generate_json("s", "q", {"type": "object"}, lambda d: d, timeout_ms=1000, attempts=1, label="t")
+    assert seen == [None]

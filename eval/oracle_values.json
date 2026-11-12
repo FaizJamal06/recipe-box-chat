@@ -1,0 +1,19 @@
+{
+ "total": 30,
+ "valid": 23,
+ "invalid": {
+  "empty_record": 1,
+  "no_ingredients": 2,
+  "no_title": 2,
+  "no_instructions": 2
+ },
+ "demo2": {
+  "strict": 1,
+  "broad": 1
+ },
+ "demo3_n": 1,
+ "demo3_ids": [
+  "ar:a10"
+ ],
+ "demo3_broad": 1
+}

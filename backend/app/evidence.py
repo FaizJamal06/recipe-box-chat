@@ -29,6 +29,7 @@ _DESCRIBE = set("""a an the my our your best easy quick simple homemade perfect 
 amazing classic moist old fashioned grandma grandmas mom moms mommy aunt aunts favorite famous vegan eggless free low
 fat skinny creamy yummy tasty awesome great special simply really very world ever recipe i ii iii iv and or style
 gluten dairy egg sugar no""".split())
+_DISH_WORDS = {"sugar", "egg"}  # descriptors that also start dish names: sugar cookies, egg salad
 _CACHE: dict = {}
 
 
@@ -69,8 +70,8 @@ def _cached(con, key, fn):
     k = (_db(con), key)
     if k not in _CACHE:
         if len(_CACHE) > 400:  # ponytail: FIFO bound for a 0.5 GB box; an LRU if hit rates ever matter
-            for old in [x for x in _CACHE if x[1] not in ("contexts", "sizes", "vocab")][:100]:
-                del _CACHE[old]
+            for old in [x for x in list(_CACHE) if x[1] not in ("contexts", "sizes", "vocab")][:100]:
+                _CACHE.pop(old, None)  # list(): the startup warm-up thread may insert at the same time
         _CACHE[k] = fn()
     return _CACHE[k]
 
@@ -95,8 +96,8 @@ def contexts(con: sqlite3.Connection) -> dict[str, str]:
 
 
 def sizes(con: sqlite3.Connection) -> dict[str, int]:
-    """{recipe_id: n_ingredients} for valid recipes (L2's Jaccard set sizes), loaded once with contexts at startup."""
-    return _cached(con, "sizes", lambda: dict(con.execute("SELECT id, n_ingredients FROM recipes WHERE valid = 1")))
+    """{recipe_id: distinct required canonicals} (L2's exact Jaccard set sizes, from ingest), loaded at startup."""
+    return _cached(con, "sizes", lambda: dict(con.execute("SELECT recipe_id, n FROM recipe_size")))
 
 
 def lift(n_with: int, in_with: int, n_without: int, support: int) -> float | None:
@@ -163,7 +164,9 @@ def phrases(title: str) -> list[list[str]]:
         w = re.findall(r"[a-z]+", seg)
         while w and (w[-1] in _DESCRIBE or len(w[-1]) < 3):
             w.pop()  # 'Banana Bread II'
-        out += [(i - len(w), s, w[i:]) for i in range(len(w)) if w[i] not in _DESCRIBE and len(w[i]) > 2]
+        starts = lambda i: len(w[i]) > 2 and (w[i] not in _DESCRIBE or (  # 'sugar cookies', not 'sugar free ...'
+            w[i] in _DISH_WORDS and i + 1 < len(w) and w[i + 1] not in ("free", "less")))
+        out += [(i - len(w), s, w[i:]) for i in range(len(w)) if starts(i)]
     return [p for *_, p in sorted(out)]
 
 
@@ -196,11 +199,8 @@ def _tiers(con: sqlite3.Connection, rid: str) -> dict:
     l2 = set()
     if target:
         ph = ",".join("?" * len(target))
-        # ponytail: a recipe's set size is its n_ingredients (line count, loaded at startup); exact distinct-canonical
-        # counts took 3.6 s for common sets like flour/sugar/egg/butter. Store them at ingest if L2 must be exact.
-        rows = con.execute(f"SELECT recipe_id, COUNT(DISTINCT canonical) FROM ingredient_lines WHERE is_alt = 0 AND "
-                           f"canonical IN ({ph}) GROUP BY recipe_id HAVING COUNT(DISTINCT canonical) >= ?",
-                           (*target, max(2, math.ceil(0.35 * len(target)))))
+        rows = con.execute(f"SELECT recipe_id, COUNT(*) FROM recipe_canon WHERE canonical IN ({ph}) GROUP BY "
+                           f"recipe_id HAVING COUNT(*) >= ?", (*target, max(2, math.ceil(0.35 * len(target)))))
         size = sizes(con)
         l2 = {r for r, a in rows if r != rid and ctx.get(r) == ctx.get(rid)
               and a / (len(target) + max(size.get(r, 0), a) - a) >= 0.35}

@@ -137,8 +137,8 @@ def _discovered(con, fam: dict, withs: set, skip) -> list[str]:
         canon: dict[str, set] = {}
         for i in range(0, len(ids), 900):
             part = ids[i:i + 900]
-            for rid, c in con.execute(f"SELECT DISTINCT recipe_id, canonical FROM ingredient_lines WHERE is_alt = 0 AND "
-                                      f"canonical IS NOT NULL AND recipe_id IN ({','.join('?' * len(part))})", part):
+            for rid, c in con.execute(f"SELECT recipe_id, canonical FROM recipe_canon WHERE recipe_id IN "
+                                      f"({','.join('?' * len(part))})", part):
                 canon.setdefault(c, set()).add(rid)
         for c, rs in canon.items():
             sup = len(rs & wo)

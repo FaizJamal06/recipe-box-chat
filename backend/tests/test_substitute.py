@@ -352,3 +352,18 @@ def test_substitution_phrasings_from_the_exploratory_pass():
     assert (s["remove"], s["replace_with"]) == (["butter"], "oil")
     assert rule_plan("make it vegan")["substitution"]["remove_tags"]
     assert rule_plan("find a pasta recipe without dairy")["intent"] == "search"
+
+
+def test_dish_words_can_start_an_l1_phrase():
+    assert evidence.phrases("Sugar Cookies")[0] == ["sugar", "cookies"]
+    assert evidence.phrases("Egg Salad")[0] == ["egg", "salad"]
+    assert evidence.phrases("Sugar Free Banana Bread")[0] == ["banana", "bread"]
+
+
+def test_recipe_canon_and_size_are_exact(eng):
+    con, _ = eng
+    want = dict(con.execute("SELECT recipe_id, COUNT(DISTINCT canonical) FROM ingredient_lines WHERE is_alt = 0 AND "
+                            "canonical IS NOT NULL GROUP BY recipe_id"))
+    assert dict(con.execute("SELECT recipe_id, n FROM recipe_size")) == want
+    assert con.execute("SELECT COUNT(*) FROM recipe_canon").fetchone()[0] == sum(want.values())
+    assert evidence.sizes(con) == want  # L2's Jaccard set sizes

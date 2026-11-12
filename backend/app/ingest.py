@@ -44,10 +44,21 @@ CREATE TABLE unverified(recipe_id TEXT, tag TEXT, line_no INT);
 CREATE VIRTUAL TABLE recipes_fts USING fts5(id UNINDEXED, title, ingredients, tokenize='porter');
 """
 INDEXES = """
-CREATE INDEX ix_lines_canonical ON ingredient_lines(canonical);
+CREATE INDEX ix_lines_canonical ON ingredient_lines(canonical, recipe_id, is_alt);
 CREATE INDEX ix_lines_recipe ON ingredient_lines(recipe_id);
-CREATE INDEX ix_lines_family ON ingredient_lines(family);
+CREATE INDEX ix_lines_family ON ingredient_lines(family, recipe_id, is_alt);
 CREATE INDEX ix_tags_tag ON recipe_tags(tag);
+"""
+# after finalize (canonicals remapped): one row per (recipe, distinct required canonical), indexed both ways, and
+# each recipe's exact canonical count, so substitution's L2 Jaccard is exact and reads only covering indexes
+CANON = """
+CREATE TABLE recipe_canon(recipe_id TEXT, canonical TEXT, PRIMARY KEY (recipe_id, canonical)) WITHOUT ROWID;
+INSERT INTO recipe_canon SELECT DISTINCT recipe_id, canonical FROM ingredient_lines
+    WHERE is_alt = 0 AND canonical IS NOT NULL;
+CREATE INDEX ix_canon_canonical ON recipe_canon(canonical, recipe_id);
+CREATE TABLE recipe_size(recipe_id TEXT PRIMARY KEY, n INT) WITHOUT ROWID;
+INSERT INTO recipe_size SELECT recipe_id, COUNT(*) FROM recipe_canon GROUP BY recipe_id;
+ANALYZE;
 """
 TAG_RANK = {"alt": 1, "may_contain": 2, "contains": 3}
 
@@ -248,6 +259,7 @@ def build(db: Path, files: dict[str, Path], vocab_min: int = VOCAB_MIN) -> None:
         print(f"{source}: done, {time.time() - t0:.0f}s, peak RSS so far {peak_rss_mb():.0f} MB", flush=True)
     con.executescript(INDEXES)
     finalize(con, vocab_min)
+    con.executescript(CANON)
     n, v = con.execute("SELECT COUNT(*), SUM(valid) FROM recipes").fetchone()
     con.commit()
     con.close()

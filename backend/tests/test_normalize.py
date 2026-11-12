@@ -1,6 +1,7 @@
 """normalize.py: the tricky cases of PRD 4.5 (qty, units, headers, compounds, identity, tags) and 4.4 sentences."""
 import pytest
 
+from app import normalize as nz
 from app.ingest import count_sentences
 from app.normalize import BROAD, family_for, line_tags, normalize, parse_line, tags_for
 
@@ -227,3 +228,31 @@ def test_tags(tag, contains, may_contain, none):
 ])
 def test_count_sentences(text, n):
     assert count_sentences(text) == n
+
+
+@pytest.mark.parametrize("name, tag, level", [  # M6 audit fixes (docs/tag_audit.md, docs/lexicon_todo.md)
+    ("chevre", "dairy", "contains"), ("grana padano", "dairy", "contains"), ("velveeta", "dairy", "contains"),
+    ("jack", "dairy", "contains"), ("peanut butter cup", "dairy", "contains"),
+    ("peanut butter chip", "dairy", "may_contain"), ("vanilla wafer", "dairy", "may_contain"),
+    ("vanilla wafer", "egg", "may_contain"), ("won ton wrapper", "egg", "may_contain"), ("royal icing", "egg", "contains"),
+    ("saltine", "gluten", "contains"), ("piecrust", "gluten", "contains"), ("guinness", "gluten", "contains"),
+    ("guinness", "alcohol", "contains"), ("hard apple cider", "alcohol", "contains"), ("spirits", "alcohol", "contains"),
+    ("rum extract", "alcohol", "may_contain"), ("pig", "pork", "contains"), ("speck", "pork", "contains"),
+    ("poussin", "poultry", "contains"), ("schmaltz", "poultry", "contains"), ("bluefish", "fish", "contains"),
+    ("orange roughy", "fish", "contains"), ("snail", "shellfish", "contains"),
+])
+def test_audit_misses_are_tagged(name, tag, level):
+    assert dict(nz.tags_for(name)).get(tag) == level
+
+
+@pytest.mark.parametrize("name, tag", [("peanut butter", "dairy"), ("jack daniel", "dairy"), ("spirit vinegar", "alcohol"),
+                                       ("pie weight", "gluten"), ("whiskey", "gluten"), ("ginger beer", "alcohol")])
+def test_audit_kept_out(name, tag):
+    assert tag not in dict(nz.tags_for(name))
+
+
+@pytest.mark.parametrize("raw, canonical", [("2 tablespoons buttermilk for brushing", "buttermilk"),
+                                            ("Paprika for sprinkling", "paprika"), ("flour, for dusting", "flour"),
+                                            ("1/4 cup Asiago cheese for topping", "asiago cheese")])
+def test_purpose_phrase_is_not_the_ingredient(raw, canonical):
+    assert nz.parse_line(raw)[0].name.canonical == canonical

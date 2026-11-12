@@ -7,7 +7,8 @@ ingest.steps() with the app, so it checks the DB build, the SQL and the answer p
 The CLI side is session.respond(), the exact function the CLI prints; both the structured values and the
 formatted 'N of {valid} valid recipes (...)' lines in the reply text must match.
 
-Run: python eval/oracle.py [--db data/recipes.db]   (about 2.5 minutes; exit 1 on any mismatch)
+Run: python eval/oracle.py [--db data/recipes.db]   (about 2.5 minutes; exit 1 on any mismatch). The CLI side uses
+the rule parser (no LLM quota or timeouts); the computed values are saved to eval/oracle_values.json for eval/run.py.
 """
 import argparse
 import json
@@ -22,6 +23,8 @@ from app.config import DB, VOCAB_MIN  # noqa: E402
 from app.db import connect, load_dataset  # noqa: E402
 from app.ingest import RAW, SOURCES, steps  # noqa: E402
 from app.session import respond  # noqa: E402
+
+VALUES = Path(__file__).with_name("oracle_values.json")
 
 DEMO2 = "How many recipes contain both garlic and onion? What percentage of the dataset is that?"
 DEMO3 = "Among recipes containing tomato, which five have the fewest instruction steps?"
@@ -87,10 +90,11 @@ def compute(files: dict, vocab_min: int = VOCAB_MIN) -> dict:
 def check(files: dict, db: Path = DB, vocab_min: int = VOCAB_MIN) -> list[tuple]:
     """[(check, expected, got, ok)] comparing the oracle with what the CLI answers."""
     exp = compute(files, vocab_min)
+    VALUES.write_text(json.dumps(exp, indent=1), encoding="utf-8")  # eval/run.py asserts stats against these
     con = connect(db)
     ds = load_dataset(con)
-    text2, _, r2 = respond(con, ds, DEMO2)
-    text3, _, r3 = respond(con, ds, DEMO3)
+    text2, _, r2 = respond(con, ds, DEMO2, use_llm=False)  # rule parser: no quota, no timeouts, deterministic
+    text3, _, r3 = respond(con, ds, DEMO3, use_llm=False)
     got2 = {r.mode: r.value for r in r2}
     rows = [("records", exp["total"], ds.total), ("valid", exp["valid"], ds.valid),
             ("invalid breakdown", exp["invalid"], dict(ds.invalid)),
