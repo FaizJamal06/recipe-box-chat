@@ -7,8 +7,9 @@ must be verified (safety.verify_canonical) against all active restrictions and t
 rejected with the reason -> evidence and strength (evidence.py) -> ranking: user pick, curated, then discovered
 (labelled "co-occurs; role not established"). Choice (rank): the user's pick, then never a conflicting candidate
 before a non-conflicting one, then strength, support and lift. An adaptation is built (adapt.py) only when the chosen
-candidate is Strong or Moderate, or the user named it, or asked for a caveated version anyway. A defining
-ingredient (chicken in "Chicken Curry", egg whites in a meringue) makes the bot warn and ask first.
+candidate has any support; a Weak one is labelled "Weak evidence: based on n recipes". L1 widens to less
+specific title phrases ("cream sauce" -> "pasta") until every removed item has a Strong or Moderate candidate. A
+defining ingredient (chicken in "Chicken Curry", egg whites in a meringue) makes the bot warn and ask first.
 """
 import re
 import sqlite3
@@ -83,6 +84,7 @@ class Result:
     adaptation: object = None
     notes: list = field(default_factory=list)
     picked: str = ""  # how the session chose the recipe ('I picked ...'), shown first
+    widened: str = ""  # why L1 isn't the most specific phrase, or that wider phrases didn't help
 
 
 def spec_for(item: str, ds: Dataset) -> Spec:
@@ -173,10 +175,12 @@ def _evaluate(con, c: Cand, fam: dict, withs: set, spec: Spec, marker) -> Cand:
 
 
 def rank(c: Cand) -> tuple:
-    """Sort key: your pick; non-conflicting before conflicting; strength; an established role before a bare
-    co-occurrence (garlic is no egg substitute); L1 evidence for it before against; support (L1, L2, L3); lift."""
+    """Sort key: your pick; non-conflicting before conflicting; strength; role coverage (roles all come from the
+    same part, so more roles = a larger share of them); an established role before a bare co-occurrence (garlic is no
+    egg substitute); L1 evidence for it before against; support (L1, L2, L3); lift."""
     t = c.tiers
-    return (c.kind != "user", c.conflicting, STRENGTHS.index(c.strength), c.kind in ("discovered", "staple"),
+    return (c.kind != "user", c.conflicting, STRENGTHS.index(c.strength), -len(c.roles),
+            c.kind in ("discovered", "staple"),
             not evidence.favours(t["L1"]),
             -t["L1"].support, -t["L2"].support, -t["L3"].support, -(t["L1"].lift or 0), c.name)
 
@@ -199,18 +203,21 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
             "SELECT line_no, canonical, family FROM ingredient_lines WHERE recipe_id = ? AND is_alt = 0 AND "
             "canonical IS NOT NULL", (rid,)) if dict(nz.tags_for(can)).get(tag) == "contains")
         specs += [Spec(f, canonical=f, family=f, words=[f]) for f in fams if f not in {s.family for s in specs}]
-    fam, res.dish = evidence.tiers(con, rid, title, specs[0] if specs else None)
-    res.tiers = {t: len(v) for t, v in fam.items()}
-    res.l1_without = len(fam["L1"] - evidence.with_item(con, specs[0])) if specs else 0
     target_names = {c for c, in con.execute("SELECT DISTINCT canonical FROM ingredient_lines WHERE recipe_id = ? AND "
                                             "canonical IS NOT NULL", (rid,))}
     target_fams = {nz.family_for(c) for c in target_names}
     excl = [stats.term(w, ds) for w in exclude]
-    for spec in specs:
+
+    def grade(fam: dict, dish: list[str]) -> tuple[list, list]:
+        """(parts, notes) with this L1."""
+        notes = []
+        return [p for s in specs if (p := _part(s, fam, dish, notes))], notes
+
+    def _part(spec, fam, dish, notes):
         lines = affected(con, rid, spec)
         if not lines:
-            res.notes.append(f"'{spec.text}' isn't in this recipe (checked every ingredient line of `{rid}`).")
-            continue
+            notes.append(f"'{spec.text}' isn't in this recipe (checked every ingredient line of `{rid}`).")
+            return None
         part = Part(spec.text, spec, lines, roles_for(spec, res.context))
         withs, marker = evidence.with_item(con, spec), evidence.markers(spec)
         tags = list(dict.fromkeys([*res.restrictions, *([spec.tag] if spec.tag else [])]))
@@ -225,7 +232,7 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
                 pool.setdefault(n, Cand(n, kind)).roles.append(role)
         known_names = set(pool)
         skip = lambda c: (c in target_names or removed(c) or nz.family_for(c) == spec.family  # 'egg' for egg whites
-                          or bool(set(c.split()) & set(res.dish))  # 'meringue cookie' in a meringue: the dish itself
+                          or bool(set(c.split()) & set(dish))  # 'meringue cookie' in a meringue: the dish itself
                           or any(re.search(rf"\b{re.escape(w)}\b", c) for w in spec.words)  # 'saffron thread'
                           or any(c == k or c.endswith(" " + k) for k in known_names))
         for c in _discovered(con, fam, withs, skip):
@@ -246,13 +253,32 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
         if part.candidates:
             part.chosen = part.candidates[min(max(option, 1), len(part.candidates)) - 1]
             if option > len(part.candidates):
-                res.notes.append(f"There are only {len(part.candidates)} usable options for {spec.text}.")
+                notes.append(f"There are only {len(part.candidates)} usable options for {spec.text}.")
         best = min(list(pool.values()), key=lambda c: (STRENGTHS.index(c.strength), -c.tiers["L1"].support), default=None)
         part.conflicting = bool(part.chosen and (part.chosen.conflicting or (best and best not in allowed and
                                 STRENGTHS.index(best.strength) < STRENGTHS.index(part.chosen.strength))))
         q = amounts.observed(con, fam["L1"] & withs or fam["L2"] & withs, [spec.canonical or spec.tag], spec.family)
         part.target_qty = f"median {q[0]} (n={q[1]})" if q else ""
-        res.parts.append(part)
+        return part
+
+    good = lambda ps: sum(bool(p.chosen and p.chosen.strength in ("Strong", "Moderate")) for p in ps)
+    levels, l23, best = evidence.l1_levels(con, title, specs[0] if specs else None), evidence.tiers(con, rid), None
+    for i, (phrase, l1) in enumerate(levels):  # widen until every part has a Strong or Moderate candidate
+        fam = {"L1": l1, **l23}
+        parts, notes = grade(fam, phrase)
+        if best is None or good(parts) > good(best[1]):
+            best = (i, parts, notes, fam, phrase)
+        if good(parts) == len(parts):
+            break
+    i, res.parts, notes, fam, res.dish = best
+    res.notes += notes
+    tried = [" ".join(p) for p, _ in levels[:i]]
+    if tried:
+        res.widened = f"widened from '{tried[-1]}': no Strong or Moderate candidate there"
+    elif len(levels) > 1 and not good(res.parts):
+        res.widened = f"wider phrases ({', '.join(chr(39) + ' '.join(p) + chr(39) for p, _ in levels[1:])}) had none either"
+    res.tiers = {t: len(v) for t, v in fam.items()}
+    res.l1_without = len(fam["L1"] - evidence.with_item(con, specs[0])) if specs else 0
     dw = next((d for p in res.parts if (d := defining(title, p.spec))), None)
     if dw and not force and res.parts:
         be, it = ("are", "them") if res.parts[0].item.endswith("s") else ("is", "it")
@@ -260,15 +286,10 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
         res.question = (f"{res.parts[0].item.capitalize()} {what}: without {it}, it becomes a different dish. I've shown "
                         "the evidence below; say 'adapt it anyway' if you still want an adaptation.")
         return res
-    supported = lambda p: p.chosen and (p.chosen.strength in ("Strong", "Moderate") or (
-        p.chosen.kind == "user" and p.chosen.strength != "None") or (force and p.chosen.strength != "None"))
+    supported = lambda p: p.chosen and p.chosen.strength != "None"
     if res.parts and all(supported(p) for p in res.parts):
-        caveat = force and any(p.chosen.strength == "Weak" for p in res.parts)
-        res.adaptation = adapt.build(con, ds, res, use_llm, caveat=caveat, timeout_ms=ADAPT_MS)
+        res.adaptation = adapt.build(con, ds, res, use_llm, caveat=adapt.weak_label(res), timeout_ms=ADAPT_MS)
     elif res.parts:
-        weak = [p for p in res.parts if not supported(p)]
-        res.notes.append("No adaptation: " + "; ".join(
-            f"the best usable option for {p.item} is " + (f"{p.chosen.name} ({p.chosen.strength})" if p.chosen
-                                                           else "nothing (no usable candidate)")
-            for p in weak) + ". Say 'adapt it anyway' for a heavily caveated version.")
+        res.notes.append("No adaptation: no recipe in the data supports a replacement for " + ", ".join(
+            p.item for p in res.parts if not supported(p)) + ".")
     return res

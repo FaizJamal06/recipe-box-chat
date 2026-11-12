@@ -15,9 +15,10 @@ METHOD = ("Evidence tiers: L1 = recipes whose title has the most specific dish p
           "and in_with/n_with; lift = their ratio, only when support ≥ 3 and n_with ≥ 20 (else 'too few to "
           "compute'). Strong = more common without than with in L1, and ≥ 3 L1 supporting recipes, or an explicit "
           "variant ('eggless …') plus ≥ 2 in L1 or ≥ 3 in L2; never for a staple (baking soda, salt, …). Moderate = ≥ 3 in L2, more "
-          "common without; Weak = any support; None = none. Co-occurrences without an established role are capped at "
-          "Weak. Choice: never a conflicting candidate over a non-conflicting one, then strength, then L1 evidence for it "
-          "before against, then support, lift. Every "
+          "common without; Weak = any support (adapted, labelled 'Weak evidence: based on n recipes'); None = none. If no "
+          "candidate is Strong or Moderate, L1 widens to the next less specific phrase ('cream sauce' → 'pasta'). Co-occurrences without an established role are capped at "
+          "Weak. Choice: never a conflicting candidate over a non-conflicting one, then strength, then role coverage, then L1 "
+          "evidence for it before against, then support, lift. Every "
           "cited id is re-checked: it lacks the removed item and contains the candidate.")
 
 
@@ -49,9 +50,9 @@ def because(p) -> str:
 
 def _l1(res) -> str:
     n, dish, wo = res.tiers.get("L1", 0), " ".join(res.dish), res.l1_without
-    return (f"L1 = {n:,} recipes titled '{dish}', {wo:,} without the item" + (
-        " (the most specific title phrase with ≥ 10 recipes, ≥ 3 of them without it)" if n >= MIN_L1 and wo >= MIN_WITHOUT
-        else " (no title phrase has ≥ 10 recipes with ≥ 3 without it: the largest)"))
+    why = res.widened or ("the most specific title phrase with ≥ 10 recipes, ≥ 3 of them without it"
+                          if n >= MIN_L1 and wo >= MIN_WITHOUT else "no title phrase has ≥ 10 recipes with ≥ 3 without it: the largest")
+    return f"L1 = {n:,} recipes titled '{dish}', {wo:,} without the item ({why})"
 
 
 def _gate(res) -> list[str]:
@@ -80,7 +81,8 @@ def summary(res) -> list[str]:
         n = sum(len(p.rejected) for p in res.parts)
         md.append(_l1(res) + f" · {n} candidate{'' if n == 1 else 's'} rejected.")
     md += [f"> {res.question}"] if res.question else []
-    md += _gate(res) if res.adaptation else [f"> {n}" for n in res.notes]
+    md += ([f"> ⚠ {res.adaptation.caveat}"] if res.adaptation.caveat else []) + _gate(res) if res.adaptation \
+        else [f"> {n}" for n in res.notes]
     return md + ["_Full evidence and diff in the panel._"]
 
 

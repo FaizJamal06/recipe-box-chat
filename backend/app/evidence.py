@@ -167,23 +167,30 @@ def phrases(title: str) -> list[list[str]]:
     return [p for *_, p in sorted(out)]
 
 
-def tiers(con: sqlite3.Connection, rid: str, title: str, spec: Spec | None) -> tuple[dict, list[str]]:
-    """({'L1': ids, 'L2': ids, 'L3': ids}, the L1 phrase). Cached per (recipe, removed item), so a re-grade ('I'm also
-    allergic to tree nuts') doesn't redo the L2 search; L3 is one shared set per context."""
-    return _cached(con, ("tiers", rid, spec and spec.key), lambda: _tiers(con, rid, title, spec))
+def l1_levels(con: sqlite3.Connection, title: str, spec: Spec | None) -> list[tuple[list[str], set]]:
+    """[(phrase, ids)] for every title phrase with >= MIN_L1 recipes, >= MIN_WITHOUT of them without the item, most
+    specific first (substitute.run widens through them); if none qualifies, just the largest phrase."""
+    def build():
+        withs, out, best = with_item(con, spec) if spec else set(), [], ((False, 0), [], set())
+        for p in phrases(title):
+            ids = {r for r, in con.execute("SELECT r.id FROM recipes_fts f JOIN recipes r ON r.id = f.id WHERE "
+                                           "recipes_fts MATCH ? AND r.valid = 1", (f'title : "{" ".join(p)}"',))}
+            key = (len(ids - withs) >= MIN_WITHOUT, len(ids))
+            if key[0] and key[1] >= MIN_L1:
+                out.append((p, ids))
+            best = max(best, (key, p, ids), key=lambda b: b[0])
+        return out or [best[1:]]
+    return _cached(con, ("l1", title, spec and spec.key, MIN_L1), build)
 
 
-def _tiers(con: sqlite3.Connection, rid: str, title: str, spec: Spec | None) -> tuple[dict, list[str]]:
-    ctx, withs = contexts(con), with_item(con, spec) if spec else set()
-    used, l1, best = [], set(), (False, 0)
-    for p in phrases(title):  # the first phrase with enough recipes (and WITHOUT ones), else the largest
-        ids = {r for r, in con.execute("SELECT r.id FROM recipes_fts f JOIN recipes r ON r.id = f.id WHERE "
-                                       "recipes_fts MATCH ? AND r.valid = 1", (f'title : "{" ".join(p)}"',))}
-        key = (len(ids - withs) >= MIN_WITHOUT, len(ids))
-        if key > best:
-            best, used, l1 = key, p, ids
-        if key[0] and key[1] >= MIN_L1:
-            break
+def tiers(con: sqlite3.Connection, rid: str) -> dict:
+    """{'L2': ids, 'L3': ids}. Cached per recipe, so a re-grade ('I'm also allergic to tree nuts') doesn't redo the
+    L2 search; L3 is one shared set per context."""
+    return _cached(con, ("tiers", rid), lambda: _tiers(con, rid))
+
+
+def _tiers(con: sqlite3.Connection, rid: str) -> dict:
+    ctx = contexts(con)
     target = {c for c, in con.execute("SELECT DISTINCT canonical FROM ingredient_lines WHERE recipe_id = ? AND "
                                       "is_alt = 0 AND canonical IS NOT NULL", (rid,))}
     l2 = set()
@@ -198,7 +205,7 @@ def _tiers(con: sqlite3.Connection, rid: str, title: str, spec: Spec | None) -> 
         l2 = {r for r, a in rows if r != rid and ctx.get(r) == ctx.get(rid)
               and a / (len(target) + max(size.get(r, 0), a) - a) >= 0.35}
     l3 = _cached(con, ("L3", ctx.get(rid)), lambda: {r for r, c in ctx.items() if c == ctx.get(rid)})
-    return {"L1": l1, "L2": l2, "L3": l3}, used
+    return {"L2": l2, "L3": l3}
 
 
 def tier(family: set, withs: set, cand_ids: set) -> Tier:

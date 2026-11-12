@@ -112,7 +112,7 @@ def suggestions(st, payload: dict, plan: dict, conflict: tuple | None = None) ->
         p = payload["parts"][0] if payload["parts"] else None
         nxt = (st.sub or {}).get("option", 1) + 1
         gate = (payload.get("adaptation") or {}).get("gate")
-        if payload["question"] or (p and not payload["adaptation"] and p["chosen"]):
+        if payload["question"]:  # only a defining ingredient asks first; Weak evidence adapts with a label
             out.append(("Adapt it anyway", "adapt it anyway"))
         if p and len(p["candidates"]) >= nxt <= len(ORD):
             out.append((f"Try option {nxt}", f"use the {ORD[nxt - 1]} option instead"))

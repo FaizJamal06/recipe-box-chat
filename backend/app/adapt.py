@@ -162,13 +162,13 @@ def _amount(p, est: str | None) -> str:
     n = amounts.scale(est, lines) if est else ""
     if q:
         return f"{q[0]} {c.name} (observed median in {q[1]} recipes without {p.item}" + (
-            f"; estimate for {', '.join(lines)}: {n}, from {est})" if n else ")")
+            f"; estimate for {', '.join(lines)}: {n}" + ("" if est.startswith(n) else f", from {est}") + ")" if n else ")")
     what = n if n and c.name.split()[-1] in n else f"{n} {c.name}".strip()
     return (f"{'extra ' if c.kind == 'increase' else ''}{what} (estimate: "
             f"{est or 'not verified; start with the same amount'}; replaces {', '.join(lines)})")
 
 
-def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, caveat: bool = False,
+def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, caveat: str = "",
           timeout_ms: int = 12_000) -> Adaptation:
     """Diff, steps (model or fallback), gate and effects for a graded substitution."""
     from .substitute import DECLARED, ESTIMATE, PREP, _key
@@ -232,9 +232,21 @@ def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, caveat: bool =
             pass  # a line the facts can't back is dropped, never shown
     if set(tags) & {"dairy", "egg", "peanut", "tree_nut", "gluten", "soy", "sesame", "fish", "shellfish"}:
         ad.safety_line = ALLERGY_LINE
-    if caveat:
-        ad.caveat = "Heavily caveated: the evidence for this substitute is Weak; treat amounts and method as guesses."
+    ad.caveat = caveat
     return ad
+
+
+def weak_label(res) -> str:
+    """'Weak evidence for coconut milk: based on 1 recipe without cream ('cream sauce' titles).' per Weak part, from
+    the first tier with support; '' when nothing is Weak."""
+    where = {"L1": f"'{' '.join(res.dish)}' titles", "L2": "similar recipes", "L3": f"{res.context} recipes"}
+    out = []
+    for p in (p for p in res.parts if p.chosen.strength == "Weak"):
+        t = next((k for k in ("L1", "L2", "L3") if p.chosen.tiers[k].support), "L3")
+        n = p.chosen.tiers[t].support
+        out.append(f"Weak evidence for {p.chosen.name}: based on {n:,} recipe{'' if n == 1 else 's'} without "
+                   f"{p.item} ({where[t]}).")
+    return " ".join(out)
 
 
 def nz_words(raw: str) -> str:

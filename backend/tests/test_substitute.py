@@ -64,7 +64,7 @@ R = {  # key: (title, ingredient lines, instructions)
     "p6": ("Coconut Penne", ["8 ounces penne pasta", "1 cup coconut milk", "2 cloves garlic, minced",
                              "2 tablespoons olive oil", "1 teaspoon salt"],
            "Cook the penne.\nSimmer the garlic in the coconut milk.\nToss with the pasta."),
-    "p7": ("Spicy Coconut Penne", ["8 ounces penne pasta", "1 cup coconut milk", "2 cloves garlic, minced",
+    "p7": ("Vegan Coconut Penne", ["8 ounces penne pasta", "1 cup coconut milk", "2 cloves garlic, minced",
                                    "1 tablespoon lemon juice"],
            "Cook the penne.\nSimmer the coconut milk with the garlic.\nToss with the pasta."),
     "bm0": ("Blueberry Muffins", ["1 (18.25 ounce) package yellow cake mix", "2 eggs", "1 cup blueberries",
@@ -72,6 +72,12 @@ R = {  # key: (title, ingredient lines, instructions)
     "pk1": ("Cornbread Squares", ["1 cup cornmeal", "1 tablespoon white sugar", "1 cup buttermilk",
                                   "2 tablespoons butter and maple syrup"],
             "Preheat oven to 400 degrees F.\nStir the cornmeal, sugar and buttermilk.\nBake for 20 minutes."),
+    "cs1": ("Cauliflower Cream Sauce", ["1 head cauliflower", "2 cloves garlic, minced", "2 tablespoons olive oil"],
+            "Boil the cauliflower.\nBlend with the garlic and olive oil."),  # cream sauces without cream: an L1 level
+    "cs2": ("Potato Cream Sauce", ["2 potatoes", "2 cloves garlic, minced", "1/2 cup water"],
+            "Boil the potatoes.\nBlend with the garlic and water."),
+    "cs3": ("White Bean Cream Sauce", ["1 can white beans", "2 cloves garlic, minced", "1 tablespoon lemon juice"],
+            "Blend everything until smooth."),
     "m1": ("Meringue Cookies", ["4 egg whites", "1 cup white sugar", "1/4 teaspoon cream of tartar"],
            "Beat the egg whites with the cream of tartar until stiff.\nBeat in the sugar.\nBake at 200 degrees F "
            "for 2 hours."),
@@ -131,8 +137,8 @@ def test_cream_pasta_no_dairy_then_tree_nut_regrades(eng):
     t = s.respond("I'm also allergic to tree nuts")
     part = t.result.parts[0]
     assert any(name == "cashew" and "tree_nut" in why for name, why in part.rejected)
-    assert part.chosen.name == "coconut milk" and part.chosen.strength == "Weak"  # 2 of 5, no explicit variant
-    assert t.result.adaptation is None  # Weak: no adaptation unless asked for anyway
+    assert part.chosen.name == "coconut milk" and part.chosen.strength == "Strong"  # 2 of 5 + 'Vegan Coconut Penne'
+    assert t.result.adaptation is not None and t.result.adaptation.gate == []
 
 
 def test_meringue_egg_whites_is_weak_or_none_with_no_fake_adaptation(eng):
@@ -262,6 +268,30 @@ def test_conflicting_candidate_is_never_chosen_over_a_clean_one(eng):
     assert sorted([garlic, flax], key=substitute.rank)[0] is flax
     res = run(eng, "bb1", ["eggs"], restrictions=["egg"])
     assert "Chosen because" in "\n".join(subview.summary(res))
+
+
+def test_l1_widens_until_a_strong_or_moderate_candidate(eng, monkeypatch):
+    monkeypatch.setattr(evidence, "MIN_L1", 4)  # 'cream sauce' (4 recipes, 3 without cream) and 'penne' qualify
+    res = run(eng, "p2", ["cream"], restrictions=["dairy", "tree_nut"])
+    assert res.dish == ["penne"] and "widened from 'cream sauce'" in res.widened
+    assert res.parts[0].chosen.name == "coconut milk" and res.parts[0].chosen.strength == "Strong"
+    assert "widened from 'cream sauce'" in "\n".join(subview.summary(res))
+
+
+def test_role_coverage_ranks_before_support():
+    T = evidence.Tier
+    tiers = lambda n: {"L1": T(support=n), "L2": T(), "L3": T()}
+    broad = substitute.Cand("silken tofu", "curated", roles=["binding", "structure"], tiers=tiers(0), strength="Weak")
+    narrow = substitute.Cand("applesauce", "curated", roles=["moisture"], tiers=tiers(5), strength="Weak")
+    assert sorted([narrow, broad], key=substitute.rank)[0] is broad
+
+
+def test_weak_best_candidate_is_adapted_with_a_label(eng):
+    res = run(eng, "bm1", ["eggs"], restrictions=["egg"])  # best verified candidate is Weak, no defining ingredient
+    c = res.parts[0].chosen
+    assert (c.name, c.kind, c.strength) == ("applesauce", "curated", "Weak") and res.adaptation is not None
+    assert res.adaptation.caveat == "Weak evidence for applesauce: based on 1 recipe without eggs ('muffins' titles)."
+    assert "Weak evidence" in "\n".join(subview.summary(res))
 
 
 def test_target_prefers_a_recipe_the_gate_can_pass_but_respects_a_selection(eng):
