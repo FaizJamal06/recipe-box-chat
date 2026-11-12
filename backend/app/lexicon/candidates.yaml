@@ -57,7 +57,7 @@ peanut butter:
   flavor: [sunflower seed butter, almond butter]
   fat: [sunflower seed butter, almond butter]
 
-estimate:  # per unit of the removed ingredient (eggs: per egg)
+estimate:  # per unit of the removed ingredient (eggs: per egg); adapt.py scales it to the removed amount
   egg:
     flaxseed: 1 tablespoon ground flaxseed + 3 tablespoons water per egg
     chia seed: 1 tablespoon chia seed + 3 tablespoons water per egg
@@ -67,8 +67,8 @@ estimate:  # per unit of the removed ingredient (eggs: per egg)
     pumpkin puree: 1/4 cup per egg
     yogurt: 1/4 cup per egg
     buttermilk: 1/4 cup per egg
-    baking powder: 1 teaspoon (with 1 tablespoon oil) per egg
-    cornstarch: 2 tablespoons with 2 tablespoons water per egg
+    baking powder: 1 teaspoon baking powder + 1 tablespoon oil per egg
+    cornstarch: 2 tablespoons cornstarch + 2 tablespoons water per egg
   egg white:
     aquafaba: 3 tablespoons per egg white
   cream:
@@ -80,11 +80,14 @@ estimate:  # per unit of the removed ingredient (eggs: per egg)
     vegetable oil: 3/4 of the amount
     coconut oil: the same amount
     olive oil: 3/4 of the amount
-    applesauce: half the amount
+    applesauce: 1/2 of the amount
   milk:
     soy milk: the same volume
     almond milk: the same volume
     coconut milk: the same volume
+
+declared:  # curated substitutes too rare for the vocab: the tags they contain. Verified if >= 1 recipe uses them.
+  aquafaba: []  # chickpea cooking liquid: no egg, dairy, nut, gluten, soy or sesame
 
 prep:
   flaxseed: Mix the ground flaxseed with 3 tablespoons water per egg and let it thicken for 5 minutes.

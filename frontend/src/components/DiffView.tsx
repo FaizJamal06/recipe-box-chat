@@ -23,20 +23,22 @@ function tierOf(c: Candidate): ["L1" | "L2" | "L3", TierCounts] | null {
   return k ? [k, c.tiers[k]] : null;
 }
 
+const rate = (k: number, n: number) => <>{k}/{n}<span className="text-ink-soft"> ({n ? (100 * k / n).toFixed(1) : 0}%)</span></>;
+
 export function EvidenceTable({ p, onOpen }: { p: Payload; onOpen: (id: string) => void }) {
   const tiers = p.tiers ?? {};
   return <>
-    <p className="text-[12px] text-ink-soft">Dish <b>{p.dish}</b> ({p.context}) · L1 {tiers.L1?.toLocaleString()} title matches ·
-      L2 {tiers.L2?.toLocaleString()} similar · L3 {tiers.L3?.toLocaleString()} {p.context} recipes. Method: Calculation tab.</p>
+    <p className="text-[12px] text-ink-soft">{p.l1_note} · L2 {tiers.L2?.toLocaleString()} similar ·
+      L3 {tiers.L3?.toLocaleString()} {p.context} recipes. Method: Calculation tab.</p>
     {(p.parts ?? []).map((part) => (
       <section key={part.item} className="rounded-lg border border-rule bg-paper p-3">
         <h3 className="font-display text-[14px] font-semibold">Removing {part.item}
           <span className="ml-2 text-[12px] font-normal text-ink-soft">{part.affected.join("; ")} · role: {part.roles.join(", ") ||
             "unknown (model reasoning, not dataset evidence)"}</span></h3>
         <div className="scroll-thin mt-2 overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-left text-[12px]">
+          <table className="w-full min-w-[40rem] text-left text-[12px]">
             <thead className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">
-              <tr>{["Candidate", "Role", "Tier", "With / without", "Lift", "Strength", "Supporting"].map((h) =>
+              <tr>{["Candidate", "Role", "Tier", "Rate without", "Rate with", "Lift", "Strength", "Supporting"].map((h) =>
                 <th key={h} className="py-1 pr-2 font-semibold">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-rule/70">{part.candidates.map((c) => {
@@ -46,14 +48,16 @@ export function EvidenceTable({ p, onOpen }: { p: Payload; onOpen: (id: string) 
                   <div className="text-[10.5px] text-ink-soft">{c.label}{c.conflicting && " · ⚠ conflicting"}</div></td>
                 <td className="pr-2">{c.roles.join(", ") || "—"}</td>
                 <td className="pr-2">{t ? t[0] + (c.explicit.length && t[0] === "L1" ? " (explicit)" : "") : "—"}</td>
-                <td className="pr-2 font-mono text-[11px]">{t ? <>{t[1].support}/{t[1].n_without} without<br />{t[1].in_with}/{t[1].n_with} with</> : "0"}</td>
-                <td className="pr-2 font-mono text-[11px]">{t ? t[1].lift.toFixed(1) : "—"}</td>
+                <td className="pr-2 font-mono text-[11px]">{t ? rate(t[1].support, t[1].n_without) : "0"}</td>
+                <td className="pr-2 font-mono text-[11px]">{t ? rate(t[1].in_with, t[1].n_with) : "—"}</td>
+                <td className="pr-2 font-mono text-[11px]">{t ? t[1].lift : "—"}</td>
                 <td className="pr-2"><Badge s={c.strength} /></td>
                 <td><div className="flex flex-wrap gap-1">{c.ids.slice(0, 3).map((id) => <IdLink key={id} id={id} onOpen={onOpen} />)}</div></td>
               </tr>;
             })}</tbody>
           </table>
         </div>
+        {part.because && <p className="mt-1.5 text-[12px]">{part.because}</p>}
         {part.candidates.filter((c) => c.name === part.chosen).flatMap((c) => c.snippets).map((s) =>
           <p key={s.id} className="mt-1.5 text-[12px] text-ink-soft">“{s.text}” <IdLink id={s.id} onOpen={onOpen} /></p>)}
         {part.rejected.length > 0 && <details className="mt-2 text-[12px]">

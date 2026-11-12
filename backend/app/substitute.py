@@ -5,18 +5,18 @@ dish context -> candidates: curated (lexicon/candidates.yaml), "use more" of som
 user's own pick, and data-discovered co-occurrences (lift >= 2, support >= 3 in L1/L2) -> safety: every candidate
 must be verified (safety.verify_canonical) against all active restrictions and the removed item, otherwise it is
 rejected with the reason -> evidence and strength (evidence.py) -> ranking: user pick, curated, then discovered
-(labelled "co-occurs; role not established"), staples last. An adaptation is built (adapt.py) only when the chosen
+(labelled "co-occurs; role not established"). Choice (rank): the user's pick, then never a conflicting candidate
+before a non-conflicting one, then strength, support and lift. An adaptation is built (adapt.py) only when the chosen
 candidate is Strong or Moderate, or the user named it, or asked for a caveated version anyway. A defining
 ingredient (chicken in "Chicken Curry", egg whites in a meringue) makes the bot warn and ask first.
 """
 import re
 import sqlite3
-import time
 from dataclasses import dataclass, field
 
 import yaml
 
-from . import adapt, evidence, safety, stats
+from . import adapt, amounts, evidence, safety, stats
 from . import normalize as nz
 from .db import Dataset
 from .evidence import STAPLES, STRENGTHS, Spec
@@ -24,9 +24,8 @@ from .rules import TAG_WORDS
 
 _ROLES = yaml.safe_load((nz.LEX / "roles.yaml").read_text(encoding="utf-8"))
 CANDS = yaml.safe_load((nz.LEX / "candidates.yaml").read_text(encoding="utf-8"))
-ESTIMATE, PREP = CANDS.pop("estimate"), CANDS.pop("prep")
-TURN_MS = 5500  # substitution turns stay near 6 s: the step rewrite falls back to a deterministic swap
-KIND_ORDER = {"user": 0, "curated": 1, "increase": 1, "discovered": 2, "staple": 3}
+ESTIMATE, PREP, DECLARED = CANDS.pop("estimate"), CANDS.pop("prep"), CANDS.pop("declared")
+ADAPT_MS = 12_000  # the step rewrite is a deliberate action: a longer cap than the 6 s planner, then a deterministic swap
 
 
 @dataclass
@@ -77,6 +76,7 @@ class Result:
     context: str = ""
     dish: list = field(default_factory=list)
     tiers: dict = field(default_factory=dict)  # tier -> size
+    l1_without: int = 0  # L1 recipes without the (first) removed item
     parts: list = field(default_factory=list)
     restrictions: list = field(default_factory=list)
     question: str = ""
@@ -140,7 +140,7 @@ def _discovered(con, fam: dict, withs: set, skip) -> list[str]:
                 canon.setdefault(c, set()).add(rid)
         for c, rs in canon.items():
             sup = len(rs & wo)
-            if sup >= 3 and evidence.lift(len(w), len(rs & w), len(wo), sup) >= 2 and not skip(c):
+            if (lf := evidence.lift(len(w), len(rs & w), len(wo), sup)) is not None and lf >= 2 and not skip(c):
                 out[c] = max(out.get(c, 0), sup)
     return sorted(out, key=lambda c: (-out[c], c))[:6]
 
@@ -155,28 +155,36 @@ def _evaluate(con, c: Cand, fam: dict, withs: set, spec: Spec, marker) -> Cand:
     support = c.tiers["L1"].ids + [r for r in c.tiers["L2"].ids if r not in c.tiers["L1"].ids]
     c.ids = evidence.cited(con, list(dict.fromkeys(c.explicit + support))[:12], spec, c.name)
     c.snippets = evidence.snippets(con, c.ids, c.name)
-    q = evidence.observed(con, support, names, c.name)
-    c.observed = q
+    c.observed = amounts.observed(con, support, names, c.name)
     increase = None
     if c.kind == "increase":  # graded on whether recipes without the item used more of it
         def more(t):
             fam_t, w = fam[t], fam[t] & withs
-            a, b = evidence.observed(con, fam_t - w, names, c.name), evidence.observed(con, w, names, c.name)
+            a, b = amounts.observed(con, fam_t - w, names, c.name), amounts.observed(con, w, names, c.name)
             return bool(a and b and a[3] == b[3] and a[2] > 1.2 * b[2])  # same unit, >= 20% more
         increase = (more("L1"), more("L2"))
-    c.strength = evidence.strength(c.tiers, c.explicit, increase)
+    staple = c.name in STAPLES or nz.family_for(c.name) in STAPLES
+    c.strength = evidence.strength(c.tiers, c.explicit, increase, staple)
     if c.kind in ("discovered", "staple") and c.strength in ("Strong", "Moderate"):
         c.strength = "Weak"  # co-occurrence without an established role is not evidence of a replacement
     # an explicit variant uses it, yet overall it isn't more common without the item: say so
-    c.conflicting = evidence.disagree(c.tiers) or bool(c.explicit and c.tiers["L1"].lift < 1)
+    c.conflicting = evidence.disagree(c.tiers) or bool(c.explicit and not evidence.favours(c.tiers["L1"]))
     return c
+
+
+def rank(c: Cand) -> tuple:
+    """Sort key: your pick; non-conflicting before conflicting; strength; an established role before a bare
+    co-occurrence (garlic is no egg substitute); L1 evidence for it before against; support (L1, L2, L3); lift."""
+    t = c.tiers
+    return (c.kind != "user", c.conflicting, STRENGTHS.index(c.strength), c.kind in ("discovered", "staple"),
+            not evidence.favours(t["L1"]),
+            -t["L1"].support, -t["L2"].support, -t["L3"].support, -(t["L1"].lift or 0), c.name)
 
 
 def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], restrictions=(), exclude=(),
         replace_with: str | None = None, option: int = 1, dataset_only: bool = True, force: bool = False,
-        use_llm: bool = True, dish: str | None = None, remove_tags=(), budget: int = 1) -> Result:
+        use_llm: bool = True, remove_tags=()) -> Result:
     """Grade replacements for each removed item in recipe `rid` and, when supportable, adapt the recipe."""
-    t0 = time.perf_counter()
     title = con.execute("SELECT title FROM recipes WHERE id = ?", (rid,)).fetchone()[0].strip()
     res = Result(rid, title, restrictions=list(dict.fromkeys(restrictions)))
     res.context = evidence.contexts(con).get(rid, "savory")
@@ -191,9 +199,9 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
             "SELECT line_no, canonical, family FROM ingredient_lines WHERE recipe_id = ? AND is_alt = 0 AND "
             "canonical IS NOT NULL", (rid,)) if dict(nz.tags_for(can)).get(tag) == "contains")
         specs += [Spec(f, canonical=f, family=f, words=[f]) for f in fams if f not in {s.family for s in specs}]
-    res.dish = evidence.dish_words(title, [s.text for s in specs], dish)
-    fam, res.dish = evidence.tiers(con, rid, res.dish)
+    fam, res.dish = evidence.tiers(con, rid, title, specs[0] if specs else None)
     res.tiers = {t: len(v) for t, v in fam.items()}
+    res.l1_without = len(fam["L1"] - evidence.with_item(con, specs[0])) if specs else 0
     target_names = {c for c, in con.execute("SELECT DISTINCT canonical FROM ingredient_lines WHERE recipe_id = ? AND "
                                             "canonical IS NOT NULL", (rid,))}
     target_fams = {nz.family_for(c) for c in target_names}
@@ -222,19 +230,18 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
                           or any(c == k or c.endswith(" " + k) for k in known_names))
         for c in _discovered(con, fam, withs, skip):
             pool[c] = Cand(c, "staple" if nz.family_for(c) in STAPLES or c in STAPLES else "discovered")
-        allowed = []
+        allowed = []  # declared tags (candidates.yaml) verify a curated item too rare for the vocab, if a recipe uses it
+        declared = {n: DECLARED[n] for n in pool if n in DECLARED and evidence.with_cand(con, n)}
         for c in pool.values():
-            ok, why = safety.verify_canonical(c.name, tags, ds.vocab)
+            ok, why = safety.verify_canonical(c.name, tags, ds.vocab, declared)
             if ok and removed((nz.normalize(c.name, ds.vocab) or [c.name])[0]):
                 ok, why = False, f"is the ingredient being removed ({spec.text})"
             if ok and any(c.name in t.broad_names or c.name == t.canonical for t in excl):
                 ok, why = False, "excluded by your restrictions"
-            if ok and dataset_only and c.name not in ds.vocab and c.kind != "user":
+            if ok and dataset_only and c.name not in ds.vocab and c.name not in declared and c.kind != "user":
                 ok, why = False, "not a dataset ingredient (dataset only)"
             _evaluate(con, c, fam, withs, spec, marker)
             (allowed.append(c) if ok else part.rejected.append((c.name, why)))
-        rank = lambda c: (KIND_ORDER[c.kind], STRENGTHS.index(c.strength), -len(c.roles), -c.tiers["L1"].support,
-                          -c.tiers["L2"].support, -c.tiers["L3"].support, c.name)
         part.candidates = sorted(allowed, key=rank)
         if part.candidates:
             part.chosen = part.candidates[min(max(option, 1), len(part.candidates)) - 1]
@@ -243,7 +250,7 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
         best = min(list(pool.values()), key=lambda c: (STRENGTHS.index(c.strength), -c.tiers["L1"].support), default=None)
         part.conflicting = bool(part.chosen and (part.chosen.conflicting or (best and best not in allowed and
                                 STRENGTHS.index(best.strength) < STRENGTHS.index(part.chosen.strength))))
-        q = evidence.observed(con, fam["L1"] & withs or fam["L2"] & withs, [spec.canonical or spec.tag], spec.family)
+        q = amounts.observed(con, fam["L1"] & withs or fam["L2"] & withs, [spec.canonical or spec.tag], spec.family)
         part.target_qty = f"median {q[0]} (n={q[1]})" if q else ""
         res.parts.append(part)
     dw = next((d for p in res.parts if (d := defining(title, p.spec))), None)
@@ -256,14 +263,12 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
     supported = lambda p: p.chosen and (p.chosen.strength in ("Strong", "Moderate") or (
         p.chosen.kind == "user" and p.chosen.strength != "None") or (force and p.chosen.strength != "None"))
     if res.parts and all(supported(p) for p in res.parts):
-        left = round(TURN_MS - (time.perf_counter() - t0) * 1000)  # the model gets what is left of the turn budget
         caveat = force and any(p.chosen.strength == "Weak" for p in res.parts)
-        tries = budget if left >= 5000 else 1  # the validator retry only when the turn has time for two calls
-        res.adaptation = adapt.build(con, ds, res, use_llm, attempts=tries, caveat=caveat, timeout_ms=max(1500, left))
+        res.adaptation = adapt.build(con, ds, res, use_llm, caveat=caveat, timeout_ms=ADAPT_MS)
     elif res.parts:
         weak = [p for p in res.parts if not supported(p)]
         res.notes.append("No adaptation: " + "; ".join(
             f"the best usable option for {p.item} is " + (f"{p.chosen.name} ({p.chosen.strength})" if p.chosen
-                                                           else "nothing (every candidate was rejected)")
+                                                           else "nothing (no usable candidate)")
             for p in weak) + ". Say 'adapt it anyway' for a heavily caveated version.")
     return res

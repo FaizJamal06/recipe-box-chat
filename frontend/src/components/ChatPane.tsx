@@ -73,6 +73,9 @@ export function ChatPane({ messages, loading, state, onSend, onPatch, onReset, o
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [messages, loading]);
   const send = () => { const t = text.trim(); if (t && !loading) { onSend(t); setText(""); } };
   const last = messages[messages.length - 1];
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const rewriting = state?.active_task === "substitute" || (lastUser?.role === "user" &&
+    /\b(remove|replace|substitut\w*|swap|instead of|take out|leave out|make it|adapt)\b/i.test(lastUser.text));
   return (
     <section className="flex min-h-0 flex-col">
       <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6">
@@ -93,7 +96,7 @@ export function ChatPane({ messages, loading, state, onSend, onPatch, onReset, o
                     className="rounded-full border border-tomato/30 bg-paper px-3 py-1 text-[13px] text-tomato transition hover:bg-tomato-soft cursor-pointer">
               {s.label}</button>)}</div>)}
         {loading && <div className="flex items-center gap-2 text-[13.5px] text-ink-soft" aria-live="polite">
-          <span className="font-display font-semibold text-tomato">Recipe Box</span> thinking
+          <span className="font-display font-semibold text-tomato">Recipe Box</span> {rewriting ? "rewriting steps" : "thinking"}
           <span><span className="dot">.</span><span className="dot">.</span><span className="dot">.</span></span></div>}
         <div ref={end} />
       </div>

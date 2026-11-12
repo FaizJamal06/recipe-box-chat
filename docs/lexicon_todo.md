@@ -68,3 +68,10 @@ Format: `- [area] example line -> what happens now -> what it should do`
 - 2026-11-10 [not_food] "pan dulce", "pan de mie", "pan de sal" are breads, not pans
 - 2026-11-10 [parse] "X, recipe follows" lines are sub-recipe references: stored, not counted as ingredients,
   their words still tag the recipe
+- 2026-11-12 [parse] "for dusting" survives as a canonical (seen as a discovered co-occurrence in banana bread L2);
+  "for X" fragments should be not_food / dropped
+- 2026-11-12 [db] next rebuild: covering index ingredient_lines(canonical, recipe_id, is_alt) and (family, recipe_id,
+  is_alt), and a distinct-canonical count per recipe (L2 Jaccard uses n_ingredients today); candidate sets cost
+  ~0.25 s each cold on common items (baking powder, butter)
+- 2026-11-12 [lexicon] "sugar cookies", "egg salad": descriptor words (sugar, egg) can't start an L1 phrase, so these
+  fall back to "cookies" / "salad"

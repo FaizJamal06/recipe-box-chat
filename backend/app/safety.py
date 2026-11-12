@@ -128,15 +128,19 @@ def summary(n: int) -> str:
             "ingredient I couldn't verify; turn on strict to hide them")
 
 
-def verify_canonical(name: str, tags, known) -> tuple[bool, str]:
+def verify_canonical(name: str, tags, known, declared: dict | None = None) -> tuple[bool, str]:
     """Is a single ingredient (a substitute candidate) verified free of every tag? A lexicon hit decides first
-    ('almond milk' contains tree_nut even if the dataset never used it); then unknown is not safe."""
+    ('almond milk' contains tree_nut even if the dataset never used it); then tags declared for a rare curated item
+    (candidates.yaml); then unknown is not safe."""
     found = dict(nz.tags_for(nz.clean_text(name)))
     for t in tags:
         if found.get(t) == "contains":
             return False, f"contains {t}"
         if found.get(t) == "may_contain":
             return False, f"may contain {t} (label-dependent)"
+    if declared and name in declared:
+        bad = [t for t in tags if t in declared[name]]
+        return (False, f"contains {bad[0]} (declared)") if bad else (True, "")
     canon = (nz.normalize(name, known) or [nz.clean_text(name)])[0]
     if canon not in known:
         return False, f"couldn't verify '{name}': not a known dataset ingredient (unknown is not safe)"

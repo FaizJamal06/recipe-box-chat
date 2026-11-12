@@ -1,21 +1,22 @@
 """One substitution turn inside a Session: resolve the target recipe, keep the substitution in the sticky state,
 and re-run it when restrictions change.
 
-Target: the selected recipe (when it matches the named dish, or no dish is named) -> else a search for the named
-dish that must contain the removed item, and the reply says which recipe id was picked -> else one short question.
+Target: the selected recipe, always (when it matches the named dish, or no dish is named) -> else a search for the
+named dish that must contain the removed item, preferring a recipe whose other lines all pass the final safety gate
+(a from-scratch banana bread over a cake-mix one); the reply says which id was picked and why -> else one question.
 The substitution persists in state.sub: "I'm also allergic to tree nuts" re-grades it, "use the second option"
 switches the candidate, "adapt it anyway" forces a caveated adaptation, "replace butter with oil" starts a new pair.
 """
 import re
 
-from . import evidence, search, stats, substitute, subview
+from . import evidence, safety, search, stats, substitute, subview
 from . import normalize as nz
 from .planner import finish
 
 
 def _target(ses, sub: dict) -> tuple[str | None, str]:
     """(recipe id, note on how it was picked) or (None, question)."""
-    st, con, items = ses.state, ses.con, sub["removes"]
+    st, con, items, spec = ses.state, ses.con, sub["removes"], None
     sel = st.selected_recipe_id or (st.last_results[0] if len(st.last_results) == 1 else None)
     dish = sub["dish"]
     if sel and (not dish or all(w in " ".join(_title(con, sel)).lower() for w in dish.split())):
@@ -25,7 +26,7 @@ def _target(ses, sub: dict) -> tuple[str | None, str]:
     include = []
     for w in items[:1]:
         try:
-            include = [stats.term(w, ses.ds)]
+            include, spec = [stats.term(w, ses.ds)], substitute.spec_for(w, ses.ds)
         except stats.UnknownIngredient:
             pass
     hits = search.search(con, dish, include=include, limit=20).hits or search.search(con, dish, limit=20).hits
@@ -35,21 +36,32 @@ def _target(ses, sub: dict) -> tuple[str | None, str]:
     heads = [h for h in heads if item and item.search(h.title)] or heads  # the item matters in this dish
     ctx = evidence.contexts(con)
     usual = max(set(c := [ctx.get(h.id) for h in heads]), key=c.count) if heads else None  # the dish's usual context
-    hit = next((h for h in heads if ctx.get(h.id) == usual), None)
-    if not hit:
+    pool = [h for h in heads if ctx.get(h.id) == usual]
+    if not pool:
         return None, f"I couldn't find a {dish} recipe. Which recipe do you mean?"
-    return hit.id, (f"I picked `{hit.id}` '{hit.title.strip()}', the top match for '{dish}'"
-                    + (f" that contains {items[0]}" if include else "") + ". Open another recipe to switch.")
+    tags = list(dict.fromkeys([*st.exclude_tags, *([spec.tag] if spec and spec.tag else [])]))
+    hit = next((h for h in pool if _clean(ses, h.id, spec, tags)), None) if spec and tags else None
+    note = f"I picked `{(hit or pool[0]).id}` '{(hit or pool[0]).title.strip()}', the top match for '{dish}'" + (
+        f" that contains {items[0]}" if include else "")
+    if hit:
+        note += (f"; apart from the lines being replaced, every line is verified free of {' and '.join(tags)}, so the "
+                 "adapted recipe can pass the safety check")
+    elif tags:
+        note += f"; every match has another line that isn't verified free of {' and '.join(tags)}"
+    return (hit or pool[0]).id, note + ". Open another recipe to switch."
+
+
+def _clean(ses, rid: str, spec, tags: list[str]) -> bool:
+    """Apart from the lines being replaced, every ingredient line passes the final gate for these tags."""
+    gone = {n for n, _ in substitute.affected(ses.con, rid, spec)}
+    rest = [raw for n, raw in ses.con.execute("SELECT DISTINCT line_no, raw FROM ingredient_lines WHERE recipe_id = ? "
+                                              "AND is_header = 0 AND is_not_food = 0", (rid,)) if n not in gone]
+    return bool(gone) and not safety.check_lines(rest, tags, ses.ds.vocab)
 
 
 def _title(con, rid: str) -> tuple[str, str]:
     """(title, ingredients_raw): 'this pasta recipe' still means the selected 'Penne in Cream Sauce'."""
     return con.execute("SELECT title, ingredients_raw FROM recipes WHERE id = ?", (rid,)).fetchone() or ("", "")
-
-
-def _dish(con, rid: str, dish: str) -> str | None:
-    """The user's dish words for L1 only when the title has them (else the title's own head words are more exact)."""
-    return dish if dish and all(w in _title(con, rid)[0].lower() for w in dish.split()) else None
 
 
 def handle(ses, text: str, p: dict, notes: list[str]) -> tuple[str, object]:
@@ -77,8 +89,7 @@ def handle(ses, text: str, p: dict, notes: list[str]) -> tuple[str, object]:
         return how, None
     res = substitute.run(ses.con, ses.ds, rid, sub["removes"], restrictions=st.exclude_tags, exclude=st.exclude,
                          replace_with=sub["replace_with"], option=sub["option"], dataset_only=sub["dataset_only"],
-                         force=sub["force"], use_llm=ses.use_llm, dish=_dish(ses.con, rid, sub["dish"]),
-                         remove_tags=sub["remove_tags"], budget=max(1, 2 - ses.plan_calls))
+                         force=sub["force"], use_llm=ses.use_llm, remove_tags=sub["remove_tags"])
     ses.extra_calls += getattr(res.adaptation, "calls", [])
     st.sub = dict(sub, rid=rid)
     st.active_task, st.selected_recipe_id = "substitute", rid

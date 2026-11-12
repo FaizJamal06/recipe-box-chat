@@ -47,7 +47,7 @@ async def lifespan(_: FastAPI):
     if DB.exists():
         APP["con"] = con = connect(DB)
         APP["ds"] = load_dataset(con)
-        evidence.contexts(con)  # dish contexts for substitution, built once (~5 s) so the first substitution is fast
+        evidence.contexts(con), evidence.sizes(con)  # substitution warm-up, built once so the first one is fast
         rows = con.execute("SELECT source, COUNT(*), SUM(valid) FROM recipes GROUP BY source ORDER BY source")
         APP["health"] = {"sources": {s: {"records": n, "valid": v} for s, n, v in rows}, "fingerprint": fingerprint(con)}
     APP["warm"] = llm.warm()

@@ -66,7 +66,6 @@ class Session:
         self.last_res = None  # last search/match/rank result, for "why did you pick this one?"
         self.extra_calls: list = []  # LLM calls made inside the executor (cuisine dish names)
         self.conflict: tuple | None = None  # (tag, dish word) when the request contradicts a restriction
-        self.plan_calls = 0  # LLM calls the planner used this turn
 
     def rerun(self) -> Turn:
         """Re-run the active task on the current state (after a chip removal / toggle in the UI)."""
@@ -89,7 +88,6 @@ class Session:
         else:
             known = lambda w: w.lower() in TAG_WORDS or (_key(w) or ("",))[0] in self.ds.vocab
             p, info = make_plan(text, self.state, self.use_llm, known)
-        self.plan_calls = sum(not c.cached for c in info.calls)  # the substitution's LLM budget is what is left
         try:
             reply, res = self._run(text, p)
         except stats.UnknownIngredient as e:

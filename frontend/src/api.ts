@@ -43,13 +43,13 @@ export type Recipe = {
             is_alt: number; is_header: number; is_not_food: number }[];
 };
 
-export type TierCounts = { n_with: number; in_with: number; n_without: number; support: number; lift: number };
+export type TierCounts = { n_with: number; in_with: number; n_without: number; support: number; lift: string };
 export type Candidate = { name: string; kind: string; label: string; roles: string[]; strength: Strength;
                           conflicting: boolean; explicit: string[]; ids: string[]; quantity: string;
                           snippets: { id: string; text: string }[]; tiers: Record<"L1" | "L2" | "L3", TierCounts> };
 export type Strength = "Strong" | "Moderate" | "Weak" | "None";
 export type SubPart = { item: string; affected: string[]; roles: string[]; target_qty: string;
-                        conflicting: boolean; strength: Strength; chosen: string | null; candidates: Candidate[];
+                        conflicting: boolean; strength: Strength; chosen: string | null; because: string; candidates: Candidate[];
                         rejected: { name: string; reason: string }[] };
 export type Adaptation = { ingredients: { op: "keep" | "remove" | "add"; text: string }[];
                            steps: { n: number; old: string; text: string; changed: boolean; reason: string }[];
@@ -78,6 +78,7 @@ export type Payload = {
   question?: string;
   notes?: string[];
   parts?: SubPart[];
+  l1_note?: string;
   adaptation?: Adaptation | null;
 };
 

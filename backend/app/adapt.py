@@ -1,11 +1,11 @@
 """The adapted recipe for a substitution (PRD 6.4 steps 8-10).
 
-Ingredients: a deterministic diff (remove the affected lines, add one line per substitute, with an observed median
-amount or a labelled estimate). Steps: one LLM call returns JSON {steps: [{n, text, changed, reason}],
-predicted_effects, roles}; the validator demands that unchanged steps are byte-identical, changed steps are marked,
-no step still mentions a removed item, the substitute appears wherever the removed item was, and no ingredient
-appears that isn't in the adapted list. One retry (when the turn's LLM budget allows), then a deterministic fallback
-that swaps the mentions. Final gate: the adapted ingredient list is checked against every active restriction with
+Ingredients: a deterministic diff (remove the affected lines, keep the other items of a compound line, add one line
+per substitute with an observed median amount or a labelled estimate scaled to the removed amount). Steps: one LLM
+call (12 s cap) returns JSON {steps: [{n, text, changed, reason}], predicted_effects, roles}; the validator demands
+that unchanged steps are byte-identical, changed steps are marked, no step still mentions a removed item, the
+substitute appears wherever the removed item was, and no ingredient appears that isn't in the adapted list. If the
+call fails or the output is invalid: a deterministic fallback that swaps the mentions. Final gate: the adapted ingredient list is checked against every active restriction with
 safety.py; anything that contains, may contain or can't be verified is listed and the result is not called safe.
 Effects: "Verified from dataset" (counts, ids, ratios, deterministic) and "Predicted (not verifiable from recipe
 text)" (LLM, run through the voice validator: no number or recipe id that isn't in the facts).
@@ -15,7 +15,9 @@ import re
 import sqlite3
 from dataclasses import dataclass, field
 
-from . import llm, safety, voice
+from . import amounts, llm, safety, voice
+from . import normalize as nz
+from .evidence import fmt_lift
 from .search import SAFE
 
 STAPLE_WORDS = {"salt", "water", "pepper", "black", "ice"}
@@ -111,11 +113,11 @@ def fallback_steps(orig: list[str], swaps: list[tuple[re.Pattern, str, str]]) ->
     return out
 
 
-def final_gate(kept: list[str], added: list[str], tags, known) -> list[tuple[str, str]]:
+def final_gate(kept: list[str], added: list[str], tags, known, declared=None) -> list[tuple[str, str]]:
     """[(what, reason)] for adapted lines or substitutes that contain, may contain or can't be verified free of a tag."""
     fails = safety.check_lines(kept, tags, known)
     for name in added:
-        ok, why = safety.verify_canonical(name, tags, known)
+        ok, why = safety.verify_canonical(name, tags, known, declared)
         if not ok:
             fails.append((name, why))
     return fails
@@ -131,7 +133,8 @@ def facts(res) -> dict:
     return {"recipe": res.rid, "dish": " ".join(res.dish), "parts": [{
         "removed": p.item, "substitute": p.chosen.name, "roles": p.roles, "strength": p.chosen.strength,
         "removed_amount_in_similar_recipes": p.target_qty, "substitute_amount": p.chosen.quantity,
-        "tiers": {t: {"with": x.n_with, "without": x.n_without, "support": x.support, "lift": round(x.lift, 1)}
+        "tiers": {t: {"with": x.n_with, "in_with": x.in_with, "without": x.n_without, "support": x.support,
+                      "lift": fmt_lift(x.lift)}
                   for t, x in p.chosen.tiers.items()}, "ids": p.chosen.ids[:6]} for p in res.parts if p.chosen]}
 
 
@@ -140,9 +143,11 @@ def verified_lines(res) -> list[str]:
     out = []
     for p in res.parts:
         c, t = p.chosen, p.chosen.tiers
-        out.append(f"{c.name} for {p.item}: used by {t['L1'].support} of {t['L1'].n_without} '{' '.join(res.dish)}' "
-                   f"recipes without {p.item} (L1, lift {t['L1'].lift:.1f}), {t['L2'].support} of {t['L2'].n_without} "
-                   f"similar recipes (L2) and {t['L3'].support:,} of {t['L3'].n_without:,} {res.context} recipes (L3).")
+        a = t["L1"]
+        out.append(f"{c.name} for {p.item}: used by {a.support} of {a.n_without} '{' '.join(res.dish)}' recipes without "
+                   f"{p.item} vs {a.in_with} of {a.n_with} with it (L1, lift {fmt_lift(a.lift)}), {t['L2'].support} of "
+                   f"{t['L2'].n_without} similar recipes (L2) and {t['L3'].support:,} of {t['L3'].n_without:,} "
+                   f"{res.context} recipes (L3).")
         if c.explicit:
             out.append(f"Explicit variants using it: {', '.join(f'`{r}`' for r in c.explicit[:4])}.")
         if c.quantity:
@@ -151,10 +156,22 @@ def verified_lines(res) -> list[str]:
     return out
 
 
-def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, attempts: int = 1, caveat: bool = False,
-          timeout_ms: int = 5000) -> Adaptation:
+def _amount(p, est: str | None) -> str:
+    """'3/4 cup applesauce (estimate: 1/4 cup per egg; replaces 3 eggs)', or the observed median when there is one."""
+    c, q, lines = p.chosen, p.chosen.observed, [raw for _, raw in p.affected]
+    n = amounts.scale(est, lines) if est else ""
+    if q:
+        return f"{q[0]} {c.name} (observed median in {q[1]} recipes without {p.item}" + (
+            f"; estimate for {', '.join(lines)}: {n}, from {est})" if n else ")")
+    what = n if n and c.name.split()[-1] in n else f"{n} {c.name}".strip()
+    return (f"{'extra ' if c.kind == 'increase' else ''}{what} (estimate: "
+            f"{est or 'not verified; start with the same amount'}; replaces {', '.join(lines)})")
+
+
+def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, caveat: bool = False,
+          timeout_ms: int = 12_000) -> Adaptation:
     """Diff, steps (model or fallback), gate and effects for a graded substitution."""
-    from .substitute import ESTIMATE, PREP, _key
+    from .substitute import DECLARED, ESTIMATE, PREP, _key
     lines = [(n, raw) for n, raw in con.execute("SELECT DISTINCT line_no, raw FROM ingredient_lines WHERE recipe_id = ? "
                                                 "AND is_header = 0 AND is_not_food = 0 ORDER BY line_no", (res.rid,))]
     gone = {n: p for p in res.parts for n, _ in p.affected}
@@ -165,14 +182,14 @@ def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, attempts: int 
             continue
         diff.append({"op": "remove", "text": raw})
         p = gone[n]
+        items = [i for i in nz.parse_line(raw) if i.name]  # 'butter and maple syrup' minus butter keeps the syrup
+        hit = lambda i: p.spec.line_hits(i.name.canonical, i.name.family, dict(nz.tags_for(i.name.canonical)))
+        if len(items) > 1 and any(map(hit, items)):
+            diff += [{"op": "add", "text": f"{i.name.clean} (kept from the same line)", "kept": i.name.clean}
+                     for i in items if not hit(i)]
         if p.chosen.name in added:
             continue
-        est = ESTIMATE.get(_key(p.spec, ESTIMATE) or "", {}).get(p.chosen.name)
-        q = p.chosen.observed
-        amount = (f"{q[0]} {p.chosen.name} (observed median in {q[1]} recipes without {p.item})" if q else
-                  f"{'more ' if p.chosen.kind == 'increase' else ''}{p.chosen.name} (estimate: "
-                  f"{est or 'not verified; start with the same amount'}; replaces {p.item})")
-        diff.append({"op": "add", "text": amount})
+        diff.append({"op": "add", "text": _amount(p, ESTIMATE.get(_key(p.spec, ESTIMATE) or "", {}).get(p.chosen.name))})
         added.append(p.chosen.name)
     orig, tags = _steps(con, res.rid), list(dict.fromkeys([*res.restrictions, *(p.spec.tag for p in res.parts if p.spec.tag)]))
     words = {p.item: [w for w in {p.spec.canonical, p.spec.family, *p.spec.words,
@@ -194,18 +211,19 @@ def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, attempts: int 
                 steps = validate_steps(orig, d["steps"], rx, added, allowed, ds.vocab)
                 return steps, d.get("predicted_effects", ""), d.get("roles") or []
             (steps, pred, roles), ad.calls = llm.generate_json(SYSTEM, prompt, SCHEMA, check, timeout_ms=timeout_ms,
-                                                        attempts=max(1, attempts), label="substitute")
+                                                        attempts=1, label="substitute")
             ad.steps, ad.source, ad.model_roles = steps, "model", roles
             try:
                 ad.predicted = voice.check(pred, f) if pred else None
             except ValueError as e:
-                ad.predicted_status = f"predicted effects withheld: {e}"
+                ad.predicted_status = f"withheld by the validator ({e})"
         except llm.LLMError as e:
             ad.calls = e.calls
-            ad.predicted_status = f"model unavailable ({llm.error_kind(str(e))}): steps rewritten deterministically"
+            ad.predicted_status = f"not generated (model {llm.error_kind(str(e))})"
     else:
-        ad.predicted_status = "model not used: steps rewritten deterministically, no predicted effects"
-    ad.gate = final_gate([d["text"] for d in diff if d["op"] == "keep"], added, tags, ds.vocab)
+        ad.predicted_status = "not generated (model not used)"
+    kept = [d["text"] if d["op"] == "keep" else d["kept"] for d in diff if d["op"] == "keep" or d.get("kept")]
+    ad.gate = final_gate(kept, added, tags, ds.vocab, {a: DECLARED[a] for a in added if a in DECLARED})
     ad.verified = []
     for line in verified_lines(res):
         try:
@@ -221,6 +239,5 @@ def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, attempts: int 
 
 def nz_words(raw: str) -> str:
     """The canonical of a removed line ('2 large eggs' -> 'egg'), for the leftover-mention regex."""
-    from . import normalize as nz
     items = nz.parse_line(raw)
     return items[0].name.canonical if items and items[0].name else ""

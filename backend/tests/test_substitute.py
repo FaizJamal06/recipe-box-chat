@@ -3,10 +3,11 @@
 session flows of demos 7, 8 and 9. No LLM: adaptations use the deterministic fallback."""
 import dataclasses
 import json
+import math
 
 import pytest
 
-from app import adapt, evidence, substitute, voice
+from app import adapt, amounts, evidence, llm, substitute, subview, voice
 from app.db import connect, load_dataset
 from app.ingest import build
 from app.session import Session
@@ -34,7 +35,7 @@ R = {  # key: (title, ingredient lines, instructions)
                                        "1 teaspoon baking soda"], BAKE),
     "bb8": ("Banana Bread with Yogurt", ["2 cups all-purpose flour", "1 cup white sugar", "1/2 cup plain yogurt",
                                          "3 bananas", "1/2 cup butter", "1 teaspoon baking soda"], BAKE),
-    "bm1": ("Blueberry Muffins", ["2 cups all-purpose flour", "1 cup white sugar", "1 egg", "1 cup milk",
+    "bm1": ("Blueberry Muffins", ["2 cups all-purpose flour", "1 cup white sugar", "1 egg", "1 cup soy milk",
                                   "1/2 cup vegetable oil", "1 cup blueberries", "2 teaspoons baking powder"], BAKE),
     "bm2": ("Vegan Blueberry Muffins", ["2 cups all-purpose flour", "1 cup white sugar", "1 tablespoon flaxseed",
                                         "1 cup soy milk", "1/2 cup vegetable oil", "1 cup blueberries",
@@ -66,6 +67,11 @@ R = {  # key: (title, ingredient lines, instructions)
     "p7": ("Spicy Coconut Penne", ["8 ounces penne pasta", "1 cup coconut milk", "2 cloves garlic, minced",
                                    "1 tablespoon lemon juice"],
            "Cook the penne.\nSimmer the coconut milk with the garlic.\nToss with the pasta."),
+    "bm0": ("Blueberry Muffins", ["1 (18.25 ounce) package yellow cake mix", "2 eggs", "1 cup blueberries",
+                                  "1/2 cup vegetable oil"], BAKE),  # the cake mix may contain egg: the gate can't pass
+    "pk1": ("Cornbread Squares", ["1 cup cornmeal", "1 tablespoon white sugar", "1 cup buttermilk",
+                                  "2 tablespoons butter and maple syrup"],
+            "Preheat oven to 400 degrees F.\nStir the cornmeal, sugar and buttermilk.\nBake for 20 minutes."),
     "m1": ("Meringue Cookies", ["4 egg whites", "1 cup white sugar", "1/4 teaspoon cream of tartar"],
            "Beat the egg whites with the cream of tartar until stiff.\nBeat in the sugar.\nBake at 200 degrees F "
            "for 2 hours."),
@@ -103,7 +109,8 @@ def test_egg_free_banana_bread_finds_evidence_and_a_verified_candidate(eng):
     best = part.chosen
     assert best.name == "applesauce" and best.strength == "Strong"
     l1 = best.tiers["L1"]
-    assert (l1.n_with, l1.n_without, l1.support) == (3, 5, 3) and l1.lift > 2
+    assert (l1.n_with, l1.n_without, l1.support) == (3, 5, 3) and l1.lift is None  # n_with < 20: too few to compute
+    assert next(c for c in part.candidates if c.name == "baking soda").strength != "Strong"  # a staple
     assert {"ar:bb4", "ar:bb5", "ar:bb6"} == set(best.explicit)  # eggless / vegan / egg-free titles
     assert any(rid == "ar:bb4" and "applesauce" in text.lower() for rid, text in best.snippets)
     assert res.adaptation is not None and res.adaptation.gate == []  # egg-free: nothing left that contains egg
@@ -124,9 +131,8 @@ def test_cream_pasta_no_dairy_then_tree_nut_regrades(eng):
     t = s.respond("I'm also allergic to tree nuts")
     part = t.result.parts[0]
     assert any(name == "cashew" and "tree_nut" in why for name, why in part.rejected)
-    assert part.chosen.name == "coconut milk" and part.chosen.strength == "Weak" and part.conflicting
+    assert part.chosen.name == "coconut milk" and part.chosen.strength == "Weak"  # 2 of 5, no explicit variant
     assert t.result.adaptation is None  # Weak: no adaptation unless asked for anyway
-    assert "Strong" not in t.reply.split("Rejected")[0] or "cashew" not in t.reply.split("Rejected")[0]
 
 
 def test_meringue_egg_whites_is_weak_or_none_with_no_fake_adaptation(eng):
@@ -134,7 +140,8 @@ def test_meringue_egg_whites_is_weak_or_none_with_no_fake_adaptation(eng):
     part = res.parts[0]
     assert part.strength in ("Weak", "None") and res.adaptation is None
     assert res.question and "meringue" in res.question.lower()  # defining ingredient: warn and ask
-    assert any(name == "aquafaba" and "couldn't verify" in why for name, why in part.rejected)
+    # aquafaba is below the vocab threshold, but its tags are declared in candidates.yaml and 1 recipe uses it
+    assert "aquafaba" in [c.name for c in part.candidates] and "aquafaba" not in [n for n, _ in part.rejected]
 
 
 def test_removing_an_absent_ingredient_says_not_in_this_recipe(eng):
@@ -185,10 +192,12 @@ def test_final_safety_gate_blocks_an_allergen(eng):
     assert adapt.final_gate(["2 cloves garlic, minced"], ["coconut milk"], ["dairy"], ds.vocab) == []
 
 
-def test_lift_never_divides_by_zero():
-    assert evidence.lift(n_with=0, in_with=0, n_without=5, support=3) == pytest.approx((4 / 7) / (1 / 2))
-    assert evidence.lift(0, 0, 0, 0) == pytest.approx(1.0)
-    assert evidence.lift(n_with=339, in_with=0, n_without=11, support=0) == 1.0  # nothing observed: no fake 13x
+def test_lift_uses_raw_rates_and_says_when_there_are_too_few():
+    assert evidence.lift(n_with=181, in_with=0, n_without=1411, support=3) == math.inf  # silken tofu, never with cream
+    assert evidence.lift(n_with=178, in_with=10, n_without=13, support=2) is None  # support < 3
+    assert evidence.lift(n_with=19, in_with=1, n_without=13, support=5) is None  # n_with < 20
+    assert evidence.lift(n_with=100, in_with=10, n_without=50, support=10) == pytest.approx(2.0)
+    assert evidence.fmt_lift(None) == "too few to compute" and evidence.fmt_lift(math.inf) == "∞"
 
 
 def test_voice_validator_rejects_an_invented_count():
@@ -218,12 +227,87 @@ def test_detail_and_bare_yes_are_not_forced_into_a_substitution():
     assert confident("adapt it anyway", rule_plan("adapt it anyway"))
 
 
-def test_explicit_variant_of_a_dish_staple_is_not_strong():
+def test_strength_rules():
     T = evidence.Tier
-    staple = {"L1": T(n_with=178, in_with=137, n_without=13, support=5, lift=0.5), "L2": T(), "L3": T()}
-    assert evidence.strength(staple, ["ar:eggless"]) == "Weak"  # baking soda in an eggless banana bread
-    rare = {"L1": T(n_with=181, in_with=0, n_without=1411, support=4, lift=0.6), "L2": T(), "L3": T()}
-    assert evidence.strength(rare, ["ar:vegan"]) == "Strong"  # cashew in a vegan pasta, never with cream
+    l1 = lambda **k: {"L1": T(**k), "L2": T(), "L3": T()}
+    assert evidence.strength(l1(n_with=178, in_with=137, n_without=13, support=5), ["ar:eggless"]) == "Weak"  # baking soda
+    assert evidence.strength(l1(n_with=181, in_with=0, n_without=1411, support=4), ["ar:vegan"]) == "Strong"  # cashew
+    assert evidence.strength(l1(n_with=10, in_with=1, n_without=5, support=2), ["ar:x"]) == "Strong"  # explicit + 2
+    assert evidence.strength(l1(n_with=10, in_with=1, n_without=5, support=2), []) == "Weak"  # 2 alone isn't enough
+    assert evidence.strength(l1(n_with=164, in_with=6, n_without=52, support=3), []) == "Strong"
+    assert evidence.strength(l1(n_with=10, in_with=1, n_without=5, support=1), []) == "Weak"
+    assert evidence.strength(l1(n_with=10, in_with=0, n_without=5, support=4), ["ar:x"], staple=True) != "Strong"
+    t = {"L1": T(n_with=10, in_with=0, n_without=3, support=1), "L2": T(n_with=30, in_with=1, n_without=20, support=3),
+         "L3": T()}
+    assert evidence.strength(t, ["ar:vegan"]) == "Strong" and evidence.strength(t, []) == "Moderate"  # explicit + L2
+
+
+def test_l1_is_the_most_specific_title_phrase(eng):
+    ps = [" ".join(p) for p in evidence.phrases("Pasta with Tomato Cream Sauce")]
+    assert ps == ["tomato cream sauce", "cream sauce", "pasta", "sauce"]
+    assert evidence.phrases("Chicken Paella with Saffron Rice and Green Peas") == [["chicken", "paella"], ["paella"]]
+    assert evidence.phrases("Classic Banana Bread II")[0] == ["banana", "bread"]
+    res = run(eng, "p2", ["cream"])  # 'cream sauce' has 1 recipe, 'penne' 7: no phrase reaches 10, so the largest
+    assert res.dish == ["penne"] and res.tiers["L1"] == 7 and res.l1_without == 5 and "'penne'" in "\n".join(subview.markdown(res))
+
+
+def test_conflicting_candidate_is_never_chosen_over_a_clean_one(eng):
+    T = evidence.Tier
+    tiers = lambda n: {"L1": T(support=n), "L2": T(), "L3": T()}
+    bad = substitute.Cand("a", "curated", tiers=tiers(5), strength="Strong", conflicting=True)
+    ok = substitute.Cand("b", "curated", tiers=tiers(1), strength="Moderate")
+    assert sorted([bad, ok], key=substitute.rank)[0] is ok
+    garlic = substitute.Cand("garlic", "discovered", tiers=tiers(4), strength="Weak")  # quiche: co-occurs with no eggs
+    flax = substitute.Cand("flaxseed", "curated", tiers=tiers(0), strength="Weak")
+    assert sorted([garlic, flax], key=substitute.rank)[0] is flax
+    res = run(eng, "bb1", ["eggs"], restrictions=["egg"])
+    assert "Chosen because" in "\n".join(subview.summary(res))
+
+
+def test_target_prefers_a_recipe_the_gate_can_pass_but_respects_a_selection(eng):
+    con, ds = eng
+    s = Session(con, ds, use_llm=False)
+    t = s.respond("Take this blueberry muffins recipe and remove eggs")
+    assert t.result.rid == "ar:bm1" and "verified free of egg" in t.reply  # not bm0 with the cake mix
+    s = Session(con, ds, use_llm=False)
+    s.state.selected_recipe_id = "ar:bm0"
+    assert s.respond("remove the eggs").result.rid == "ar:bm0"
+
+
+def test_estimate_scales_with_the_removed_amount(eng):
+    assert amounts.scale("1/4 cup per egg", ["3 eggs"]) == "3/4 cup"
+    assert amounts.scale("1 tablespoon ground flaxseed + 3 tablespoons water per egg", ["2 eggs"]) == \
+        "2 tablespoons ground flaxseed + 6 tablespoons water"
+    assert amounts.scale("1/2 cup soaked cashews blended with 1/2 cup water per cup of cream", ["2 cups heavy cream"]) == \
+        "1 cup soaked cashews blended with 1 cup water"
+    assert amounts.scale("the same volume (full-fat)", ["1 cup heavy cream"]) == "1 cup"
+    res = run(eng, "bb1", ["eggs"], replace_with="yogurt")  # 1 supporting recipe: no observed median
+    assert any(d["text"] == "1/2 cup yogurt (estimate: 1/4 cup per egg; replaces 2 eggs)"
+               for d in res.adaptation.ingredients)
+
+
+def test_compound_line_keeps_its_other_item(eng):
+    res = run(eng, "pk1", ["butter"], replace_with="vegetable oil")
+    ops = [(d["op"], d["text"]) for d in res.adaptation.ingredients]
+    assert ("remove", "2 tablespoons butter and maple syrup") in ops
+    assert any(op == "add" and t.startswith("maple syrup") for op, t in ops)
+
+
+def test_model_timeout_labels_the_predicted_block(eng, monkeypatch):
+    def slow(*a, **k):
+        raise llm.LLMError("timeout > 12 s", [])
+    monkeypatch.setattr(llm, "available", lambda: True)
+    monkeypatch.setattr(llm, "generate_json", slow)
+    con, ds = eng
+    res = substitute.run(con, ds, "ar:bb1", ["eggs"], restrictions=["egg"], use_llm=True)
+    assert res.adaptation.predicted is None and res.adaptation.predicted_status == "not generated (model timeout)"
+
+
+def test_chat_bubble_is_a_summary(eng):
+    res = run(eng, "bb1", ["eggs"], restrictions=["egg"])
+    md = "\n".join(subview.summary(res))
+    assert "applesauce" in md and "Strong" in md and "✓" in md and "panel" in md
+    assert "Verified from dataset" not in md and "Adapted recipe" not in md and len(subview.summary(res)) <= 9
 
 
 def test_substitution_phrasings_from_the_exploratory_pass():

@@ -25,7 +25,7 @@ def main() -> None:
     warm = None if a.no_llm else llm.warm()  # google-genai (~6 s cold) loads while the DB loads
     con = connect()
     ds = load_dataset(con)
-    evidence.contexts(con)  # dish contexts for substitution, built once at startup
+    evidence.contexts(con), evidence.sizes(con)  # substitution warm-up, built once at startup
     if warm:
         try:
             warm.result()  # startup cost, not a turn's: the 6 s LLM budget is for the request only
