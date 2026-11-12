@@ -139,6 +139,8 @@ def confident(text: str, plan: dict, known=lambda w: True) -> bool:
     that only adds/removes restrictions ('I cannot have dairy', 'also no garlic', 'exclude eggs too',
     'dairy is fine now', 'at most 1 step') whose words are all tags or known ingredients (`known`)."""
     intent = plan.get("intent")
+    if intent == "substitute":  # a bare 'yes' / 'go ahead' may answer something else: let the LLM read the history
+        return not (plan["substitution"]["force"] and "anyway" not in text.lower())
     if intent in ("match", "smalltalk", "explain") or (intent == "clarify" and plan.get("question")):
         return True
     if intent == "recipe_detail":
@@ -190,6 +192,9 @@ def rule_plan(text: str) -> dict:
     """Plan from regexes (PRD 5.2 shape, missing keys filled by planner.finish)."""
     t = " ".join(text.lower().replace("’", "'").split())
     contain = r"(?:contain|containing|have|having|has|use|using|with|include|including)s?"
+    from .subparse import parse as substitution  # T3 first: 'remove the eggs', 'replace butter with oil'
+    if sub := substitution(t):
+        return sub
     for kind, rx in _TALK:
         if re.search(rx, t) and (kind == "capabilities" or not _FOODISH.search(t)):
             return {"intent": "smalltalk", "talk": kind}

@@ -11,7 +11,8 @@ from . import llm
 from . import rules
 from .rules import confident, keyword_plan, rule_plan
 
-INTENTS = ["search", "recipe_detail", "stats", "match", "unsupported", "clarify", "smalltalk", "explain", "offtopic"]
+INTENTS = ["search", "recipe_detail", "stats", "match", "substitute", "unsupported", "clarify", "smalltalk",
+           "explain", "offtopic"]
 TALK = ["none", "greeting", "thanks", "capabilities", "bye"]
 TAGS = ["dairy", "egg", "peanut", "tree_nut", "gluten", "soy", "sesame", "meat", "pork", "poultry", "fish",
         "shellfish", "gelatin", "honey", "alcohol", "root_veg"]
@@ -35,6 +36,8 @@ SCHEMA = obj({
                   "tag_mode": enum(["free", "contains"])}),
     "target": obj({"kind": enum(["none", "result_index", "recipe_id", "title", "selected"]), "value": S}),
     "unsupported": obj({"attribute": enum(ATTRS), "reason": S}),
+    "substitution": obj({"remove": L, "replace_with": S, "dish": S, "remove_tags": lenum(TAGS), "option": I,
+                         "force": B, "dataset_only": B}),
     "talk": enum(TALK),
     "question": S,
 })
@@ -42,7 +45,9 @@ SYSTEM = """Convert a message to a recipe chatbot into a JSON plan. Never answer
 ids from LAST_RESULTS. Unmentioned fields: "", 0 or [].
 intent: search (dish words -> query_text) | match (user lists ingredients they have -> have_set, items as
 written incl. quantity: "2 eggs") | recipe_detail (target) | stats (counts, %, ranks, averages) | unsupported
-(nutrition, cook time, servings, ratings, category) | explain ("why this one?": target) | smalltalk (talk:
+(nutrition, cook time, servings, ratings, category) | substitute (change THIS recipe: remove/replace an ingredient,
+"make it vegan" -> remove_tags, "use the second option" -> option 2, "adapt it anyway" -> force; dish = the dish
+the user names, else "") | explain ("why this one?": target) | smalltalk (talk:
 greeting/thanks/capabilities/bye) | offtopic (not about food or these recipes) | clarify (only when truly
 ambiguous: put ONE short question, no numbers, in question).
 state_patch.mode: new = new dish or have-list; refine = only adds/removes restrictions. Allergen/diet words ->
@@ -86,9 +91,14 @@ def finish(plan: dict) -> dict:
     tg = plan.get("target") or {}
     target = {"kind": tg.get("kind") or "none", "value": str(tg.get("value") or "")}
     un = plan.get("unsupported") or {}
+    sb = plan.get("substitution") or {}
+    substitution = {"remove": [str(x).strip() for x in sb.get("remove") or [] if str(x).strip()],
+                    "replace_with": str(sb.get("replace_with") or "").strip(), "dish": str(sb.get("dish") or "").strip(),
+                    "remove_tags": [t for t in sb.get("remove_tags") or [] if t in TAGS], "option": int(sb.get("option") or 0),
+                    "force": bool(sb.get("force")), "dataset_only": sb.get("dataset_only") is not False}
     return {"intent": plan.get("intent") or "clarify", "state_patch": patch, "stats": stats, "target": target,
             "unsupported": {"attribute": un.get("attribute") or "none", "reason": un.get("reason") or ""},
-            "talk": plan.get("talk") or "none", "question": str(plan.get("question") or "")[:200],
+            "substitution": substitution, "talk": plan.get("talk") or "none", "question": str(plan.get("question") or "")[:200],
             "keyword": bool(plan.get("keyword"))}
 
 

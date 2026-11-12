@@ -105,6 +105,23 @@ def suggestions(st, payload: dict, plan: dict, conflict: tuple | None = None) ->
         else:
             out += [("Dairy-free count?", "How many recipes are dairy-free?"),
                     ("Top ingredients?", "What are the top 10 ingredients?")]
+    elif t == "substitute":  # adapt anyway / next option / clear the gate / an allergy that would re-grade
+        from . import normalize as nz
+        from .rules import TAG_LABEL
+        from .subview import _name
+        p = payload["parts"][0] if payload["parts"] else None
+        nxt = (st.sub or {}).get("option", 1) + 1
+        gate = (payload.get("adaptation") or {}).get("gate")
+        if payload["question"] or (p and not payload["adaptation"] and p["chosen"]):
+            out.append(("Adapt it anyway", "adapt it anyway"))
+        if p and len(p["candidates"]) >= nxt <= len(ORD):
+            out.append((f"Try option {nxt}", f"use the {ORD[nxt - 1]} option instead"))
+        if gate:
+            out.append((f"Also remove {_name(gate[0]['what'])}", f"remove the {_name(gate[0]['what'])} too"))
+        tag = next((tg for tg, lv in nz.tags_for(p["chosen"]) if lv == "contains" and tg not in st.exclude_tags),
+                   None) if p and p["chosen"] else None
+        if tag:
+            out.append((f"Allergic to {TAG_LABEL.get(tag, tag)}?", f"I'm also allergic to {TAG_LABEL.get(tag, tag)}"))
     elif t == "recipe" and cards:
         out.append(("Why this one?", "why this one?"))
         i = st.last_results.index(cards[0]["id"]) if cards[0]["id"] in st.last_results else -1

@@ -10,7 +10,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 
-from . import compose, guard, llm, match, search, stats, talk
+from . import compose, guard, llm, match, search, stats, subflow, talk
 from . import normalize as nz
 from .db import Dataset
 from .planner import PlanInfo, finish, plan as make_plan
@@ -66,6 +66,7 @@ class Session:
         self.last_res = None  # last search/match/rank result, for "why did you pick this one?"
         self.extra_calls: list = []  # LLM calls made inside the executor (cuisine dish names)
         self.conflict: tuple | None = None  # (tag, dish word) when the request contradicts a restriction
+        self.plan_calls = 0  # LLM calls the planner used this turn
 
     def rerun(self) -> Turn:
         """Re-run the active task on the current state (after a chip removal / toggle in the UI)."""
@@ -88,6 +89,7 @@ class Session:
         else:
             known = lambda w: w.lower() in TAG_WORDS or (_key(w) or ("",))[0] in self.ds.vocab
             p, info = make_plan(text, self.state, self.use_llm, known)
+        self.plan_calls = sum(not c.cached for c in info.calls)  # the substitution's LLM budget is what is left
         try:
             reply, res = self._run(text, p)
         except stats.UnknownIngredient as e:
@@ -212,11 +214,16 @@ class Session:
             pre.append(f"There's no cuisine field in this dataset, so '{c}' is approximated by recipe titles "
                        f"containing: {', '.join(base)}" + (f"; plus dish names suggested by the LLM: {', '.join(extra)}"
                                                             if extra else "") + ". Dishes not named that way are missed.")
+        if intent == "substitute":
+            self.notes = self._apply(p["state_patch"], text)
+            return subflow.handle(self, text, p, self.notes)
         if intent not in ("search", "match"):
             return HELP, None
         if not d["query_text"] and not d["have_set"] and s.active_task and not p["keyword"] and not d.get("reset"):
             intent = s.active_task  # a bare restriction re-runs the current task
         notes = self.notes = pre + self._apply(d, text)
+        if intent == "substitute":  # 'I'm also allergic to tree nuts' re-grades the current substitution
+            return subflow.handle(self, text, finish({"intent": "substitute"}), notes)
         if p["keyword"]:
             notes.append(f"I couldn't use the language model, so I ran your message as a keyword search for "
                          f"'{d['query_text']}' in titles and ingredients.")

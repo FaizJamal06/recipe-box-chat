@@ -10,12 +10,13 @@ import logging
 import re
 import sqlite3
 
-from . import safety, search, stats
+from . import safety, search, stats, subview
 from .db import Dataset
 from .match import MatchResult
 from .search import SearchResult
 from .session import Session, Turn
 from .stats import Result
+from .substitute import Result as SubResult
 
 log = logging.getLogger("recipebox")
 ID_RX = re.compile(r"`((?:ar|epi|fn):[^`\s]+)`")
@@ -177,6 +178,9 @@ def view(turn: Turn, s: Session) -> tuple[str, dict]:
                             f"{sum(x['kind'] == 'extra' for x in c['chips'])}")
             if res.n_unverified:
                 md.append(f"_⚠ {safety.summary(res.n_unverified)}, or show them in the Results panel._")
+    elif isinstance(res, SubResult):
+        md2, payload = subview.view(con, res)
+        md += md2
     elif intent == "stats" and res is not None:
         md2, payload = _stats(con, ds, res, turn.plan)
         md += md2
@@ -229,6 +233,15 @@ def trace(turn: Turn, s: Session, payload: dict, prev_total: int | None, voice_c
                       if payload.get("n_unverified") else ""))
         out.append("Ranked: title phrase, BM25(title×3, ingredients), id" if payload["type"] == "search"
                    else "Ranked: score, then matched desc, extra asc, steps asc, id")
+    for p in payload.get("parts", []) if payload["type"] == "substitute" else []:
+        out.append(f"Evidence for {p['item']}: tiers " + ", ".join(f"{k} {v:,}" for k, v in payload["tiers"].items())
+                   + f" · {len(p['candidates'])} usable, {len(p['rejected'])} rejected · chosen "
+                   + (f"{p['chosen']} ({p['strength']})" if p["chosen"] else "none"))
+    if payload["type"] == "substitute":
+        a = payload["adaptation"]
+        out.append("Adaptation: " + (f"steps by {a['source']}; final safety gate "
+                                     + (f"{len(a['gate'])} failing line(s)" if a["gate"] else "passed") if a else
+                                     "none (evidence too weak, or waiting for 'adapt it anyway')"))
     for c in payload.get("calc", []) if payload["type"] in ("stats", "unsupported") else []:
         out.append(f"Computed ({c['label']}): {c['value'] if not isinstance(c['value'], list) else len(c['value'])}"
                    f" over {c['n_analyzed']:,} recipes")

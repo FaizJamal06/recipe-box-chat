@@ -1,1 +1,94 @@
-# candidates.yaml - filled in M1/M5 (see PRD 4.5 / 6.4)
+# Curated substitutes (PRD 6.4 step 3): ingredient -> role -> candidates (vocab canonicals), read at runtime. Every
+# candidate still has to pass safety.verify_canonical against the active restrictions and earn its strength from
+# the dataset; this list only proposes. `estimate`: a starting amount when the data has too few parseable examples
+# (always labelled "estimate"). `prep`: a step added before the method when the substitute needs preparing.
+egg:
+  binding: [flaxseed, chia seed, applesauce, banana, silken tofu]
+  leavening: [baking powder, baking soda]
+  moisture: [applesauce, banana, pumpkin puree, yogurt, buttermilk]
+  structure: [silken tofu, flaxseed]
+  setting: [cornstarch, silken tofu]
+  richness: [silken tofu]
+egg white:
+  foam: [aquafaba]
+  leavening: [aquafaba, baking powder]
+  structure: [aquafaba]
+  setting: [cornstarch]
+  binding: [flaxseed, aquafaba]
+egg yolk:
+  richness: [silken tofu]
+  emulsifying: [silken tofu]
+  setting: [cornstarch]
+cream:
+  richness: [coconut milk, cashew, coconut cream, half and half, evaporated milk]
+  body: [coconut milk, cashew, cornstarch, cream cheese, silken tofu]
+  moisture: [coconut milk, yogurt]
+butter:
+  fat: [vegetable oil, coconut oil, olive oil, margarine, shortening]
+  tenderness: [applesauce, vegetable oil]
+  flavor: [olive oil, coconut oil]
+milk:
+  liquid: [soy milk, almond milk, coconut milk, water]
+  moisture: [soy milk, almond milk, coconut milk]
+sour cream:
+  moisture: [yogurt, coconut cream]
+  tang: [yogurt, lemon juice]
+  richness: [coconut cream, cream cheese]
+yogurt:
+  moisture: [applesauce, coconut milk]
+  tang: [lemon juice, buttermilk]
+cheese:
+  flavor: [nutritional yeast]
+  saltiness: [nutritional yeast]
+  body: [cashew, silken tofu]
+parmesan cheese:
+  flavor: [nutritional yeast]
+  saltiness: [nutritional yeast]
+honey:
+  sweetness: [maple syrup, agave nectar, sugar]
+  moisture: [maple syrup, agave nectar]
+sugar:
+  sweetness: [honey, maple syrup]
+  moisture: [honey, maple syrup]
+oil:
+  fat: [butter, applesauce]
+  moisture: [applesauce]
+peanut butter:
+  flavor: [sunflower seed butter, almond butter]
+  fat: [sunflower seed butter, almond butter]
+
+estimate:  # per unit of the removed ingredient (eggs: per egg)
+  egg:
+    flaxseed: 1 tablespoon ground flaxseed + 3 tablespoons water per egg
+    chia seed: 1 tablespoon chia seed + 3 tablespoons water per egg
+    applesauce: 1/4 cup per egg
+    banana: 1/2 mashed banana per egg
+    silken tofu: 1/4 cup blended per egg
+    pumpkin puree: 1/4 cup per egg
+    yogurt: 1/4 cup per egg
+    buttermilk: 1/4 cup per egg
+    baking powder: 1 teaspoon (with 1 tablespoon oil) per egg
+    cornstarch: 2 tablespoons with 2 tablespoons water per egg
+  egg white:
+    aquafaba: 3 tablespoons per egg white
+  cream:
+    coconut milk: the same volume (full-fat)
+    cashew: 1/2 cup soaked cashews blended with 1/2 cup water per cup of cream
+    coconut cream: the same volume
+    cornstarch: 1 tablespoon per cup of liquid
+  butter:
+    vegetable oil: 3/4 of the amount
+    coconut oil: the same amount
+    olive oil: 3/4 of the amount
+    applesauce: half the amount
+  milk:
+    soy milk: the same volume
+    almond milk: the same volume
+    coconut milk: the same volume
+
+prep:
+  flaxseed: Mix the ground flaxseed with 3 tablespoons water per egg and let it thicken for 5 minutes.
+  chia seed: Mix the chia seed with 3 tablespoons water per egg and let it gel for 10 minutes.
+  cashew: Soak the cashews in hot water for 15 minutes, drain, and blend with fresh water until smooth.
+  silken tofu: Blend the silken tofu until completely smooth.
+  aquafaba: Whip the aquafaba until it holds stiff peaks.

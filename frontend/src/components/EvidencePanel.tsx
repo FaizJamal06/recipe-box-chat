@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Calc, ChatResponse } from "../api";
-import { DiffView } from "./DiffView";
+import { DiffView, EvidenceTable } from "./DiffView";
 import { CHIP_STYLE, RecipeCard } from "./RecipeCard";
 
 export type Tab = "results" | "calc" | "evidence" | "trace";
@@ -35,15 +35,15 @@ function CalcBlock({ c }: { c: Calc }) {
         {c.normalization_note && <Field k="Normalization">{c.normalization_note}</Field>}
         {c.notes.map((n, i) => <Field key={i} k="Note">{n}</Field>)}
       </dl>
-      <div className="mt-2">
+      {c.sql && <div className="mt-2">
         <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-[0.12em] text-ink-soft">
           <span>SQL (exact query)</span>
           <button type="button" className="normal-case tracking-normal hover:text-tomato cursor-pointer"
-                  onClick={() => navigator.clipboard?.writeText(c.sql).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); })}>
+                  onClick={() => navigator.clipboard?.writeText(c.sql!).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); })}>
             {copied ? "copied ✓" : "copy"}</button>
         </div>
         <pre className="scroll-thin max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-ink px-3 py-2 font-mono text-[11.5px] leading-relaxed text-cream">{c.sql}</pre>
-      </div>
+      </div>}
     </section>
   );
 }
@@ -53,7 +53,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /** Right panel: Results (cards) · Calculation (filters, N, denominator, method, SQL, normalization) ·
- *  Evidence (per-recipe proof lines; T3 table in M5) · Trace (pipeline steps). */
+ *  Evidence (per-recipe proof lines; substitution evidence table) · Trace (pipeline steps). */
 export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: ChatResponse | null; tab: Tab;
   setTab: (t: Tab) => void; onOpen: (id: string) => void; onStrict: () => void }) {
   const p = resp?.payload;
@@ -72,10 +72,12 @@ export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: C
       <div className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {!p && <Empty>Results, calculations and evidence for each answer appear here.</Empty>}
         {p && tab === "results" && <>
-          {p.cards.length > 0 && <div className="flex items-center justify-between gap-2">
+          {p.type === "substitute" && <DiffView p={p} />}
+          {p.cards.length > 0 && p.type !== "substitute" && <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-soft">{p.total !== undefined ? `${(p.total - nUnv).toLocaleString()} ${nUnv ? "fully verified" : "eligible"} · showing ${p.cards.length}` : `${p.cards.length} shown`}</span>
             <Legend /></div>}
-          {p.cards.map((c, i) => <RecipeCard key={c.id} card={c} rank={p.cards.length > 1 ? i + 1 : undefined} onOpen={onOpen} />)}
+          {(p.type === "substitute" ? p.cards.slice(0, 1) : p.cards).map((c, i) =>
+            <RecipeCard key={c.id} card={c} rank={p.cards.length > 1 && p.type !== "substitute" ? i + 1 : undefined} onOpen={onOpen} />)}
           {nUnv > 0 && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-[12.5px] text-warn"
                             title="Unknown is not safe: these recipes name an ingredient the allergen lexicon doesn't know">
             <span>⚠ {nUnv.toLocaleString()} more recipe{nUnv === 1 ? " matches" : "s match"} but {nUnv === 1 ? "has" : "have"} an ingredient I couldn't verify.</span>
@@ -112,7 +114,7 @@ export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: C
                 <li key={i} className="flex gap-2"><span className={`mt-1 h-2 w-2 shrink-0 rounded-full border ${CHIP_STYLE[ch.kind]}`} />
                   <span><span className="font-medium">{ch.label}</span>{ch.detail !== ch.label && <span className="text-ink-soft"> — {ch.detail}</span>}</span></li>)}</ul>
             </section>))}
-          <DiffView />
+          {p.type === "substitute" && <EvidenceTable p={p} onOpen={onOpen} />}
         </>}
         {p && tab === "trace" && resp && (
           <ol className="relative space-y-3 border-l-2 border-rule pl-4 text-[13px]">

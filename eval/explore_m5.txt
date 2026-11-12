@@ -1,0 +1,33 @@
+# M5 exploratory messages: substitutions as a real person might phrase them. Each "## " block is a fresh session.
+## banana bread, typos, option switch, forced
+find a banana bread recipe
+show me the frist one
+no eggs in this pls
+use the second option instead
+adapt it anyway
+## make it vegan
+find a pancake recipe
+show me the first one
+make it vegan
+## user-named swap, then two at once
+find a chocolate chip cookie recipe
+show me the first one
+replace butter with coconut oil
+take out the butter and the eggs
+## demo 8 with follow-up allergies
+Replace cream in this pasta recipe without dairy
+I'm also allergic to tree nuts
+the second option
+remove the parmesan too
+## no evidence, defining ingredient, typo verb
+remove the saffron from this paella
+remove the chicken from this chicken curry
+substitue the eggs in this quiche
+## Hinglish, absent ingredient
+paneer butter masala recipe
+show me the first one
+isme makhan nahi chahiye
+remove the eggs
+## no recipe in context
+remove the eggs
+replace milk with almond milk

@@ -1,7 +1,7 @@
 """Exploratory run of eval/explore.txt through the real API (TestClient over data/recipes.db; the real LLM when
 GEMINI_API_KEY is set). Writes eval/explore_transcripts/one_session.md (every message in one session) and
 fresh_sessions.md (one session per '## ' block), plus a one-line-per-turn summary to stdout.
-Run: python eval/explore.py   (the per-session rate limit is lifted for the run)
+Run: python eval/explore.py [eval/explore_m5.txt]   (other files write <stem>_*.md; the rate limit is lifted)
 """
 import sys
 from pathlib import Path
@@ -13,12 +13,14 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import api  # noqa: E402
 
 OUT = ROOT / "eval" / "explore_transcripts"
+SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "eval" / "explore.txt"
+TAG = "" if SRC.name == "explore.txt" else SRC.stem.replace("explore_", "") + "_"
 
 
 def blocks() -> list[tuple[str, list[str]]]:
     """[(block title, messages)] from explore.txt."""
     out = []
-    for line in (ROOT / "eval" / "explore.txt").read_text(encoding="utf-8").splitlines():
+    for line in SRC.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
             out.append((line[3:].strip(), []))
         elif line.strip() and not line.startswith("#"):
@@ -49,6 +51,7 @@ def run(c: TestClient, title: str, msgs: list[str]) -> list[str]:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # recipe titles and arrows on a cp1252 console
     """Run all messages as one session, then each block as a fresh session."""
     api.RATE = 10_000
     OUT.mkdir(parents=True, exist_ok=True)
@@ -56,8 +59,8 @@ def main() -> None:
     with TestClient(api.app) as c:
         one = run(c, "one session (all messages)", [m for _, ms in bs for m in ms])
         fresh = [line for t, ms in bs for line in run(c, t, ms)]
-    (OUT / "one_session.md").write_text("# Exploratory run: one session\n\n" + "\n".join(one), encoding="utf-8")
-    (OUT / "fresh_sessions.md").write_text("# Exploratory run: fresh sessions\n\n" + "\n".join(fresh), encoding="utf-8")
+    (OUT / f"{TAG}one_session.md").write_text("# Exploratory run: one session\n\n" + "\n".join(one), encoding="utf-8")
+    (OUT / f"{TAG}fresh_sessions.md").write_text("# Exploratory run: fresh sessions\n\n" + "\n".join(fresh), encoding="utf-8")
 
 
 if __name__ == "__main__":

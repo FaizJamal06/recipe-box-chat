@@ -1,1 +1,64 @@
-# roles.yaml - filled in M1/M5 (see PRD 4.5 / 6.4)
+# What an ingredient does in a dish (PRD 6.4 step 2): (ingredient, dish context) -> roles. Read at runtime.
+# Contexts (evidence.contexts): baked, pasta, dessert_cold, savory; "*" = any context. Keys are vocab canonicals or
+# families; a canonical is looked up before its family (egg white before egg). An unknown pair falls back to the
+# LLM, labelled "model reasoning, not dataset evidence".
+roles:
+  egg:
+    baked: [binding, leavening, moisture, structure]
+    dessert_cold: [setting, richness]
+    pasta: [binding, richness]
+    savory: [binding]
+  egg white:
+    baked: [foam, leavening, structure]
+    dessert_cold: [foam, setting]
+    "*": [binding]
+  egg yolk:
+    "*": [richness, emulsifying, setting]
+  cream:
+    pasta: [richness, body]
+    savory: [richness, body]
+    dessert_cold: [richness, body]
+    baked: [moisture, richness]
+  butter:
+    baked: [fat, tenderness, flavor]
+    "*": [fat, flavor]
+  milk:
+    baked: [liquid, moisture]
+    "*": [liquid]
+  sour cream:
+    "*": [moisture, tang, richness]
+  yogurt:
+    "*": [moisture, tang]
+  cheese:
+    pasta: [flavor, saltiness, body]
+    "*": [flavor, body]
+  parmesan cheese:
+    "*": [flavor, saltiness]
+  honey:
+    "*": [sweetness, moisture]
+  sugar:
+    baked: [sweetness, moisture, browning]
+    "*": [sweetness]
+  oil:
+    baked: [fat, moisture]
+    "*": [fat]
+  flour:
+    baked: [structure]
+    "*": [thickening]
+  peanut butter:
+    "*": [flavor, fat, body]
+
+# A dish word in the title -> the ingredients that define that dish. Removing one makes it a different dish, so the
+# bot warns and asks before adapting. (An ingredient named in the title, chicken in "Chicken Curry", also counts.)
+defining:
+  meringue: [egg white, egg]
+  angel food: [egg white, egg]
+  pavlova: [egg white, egg]
+  macaron: [egg white]
+  souffle: [egg]
+  custard: [egg, egg yolk]
+  mayonnaise: [egg, egg yolk]
+  carbonara: [egg, egg yolk]
+  alfredo: [cream, butter]
+  cheesecake: [cream cheese]
+  hollandaise: [egg yolk, butter]

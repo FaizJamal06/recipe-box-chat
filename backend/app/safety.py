@@ -126,3 +126,36 @@ def summary(n: int) -> str:
     """The one line that replaces per-card noise: unverified recipes are ranked last and folded."""
     return (f"{n:,} more recipe{' matches' if n == 1 else 's match'} but {'has' if n == 1 else 'have'} an "
             "ingredient I couldn't verify; turn on strict to hide them")
+
+
+def verify_canonical(name: str, tags, known) -> tuple[bool, str]:
+    """Is a single ingredient (a substitute candidate) verified free of every tag? A lexicon hit decides first
+    ('almond milk' contains tree_nut even if the dataset never used it); then unknown is not safe."""
+    found = dict(nz.tags_for(nz.clean_text(name)))
+    for t in tags:
+        if found.get(t) == "contains":
+            return False, f"contains {t}"
+        if found.get(t) == "may_contain":
+            return False, f"may contain {t} (label-dependent)"
+    canon = (nz.normalize(name, known) or [nz.clean_text(name)])[0]
+    if canon not in known:
+        return False, f"couldn't verify '{name}': not a known dataset ingredient (unknown is not safe)"
+    return True, ""
+
+
+def check_lines(raws: list[str], tags, known) -> list[tuple[str, str]]:
+    """[(line, reason)] for ingredient lines that contain, may contain, or can't be verified free of a tag."""
+    out = []
+    for raw in raws:
+        items = nz.parse_line(raw)
+        if items and (items[0].is_header or items[0].not_food):
+            continue
+        scan = dict(nz.line_tags(raw))
+        unv = set().union(*(item_unverified([o.canonical for o in it.options], raw, known) for it in items)) \
+            if items else item_unverified([None], raw, known)
+        for t in tags:
+            if scan.get(t):
+                out.append((raw, f"{'contains' if scan[t] == 'contains' else 'may contain'} {t}"))
+            elif t in unv:
+                out.append((raw, f"couldn't be verified for {t}"))
+    return out

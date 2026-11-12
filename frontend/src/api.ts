@@ -23,7 +23,7 @@ export type Calc = {
   n_analyzed: number;
   denominator: number;
   method: string;
-  sql: string;
+  sql: string | null;
   normalization_note: string;
   notes: string[];
 };
@@ -43,8 +43,22 @@ export type Recipe = {
             is_alt: number; is_header: number; is_not_food: number }[];
 };
 
+export type TierCounts = { n_with: number; in_with: number; n_without: number; support: number; lift: number };
+export type Candidate = { name: string; kind: string; label: string; roles: string[]; strength: Strength;
+                          conflicting: boolean; explicit: string[]; ids: string[]; quantity: string;
+                          snippets: { id: string; text: string }[]; tiers: Record<"L1" | "L2" | "L3", TierCounts> };
+export type Strength = "Strong" | "Moderate" | "Weak" | "None";
+export type SubPart = { item: string; affected: string[]; roles: string[]; target_qty: string;
+                        conflicting: boolean; strength: Strength; chosen: string | null; candidates: Candidate[];
+                        rejected: { name: string; reason: string }[] };
+export type Adaptation = { ingredients: { op: "keep" | "remove" | "add"; text: string }[];
+                           steps: { n: number; old: string; text: string; changed: boolean; reason: string }[];
+                           prep: string[]; source: "model" | "fallback"; gate: { what: string; reason: string }[];
+                           verified: string[]; predicted: string | null; predicted_status: string;
+                           safety_line: string | null; caveat: string };
+
 export type Payload = {
-  type: "search" | "match" | "stats" | "recipe" | "unsupported" | "text";
+  type: "search" | "match" | "stats" | "recipe" | "unsupported" | "text" | "substitute";
   cards: Card[];
   calc?: Calc[];
   total?: number;
@@ -55,6 +69,16 @@ export type Payload = {
   more_cards?: Card[];  // lenient mode: recipes with an ingredient that couldn't be verified, ranked last
   n_unverified?: number;
   postcheck: { ids_in_reply: number; stripped: string[] };
+  // substitution (type "substitute")
+  target?: { id: string; title: string };
+  context?: string;
+  dish?: string;
+  tiers?: Record<string, number>;
+  restrictions?: string[];
+  question?: string;
+  notes?: string[];
+  parts?: SubPart[];
+  adaptation?: Adaptation | null;
 };
 
 export type State = {

@@ -41,6 +41,16 @@ Format: `- [area] example line -> what happens now -> what it should do`
   Shrinking it honestly = more synonyms/descriptors so those names land on known canonicals, not a looser rule.
   Note-like lines ("Ingredient info: ... available at ...", "*Also known as ...") are ~2% of them: make them not_food.
 
+- [substitution, from M5] (no DB rebuild in M5; roles.yaml / candidates.yaml are read at runtime)
+  - "aquafaba" is in 3 recipes (< vocab_min 5) -> unknown canonical, so it is rejected as unverified for egg whites
+    -> lower the bar for curated candidates, or add aquafaba with tags (egg-free, legume) and accept it
+  - compound lines "Butter and maple syrup", "Salt and pepper" -> one line, so removing butter drops the syrup in the
+    adapted list -> split "X and Y" lines into two parsed items
+  - roles.yaml has no saffron / chicken / meat entries -> role "unknown" (model guess only inside an adaptation)
+    -> add roles for the common proteins and spices
+  - "pancake mix", "cake mix", "baking mix" are dairy/egg may_contain -> correct, but common in demos; consider
+    "may contain" wording on the gate rather than a hard ✗ when the line is a labelled mix
+
 ## Done
 
 - 2026-11-12 [safety] unknown is not safe (safety.py, `unverified` table); soy, sesame, honey, gelatin, alcohol,

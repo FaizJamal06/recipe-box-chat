@@ -15,6 +15,9 @@ export const DEMO_PROMPTS = [
   "I have eggs, onions, tomatoes, and rice. Suggest five recipes using as many as possible, no peanuts, at most six steps, fewest additional ingredients.",
   "I have saffron and marshmallows, no sugar, at most 2 steps",
   "How many recipes are dairy-free?",
+  "Take this banana bread recipe and remove eggs. Use only ingredients that appear in the dataset. What replacements have evidence from related baked recipes, and how might the texture change?",
+  "Replace cream in this pasta recipe without dairy. Prefer examples from the database.",
+  "Remove the egg whites from this meringue / angel food cake",
 ];
 
 function PlannerBadge({ p }: { p: Planner }) {

@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import llm, rules, talk, voice, web
+from . import evidence, llm, rules, talk, voice, web
 from .config import DB, ROOT
 from .db import connect, fingerprint, load_dataset
 from .session import Session, SessionState
@@ -47,6 +47,7 @@ async def lifespan(_: FastAPI):
     if DB.exists():
         APP["con"] = con = connect(DB)
         APP["ds"] = load_dataset(con)
+        evidence.contexts(con)  # dish contexts for substitution, built once (~5 s) so the first substitution is fast
         rows = con.execute("SELECT source, COUNT(*), SUM(valid) FROM recipes GROUP BY source ORDER BY source")
         APP["health"] = {"sources": {s: {"records": n, "valid": v} for s, n, v in rows}, "fingerprint": fingerprint(con)}
     APP["warm"] = llm.warm()

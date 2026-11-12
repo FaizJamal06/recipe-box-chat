@@ -24,6 +24,7 @@ class SessionState:
     selected_recipe_id: str | None = None
     history: list = field(default_factory=list)  # (user text, first reply line), last 6
     kept_note: bool = False
+    sub: dict | None = None  # the current substitution (recipe, removed items, option, ...), see subflow.py
 
     @property
     def last_titles(self) -> list[tuple[str, str]]:
@@ -39,4 +40,5 @@ class SessionState:
         c += [f"have: {', '.join(self.have)}"] if self.have else []
         c += [f"prefs: {', '.join(self.prefs)}"] if self.prefs else []
         c += [f"selected: {self.selected_recipe_id}"] if self.selected_recipe_id else []
+        c += [f"removing: {', '.join(self.sub['removes'] + self.sub['remove_tags'])}"] if self.sub else []
         return " · ".join(c) or "(empty)"
