@@ -14,6 +14,7 @@ export type Card = {
   score?: number;
   parts?: Record<string, number>;
   staples?: string[];
+  summary?: string;  // match cards: 'Uses 2 of your 3 ingredients · nothing extra to buy · 3 steps'
 };
 
 export type Calc = {
@@ -69,6 +70,7 @@ export type Payload = {
   more_cards?: Card[];  // lenient mode: recipes with an ingredient that couldn't be verified, ranked last
   n_unverified?: number;
   postcheck: { ids_in_reply: number; stripped: string[] };
+  dev_md?: string[];  // raw filters, dataset breakdown, formulas: shown only in developer view
   // substitution (type "substitute")
   target?: { id: string; title: string };
   context?: string;

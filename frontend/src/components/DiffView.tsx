@@ -48,9 +48,10 @@ export function EvidenceTable({ p, onOpen }: { p: Payload; onOpen: (id: string) 
                   <div className="text-[10.5px] text-ink-soft">{c.label}{c.conflicting && " · ⚠ conflicting"}</div></td>
                 <td className="pr-2">{c.roles.join(", ") || "—"}</td>
                 <td className="pr-2">{t ? t[0] + (c.explicit.length && t[0] === "L1" ? " (explicit)" : "") : "—"}</td>
+                {c.kind === "omit" ? <td colSpan={3} className="pr-2 text-[11px]">{t ? <>{rate(t[1].n_without, t[1].n_without + t[1].n_with)} go without it</> : "—"}</td> : <>
                 <td className="pr-2 font-mono text-[11px]">{t ? rate(t[1].support, t[1].n_without) : "0"}</td>
                 <td className="pr-2 font-mono text-[11px]">{t ? rate(t[1].in_with, t[1].n_with) : "—"}</td>
-                <td className="pr-2 font-mono text-[11px]">{t ? t[1].lift : "—"}</td>
+                <td className="pr-2 font-mono text-[11px]">{t ? t[1].lift : "—"}</td></>}
                 <td className="pr-2"><Badge s={c.strength} /></td>
                 <td><div className="flex flex-wrap gap-1">{c.ids.slice(0, 3).map((id) => <IdLink key={id} id={id} onOpen={onOpen} />)}</div></td>
               </tr>;
@@ -85,7 +86,7 @@ export function DiffView({ p }: { p: Payload }) {
     <section className="space-y-3 rounded-lg border border-rule bg-paper p-3 text-[12.5px]">
       <h3 className="font-display text-[14px] font-semibold">Adapted: {p.target?.title}</h3>
       {a.caveat && <p className="rounded border border-warn/30 bg-warn-soft px-2 py-1 text-warn">⚠ {a.caveat}</p>}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Col title="Original ingredients">{a.ingredients.filter((d) => d.op !== "add").map((d, i) =>
           <li key={i}><span className={d.op === "remove" ? del : ""}>{d.text}</span></li>)}</Col>
         <Col title="Adapted ingredients">{a.ingredients.filter((d) => d.op !== "remove").map((d, i) =>

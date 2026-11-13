@@ -62,11 +62,11 @@ function ScoreBar({ parts }: { parts: Record<string, number> }) {
   );
 }
 
-export function RecipeCard({ card, rank, onOpen, flagged, warned }: { card: Card; rank?: number;
-  onOpen: (id: string) => void; flagged?: boolean; warned?: boolean }) {
+export function RecipeCard({ card, rank, onOpen, flagged, warned, dev = false }: { card: Card; rank?: number;
+  onOpen: (id: string) => void; flagged?: boolean; warned?: boolean; dev?: boolean }) {
   return (
     <article onClick={() => onOpen(card.id)}
-             className={`group cursor-pointer rounded-lg border bg-paper p-3.5 shadow-[0_1px_0_rgba(43,36,32,0.06)] transition
+             className={`group min-w-0 cursor-pointer break-words rounded-lg border bg-paper p-3.5 shadow-[0_1px_0_rgba(43,36,32,0.06)] transition
                          hover:-translate-y-px hover:shadow-md ${flagged ? "border-bad/40" : warned ? "border-warn/40" : "border-rule hover:border-tomato/40"}`}>
       <div className="flex items-start gap-2">
         {rank !== undefined && <span className="font-display text-lg leading-6 text-tomato">{rank}</span>}
@@ -77,13 +77,14 @@ export function RecipeCard({ card, rank, onOpen, flagged, warned }: { card: Card
             <IdPill id={card.id} onOpen={onOpen} />
             <SourceBadge source={card.source} />
             <span>{plural(card.n_ingredients, "ingredient")}</span><span aria-hidden>·</span><span>{plural(card.n_steps, "step")}</span>
-            {card.score !== undefined && <span className="ml-auto font-mono text-ink">score {card.score.toFixed(2)}</span>}
+            {dev && card.score !== undefined && <span className="ml-auto font-mono text-ink">score {card.score.toFixed(2)}</span>}
           </div>
+          {card.summary && <p className="mt-1 text-[13px] text-ink">{card.summary}</p>}
         </div>
       </div>
       {card.chips.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1">
         {card.chips.map((c, i) => <ChipView key={i} chip={c} />)}</div>}
-      {card.parts && <ScoreBar parts={card.parts} />}
+      {dev && card.parts && <ScoreBar parts={card.parts} />}
     </article>
   );
 }

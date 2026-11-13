@@ -120,7 +120,7 @@ def _calc(r: Result) -> dict:
             "notes": r.notes}
 
 
-MODE_TEXT = {"strict": "the ingredient itself", "broad": "also its processed forms (powders, salts, pastes)"}
+MODE_TEXT = {"strict": "the ingredient itself", "broad": "also processed forms like powders and salts"}
 
 
 def _stats(con, ds: Dataset, res, plan: dict) -> tuple[list[str], list[str], dict]:
@@ -129,8 +129,8 @@ def _stats(con, ds: Dataset, res, plan: dict) -> tuple[list[str], list[str], dic
     r0, md, what = results[0], [], _plain(results[0].filters)
     payload = {"type": "stats", "op": r0.op, "calc": [_calc(r) for r in results], "cards": [], "rows": []}
     if isinstance(res, list):
-        md += [f"{what[0].upper() + what[1:]}, of {ds.valid:,} recipes:"]
-        md += [f"- **{r.value:,}** ({100 * r.value / r.denominator:.2f}%) counting {MODE_TEXT[r.mode]} ({r.mode})"
+        md += [f"{what[0].upper() + what[1:]}, out of {ds.valid:,}:"]
+        md += [f"- **{r.value:,}** ({100 * r.value / r.denominator:.2f}%) — {MODE_TEXT[r.mode]} ({r.mode})"
                if len(results) > 1 else f"- **{r.value:,}** ({100 * r.value / r.denominator:.2f}%)" for r in results]
     elif r0.op == "rank":
         base, fld = _base(con, r0.value), plan["stats"]["field"].replace("n_", "")

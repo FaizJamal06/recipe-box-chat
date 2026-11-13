@@ -2,13 +2,17 @@ import { Fragment, type ReactNode } from "react";
 import { IdPill } from "./RecipeCard";
 
 // Renders the backend's templated markdown subset (web.py): one block per line; '- ' and '1. ' list items,
-// '> ' callouts; inline **bold**, _italic_, `code`. A code span holding a recipe id becomes a clickable IdPill.
+// '> ' callouts; inline **bold**, _italic_, `code`, [Title](recipe id). A title link opens the recipe drawer; a code
+// span holding a recipe id becomes a clickable IdPill.
 // Builds React elements only (no innerHTML), so recipe text can't inject markup.
 const ID = /^(ar|epi|fn):\S+$/;
 
 function inline(text: string, onOpen: (id: string) => void): ReactNode[] {
   // _italic_ only at word edges, so tag names like may_contain stay literal
-  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|(?<!\w)_[^_]+_(?!\w))/g).map((part, i) => {
+  return text.split(/(\[[^\]]+\]\((?:ar|epi|fn):[^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`|(?<!\w)_[^_]+_(?!\w))/g).map((part, i) => {
+    const link = part.match(/^\[([^\]]+)\]\(((?:ar|epi|fn):[^)\s]+)\)$/);  // [Title](recipe id): opens the drawer
+    if (link) return <button key={i} type="button" onClick={() => onOpen(link[2])} title="Open recipe"
+                             className="font-semibold text-ink underline decoration-tomato/40 underline-offset-2 hover:text-tomato cursor-pointer text-left">{link[1]}</button>;
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
     if (part.startsWith("`") && part.endsWith("`")) {
       const code = part.slice(1, -1);

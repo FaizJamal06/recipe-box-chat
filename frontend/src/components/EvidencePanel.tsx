@@ -18,32 +18,45 @@ function Field({ k, children }: { k: string; children: React.ReactNode }) {
     <dt className="text-ink-soft">{k}</dt><dd className="min-w-0">{children}</dd></div>;
 }
 
-function CalcBlock({ c }: { c: Calc }) {
+/** One sentence first: what was computed, over what. */
+function summary(c: Calc): string {
+  const n = (x: number) => x.toLocaleString();
+  if (typeof c.value === "number" && (c.label === "strict" || c.label === "broad"))
+    return `${n(c.value)} of ${n(c.denominator)} recipes (${(100 * c.value / c.denominator).toFixed(2)}%), counting ${c.label === "strict" ? "the ingredient itself" : "its processed forms too"}.`;
+  if (c.label === "search" || c.label === "match")
+    return `${n(c.value as number)} recipes pass every filter, out of ${n(c.denominator)}.`;
+  if (c.label === "substitution") return `${n(c.value as number)} usable replacement candidates, graded on ${n(c.n_analyzed)} recipes.`;
+  const v = Array.isArray(c.value) ? `${c.value.length} recipes` : typeof c.value === "number" ? n(c.value) : String(c.value);
+  return `${c.label[0].toUpperCase() + c.label.slice(1)}: ${v}, computed over ${n(c.n_analyzed)} recipes.`;
+}
+
+function CalcBlock({ c, dev }: { c: Calc; dev: boolean }) {
   const [copied, setCopied] = useState(false);
   const value = Array.isArray(c.value) ? `${c.value.length} rows` : typeof c.value === "number" ? c.value.toLocaleString() : String(c.value);
   return (
     <section className="rounded-lg border border-rule bg-paper p-4">
-      <div className="mb-1 flex items-baseline justify-between">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
         <h3 className="font-display text-base font-semibold capitalize">{c.label}</h3>
         <span className="font-display text-2xl text-tomato">{value}</span>
       </div>
-      <dl className="divide-y divide-rule/70">
-        <Field k="Filters">{c.filters}</Field>
-        <Field k="N analyzed">{c.n_analyzed.toLocaleString()}</Field>
-        <Field k="Denominator">{c.denominator.toLocaleString()} valid recipes</Field>
-        <Field k="Method">{c.method}</Field>
-        {c.normalization_note && <Field k="Normalization">{c.normalization_note}</Field>}
+      <p className="text-[13.5px] text-ink">{summary(c)}</p>
+      <dl className="mt-1 divide-y divide-rule/70">
+        <Field k="How">{c.method}</Field>
         {c.notes.map((n, i) => <Field key={i} k="Note">{n}</Field>)}
+        {dev && <Field k="Filters">{c.filters}</Field>}
+        {dev && <Field k="N analyzed">{c.n_analyzed.toLocaleString()}</Field>}
+        {dev && <Field k="Denominator">{c.denominator.toLocaleString()} valid recipes</Field>}
+        {dev && c.normalization_note && <Field k="Normalization">{c.normalization_note}</Field>}
       </dl>
-      {c.sql && <div className="mt-2">
-        <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-[0.12em] text-ink-soft">
-          <span>SQL (exact query)</span>
-          <button type="button" className="normal-case tracking-normal hover:text-tomato cursor-pointer"
+      {dev && c.sql && <details className="mt-2">
+        <summary className="cursor-pointer text-[11px] uppercase tracking-[0.12em] text-ink-soft hover:text-ink">Show query</summary>
+        <div className="mt-1 flex justify-end text-[11px] text-ink-soft">
+          <button type="button" className="hover:text-tomato cursor-pointer"
                   onClick={() => navigator.clipboard?.writeText(c.sql!).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); })}>
             {copied ? "copied ✓" : "copy"}</button>
         </div>
         <pre className="scroll-thin max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-ink px-3 py-2 font-mono text-[11.5px] leading-relaxed text-cream">{c.sql}</pre>
-      </div>}
+      </details>}
     </section>
   );
 }
@@ -54,22 +67,22 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 /** Right panel: Results (cards) · Calculation (filters, N, denominator, method, SQL, normalization) ·
  *  Evidence (per-recipe proof lines; substitution evidence table) · Trace (pipeline steps). */
-export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: ChatResponse | null; tab: Tab;
-  setTab: (t: Tab) => void; onOpen: (id: string) => void; onStrict: () => void }) {
+export function EvidencePanel({ resp, tab, setTab, dev, onOpen, onStrict }: { resp: ChatResponse | null; tab: Tab;
+  setTab: (t: Tab) => void; dev: boolean; onOpen: (id: string) => void; onStrict: () => void }) {
   const p = resp?.payload;
   const [showMore, setShowMore] = useState(false);
   useEffect(() => { setShowMore(false); }, [resp]);  // fold again for every new answer
   const nUnv = p?.n_unverified ?? 0;
   return (
-    <aside className="flex min-h-0 flex-col border-l border-rule bg-cream/60">
-      <nav className="flex gap-1 border-b border-rule px-4 pt-3" role="tablist">
-        {TABS.map(([t, label]) => (
+    <aside className="flex flex-col border-t border-rule bg-cream/60 min-[900px]:min-h-0 min-[900px]:border-l min-[900px]:border-t-0">
+      <nav className="flex gap-1 overflow-x-auto border-b border-rule px-4 pt-3" role="tablist">
+        {TABS.filter(([t]) => dev || t !== "trace").map(([t, label]) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
                   className={`-mb-px rounded-t-md border-b-2 px-3 pb-2 pt-1 text-[13.5px] cursor-pointer ${tab === t
                     ? "border-tomato font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink"}`}>{label}</button>
         ))}
       </nav>
-      <div className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="scroll-thin space-y-3 p-4 min-[900px]:min-h-0 min-[900px]:flex-1 min-[900px]:overflow-y-auto">
         {!p && <Empty>Results, calculations and evidence for each answer appear here.</Empty>}
         {p && tab === "results" && <>
           {p.type === "substitute" && <DiffView p={p} />}
@@ -77,7 +90,7 @@ export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: C
             <span className="text-[12px] text-ink-soft">{p.total !== undefined ? `${(p.total - nUnv).toLocaleString()} ${nUnv ? "fully verified" : "eligible"} · showing ${p.cards.length}` : `${p.cards.length} shown`}</span>
             <Legend /></div>}
           {(p.type === "substitute" ? p.cards.slice(0, 1) : p.cards).map((c, i) =>
-            <RecipeCard key={c.id} card={c} rank={p.cards.length > 1 && p.type !== "substitute" ? i + 1 : undefined} onOpen={onOpen} />)}
+            <RecipeCard key={c.id} card={c} rank={p.cards.length > 1 && p.type !== "substitute" ? i + 1 : undefined} onOpen={onOpen} dev={dev} />)}
           {nUnv > 0 && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warn/30 bg-warn-soft px-3 py-2 text-[12.5px] text-warn"
                             title="Unknown is not safe: these recipes name an ingredient the allergen lexicon doesn't know">
             <span>⚠ {nUnv.toLocaleString()} more recipe{nUnv === 1 ? " matches" : "s match"} but {nUnv === 1 ? "has" : "have"} an ingredient I couldn't verify.</span>
@@ -88,7 +101,7 @@ export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: C
                 {showMore ? "hide them" : `show ${p.more_cards!.length === nUnv ? "them" : `the top ${p.more_cards!.length}`}`}</button></>}
           </div>}
           {showMore && (p.more_cards ?? []).map((c, i) =>
-            <RecipeCard key={c.id} card={c} rank={p.cards.length + i + 1} onOpen={onOpen} warned />)}
+            <RecipeCard key={c.id} card={c} rank={p.cards.length + i + 1} onOpen={onOpen} warned dev={dev} />)}
           {p.rows && p.rows.length > 0 && <ol className="space-y-1 rounded-lg border border-rule bg-paper p-4 text-[13.5px]">
             {p.rows.map((r) => <li key={r.name} className="flex justify-between"><span>{r.name}</span>
               <span className="font-mono text-ink-soft">{r.recipes.toLocaleString()}</span></li>)}</ol>}
@@ -98,13 +111,13 @@ export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: C
             {(p.alternatives ?? []).map((a) => (
               <section key={a.violates} className="rounded-lg border border-dashed border-bad/50 p-3">
                 <h3 className="mb-2 text-[12.5px] font-semibold text-bad">⚠ NOT a match — violates “{a.violates}”</h3>
-                <div className="space-y-2">{a.cards.length ? a.cards.map((c) => <RecipeCard key={c.id} card={c} onOpen={onOpen} flagged />)
+                <div className="space-y-2">{a.cards.length ? a.cards.map((c) => <RecipeCard key={c.id} card={c} onOpen={onOpen} flagged dev={dev} />)
                   : <p className="text-[12.5px] text-ink-soft">None, even with this constraint relaxed.</p>}</div>
               </section>))}
           </>}
           {p.cards.length === 0 && !nUnv && !p.rows?.length && p.type !== "match" && <Empty>No recipes in this answer.</Empty>}
         </>}
-        {p && tab === "calc" && ((p.calc ?? []).length ? p.calc!.map((c, i) => <CalcBlock key={i} c={c} />)
+        {p && tab === "calc" && ((p.calc ?? []).length ? p.calc!.map((c, i) => <CalcBlock key={i} c={c} dev={dev} />)
           : <Empty>This answer ran no calculation.</Empty>)}
         {p && tab === "evidence" && <>
           {p.cards.filter((c) => c.chips.length).map((c) => (
@@ -116,7 +129,7 @@ export function EvidencePanel({ resp, tab, setTab, onOpen, onStrict }: { resp: C
             </section>))}
           {p.type === "substitute" && <EvidenceTable p={p} onOpen={onOpen} />}
         </>}
-        {p && tab === "trace" && resp && (
+        {p && dev && tab === "trace" && resp && (
           <ol className="relative space-y-3 border-l-2 border-rule pl-4 text-[13px]">
             {resp.trace.map((t, i) => <li key={i} className="relative"><span className="absolute -left-[1.4rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-cream bg-tomato" />
               <span className="font-medium">{t.split(":")[0]}</span><span className="text-ink-soft">{t.slice(t.indexOf(":"))}</span></li>)}
