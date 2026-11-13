@@ -6,6 +6,7 @@ few key lines). view(con, res): (summary, payload) where the payload has the evi
 rejected ones with reasons), the ingredient/step diff, verified vs predicted effects, the final safety gate, and cards
 for every recipe id the reply cites (so the post-check keeps them).
 """
+from . import omit
 from .evidence import MIN_L1, MIN_WITHOUT, fmt_lift
 
 METHOD = ("Evidence tiers: L1 = recipes whose title has the most specific dish phrase with ≥ 10 recipes, ≥ 3 of "
@@ -25,6 +26,8 @@ METHOD = ("Evidence tiers: L1 = recipes whose title has the most specific dish p
 def _counts(res, item: str, c) -> str:
     """'1/13 'banana bread' recipes without eggs vs 10/178 with (L1, lift too few to compute) · 0 of 9 similar (L2)'."""
     t, a = c.tiers, c.tiers["L1"]
+    if c.kind == "omit":
+        return omit.summary(c, item, " ".join(res.dish))
     s = (f"{a.support}/{a.n_without} '{' '.join(res.dish)}' recipes without {item} vs {a.in_with}/{a.n_with} with "
          f"(L1, lift {fmt_lift(a.lift)})")
     if a.support < 3:
@@ -42,6 +45,9 @@ def because(p) -> str:
         return f"Chosen because you picked option {i + 1}."
     a = c.tiers["L1"]
     nxt = next((x for x in p.candidates if x is not c), None)
+    if c.kind == "omit":  # 'Chosen because: Strong, 8 of 18 'broiled chicken' recipes have no salt.'
+        return f"Chosen because: {c.strength}, {a.n_without} of {a.n_with + a.n_without} L1 recipes have no {p.item}" + (
+            f"; next: {nxt.name} ({nxt.strength})." if nxt else "; nothing else qualified.")
     return (f"Chosen because: {c.strength}, {'conflicting (so is every option)' if c.conflicting else 'not conflicting'}, "
             f"{a.support}/{a.n_without} L1 recipes without {p.item} use it (lift {fmt_lift(a.lift)})" +
             (f"; next: {nxt.name} ({nxt.strength}{', conflicting' if nxt.conflicting else ''}, "
@@ -75,11 +81,9 @@ def summary(res) -> list[str]:
             continue
         add = next((d["text"] for d in (res.adaptation.ingredients if res.adaptation else [])
                     if d["op"] == "add" and not d.get("kept") and p.chosen.name in d["text"]), p.chosen.name)
-        md.append(f"**{p.item.capitalize()} → {add}** in **{res.title}** — **{p.chosen.strength}** evidence. "
-                  + because(p))
-    if res.parts:
-        n = sum(len(p.rejected) for p in res.parts)
-        md.append(_l1(res) + f" · {n} candidate{'' if n == 1 else 's'} rejected.")
+        head = f"Leave out {p.item}" if p.chosen.kind == "omit" else f"{p.item.capitalize()} → {add}"
+        md.append(f"**{head}** in **{res.title}** — **{p.chosen.strength}** evidence. " + because(p))
+    md += [_l1(res)] if res.widened.startswith("widened") else []  # demo 8: say that the comparison was widened
     md += [f"> {res.question}"] if res.question else []
     md += ([f"> ⚠ {res.adaptation.caveat}"] if res.adaptation.caveat else []) + _gate(res) if res.adaptation \
         else [f"> {n}" for n in res.notes]
@@ -171,4 +175,6 @@ def view(con, res) -> tuple[list[str], dict]:
                          "an ingredient already in the recipe, your pick, and data-discovered co-occurrences (lift ≥ 2, "
                          "support ≥ 3). Unknown is not safe: a candidate must be verified against every restriction.",
                          "notes": res.notes}]}
+    k = sum(len(p.rejected) for p in res.parts)
+    payload["dev_md"] = [_l1(res) + f" · {k} candidate{'' if k == 1 else 's'} rejected."] if res.parts else []
     return summary(res), payload

@@ -15,7 +15,7 @@ import re
 import sqlite3
 from dataclasses import dataclass, field
 
-from . import amounts, llm, safety, voice
+from . import amounts, llm, omit, safety, voice
 from . import normalize as nz
 from .evidence import fmt_lift
 from .search import SAFE
@@ -98,13 +98,16 @@ def validate_steps(orig: list[str], new: list[dict], rx: re.Pattern, subs: list[
 
 
 def fallback_steps(orig: list[str], swaps: list[tuple[re.Pattern, str, str]]) -> list[dict]:
-    """Deterministic rewrite: each mention of a removed item becomes its substitute."""
+    """Deterministic rewrite: each mention of a removed item becomes its substitute ("omit it": taken out)."""
     out = []
     for n, old in enumerate(orig, 1):
         text, why = old, []
         for rx, sub, item in swaps:
             masked = _mask(text)
-            if rx.search(masked):
+            if rx.search(masked) and sub == omit.NAME:
+                text = omit.strip(text, rx, item)
+                why.append(f"{item} left out")
+            elif rx.search(masked):
                 spans = [m.span() for m in rx.finditer(masked)]
                 for a, b in reversed(spans):
                     text = text[:a] + sub + text[b:]
@@ -134,7 +137,7 @@ def facts(res) -> dict:
         "removed": p.item, "substitute": p.chosen.name, "roles": p.roles, "strength": p.chosen.strength,
         "removed_amount_in_similar_recipes": p.target_qty, "substitute_amount": p.chosen.quantity,
         "tiers": {t: {"with": x.n_with, "in_with": x.in_with, "without": x.n_without, "support": x.support,
-                      "lift": fmt_lift(x.lift)}
+                      "total": x.n_with + x.n_without, "lift": fmt_lift(x.lift)}
                   for t, x in p.chosen.tiers.items()}, "ids": p.chosen.ids[:6]} for p in res.parts if p.chosen]}
 
 
@@ -144,6 +147,10 @@ def verified_lines(res) -> list[str]:
     for p in res.parts:
         c, t = p.chosen, p.chosen.tiers
         a = t["L1"]
+        if c.kind == "omit":
+            out.append(f"Leaving out {p.item}: {omit.summary(c, p.item, ' '.join(res.dish))} (L1); "
+                       f"{t['L2'].n_without} of {t['L2'].n_with + t['L2'].n_without} similar recipes (L2).")
+            continue
         out.append(f"{c.name} for {p.item}: used by {a.support} of {a.n_without} '{' '.join(res.dish)}' recipes without "
                    f"{p.item} vs {a.in_with} of {a.n_with} with it (L1, lift {fmt_lift(a.lift)}), {t['L2'].support} of "
                    f"{t['L2'].n_without} similar recipes (L2) and {t['L3'].support:,} of {t['L3'].n_without:,} "
@@ -187,7 +194,7 @@ def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, caveat: str = 
         if len(items) > 1 and any(map(hit, items)):
             diff += [{"op": "add", "text": f"{i.name.clean} (kept from the same line)", "kept": i.name.clean}
                      for i in items if not hit(i)]
-        if p.chosen.name in added:
+        if p.chosen.name in added or p.chosen.kind == "omit":
             continue
         diff.append({"op": "add", "text": _amount(p, ESTIMATE.get(_key(p.spec, ESTIMATE) or "", {}).get(p.chosen.name))})
         added.append(p.chosen.name)
@@ -201,8 +208,9 @@ def build(con: sqlite3.Connection, ds, res, use_llm: bool = True, caveat: str = 
     f = facts(res)
     if use_llm and llm.available():
         prompt = (f"ROLES: {json.dumps({p.item: p.roles or 'unknown' for p in res.parts})}\n"
-                  f"SUBSTITUTIONS: " + "; ".join(f"remove {', '.join(r for _, r in p.affected)} -> use {p.chosen.name}"
-                                                for p in res.parts) +
+                  f"SUBSTITUTIONS: " + "; ".join(f"remove {', '.join(r for _, r in p.affected)} -> " + (
+                      "leave it out (no replacement: take it out of the steps)" if p.chosen.kind == "omit" else
+                      f"use {p.chosen.name}") for p in res.parts) +
                   f"\nINGREDIENTS: {json.dumps([d['text'] for d in diff if d['op'] != 'remove'])}\n"
                   f"EXAMPLES: {json.dumps([s for p in res.parts for _, s in p.chosen.snippets])}\n"
                   f"FACTS: {json.dumps(f)}\nSTEPS:\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(orig, 1)))
@@ -244,7 +252,8 @@ def weak_label(res) -> str:
     for p in (p for p in res.parts if p.chosen.strength == "Weak"):
         t = next((k for k in ("L1", "L2", "L3") if p.chosen.tiers[k].support), "L3")
         n = p.chosen.tiers[t].support
-        out.append(f"Weak evidence for {p.chosen.name}: based on {n:,} recipe{'' if n == 1 else 's'} without "
+        what = f"leaving out {p.item}" if p.chosen.kind == "omit" else p.chosen.name
+        out.append(f"Weak evidence for {what}: based on {n:,} recipe{'' if n == 1 else 's'} without "
                    f"{p.item} ({where[t]}).")
     return " ".join(out)
 

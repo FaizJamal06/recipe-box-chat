@@ -47,6 +47,10 @@ roles:
     "*": [thickening]
   peanut butter:
     "*": [flavor, fat, body]
+  salt:
+    "*": [seasoning]
+  black pepper:
+    "*": [seasoning]
 
 # A dish word in the title -> the ingredients that define that dish. Removing one makes it a different dish, so the
 # bot warns and asks before adapting. (An ingredient named in the title, chicken in "Chicken Curry", also counts.)
@@ -62,3 +66,9 @@ defining:
   alfredo: [cream, butter]
   cheesecake: [cream cheese]
   hollandaise: [egg yolk, butter]
+
+# Items a recipe can usually do without (omit.py): the substitution also offers "omit it", graded by how many same-dish
+# recipes don't use it. A recipe line that says 'optional', 'for garnish', 'to taste', ... counts too.
+optional: [salt, black pepper, pepper, white pepper, parsley, cilantro, chive, basil, mint, dill, green onion, scallion,
+           walnut, pecan, almond, hazelnut, pistachio, cashew, nut, sesame seed, coconut, powdered sugar, sprinkles,
+           red pepper flake, paprika, lemon zest]

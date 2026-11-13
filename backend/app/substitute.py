@@ -1,15 +1,15 @@
 """T3 substitution (PRD 6.4): remove an ingredient from one recipe and propose replacements graded by dataset evidence.
 
-Pipeline per removed item: affected lines (canonical, family or tag match) -> role from lexicon/roles.yaml for the
-dish context -> candidates: curated (lexicon/candidates.yaml), "use more" of something already in the recipe, the
-user's own pick, and data-discovered co-occurrences (lift >= 2, support >= 3 in L1/L2) -> safety: every candidate
-must be verified (safety.verify_canonical) against all active restrictions and the removed item, otherwise it is
-rejected with the reason -> evidence and strength (evidence.py) -> ranking: user pick, curated, then discovered
-(labelled "co-occurs; role not established"). Choice (rank): the user's pick, then never a conflicting candidate
-before a non-conflicting one, then strength, support and lift. An adaptation is built (adapt.py) only when the chosen
-candidate has any support; a Weak one is labelled "Weak evidence: based on n recipes". L1 widens to less
-specific title phrases ("cream sauce" -> "pasta") until every removed item has a Strong or Moderate candidate. A
-defining ingredient (chicken in "Chicken Curry", egg whites in a meringue) makes the bot warn and ask first.
+Per removed item: affected lines (canonical, family or tag match) -> role from lexicon/roles.yaml for the dish context
+-> candidates: curated (lexicon/candidates.yaml), "use more" of something already in the recipe, the user's own pick,
+data-discovered co-occurrences (lift >= 2, support >= 3 in L1/L2), and "omit it" for optional items (omit.py) ->
+safety: every candidate must be verified (safety.verify_canonical) against all active restrictions and the removed
+item, otherwise it is rejected with the reason -> evidence and strength (evidence.py). Choice (rank): the user's pick,
+never a conflicting candidate before a non-conflicting one, then strength, role coverage, support and lift. An
+adaptation is built (adapt.py) only when the chosen candidate has any support; a Weak one is labelled "Weak evidence:
+based on n recipes". L1 widens to less specific title phrases ("cream sauce" -> "pasta") until every removed item has a
+Strong or Moderate candidate. A defining ingredient (chicken in "Chicken Curry", egg whites in a meringue) makes the bot
+warn and ask first.
 """
 import re
 import sqlite3
@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 import yaml
 
-from . import adapt, amounts, evidence, safety, stats
+from . import adapt, amounts, evidence, omit, safety, stats
 from . import normalize as nz
 from .db import Dataset
 from .evidence import STAPLES, STRENGTHS, Spec
@@ -32,7 +32,7 @@ ADAPT_MS = 12_000  # the step rewrite is a deliberate action: a longer cap than 
 @dataclass
 class Cand:
     name: str
-    kind: str  # user | curated | increase | discovered | staple
+    kind: str  # user | curated | increase | discovered | staple | omit
     roles: list = field(default_factory=list)
     tiers: dict = field(default_factory=dict)
     strength: str = "None"
@@ -48,7 +48,7 @@ class Cand:
 
     @property
     def label(self) -> str:
-        return {"user": "your pick", "increase": f"use more {self.name} (already in the recipe)",
+        return {"user": "your pick", "increase": f"use more {self.name} (already in the recipe)", "omit": "leave it out",
                 "discovered": "co-occurs; role not established", "staple": "co-occurs; role not established (staple)",
                 }.get(self.kind, f"curated: {', '.join(self.roles)}")
 
@@ -249,6 +249,8 @@ def run(con: sqlite3.Connection, ds: Dataset, rid: str, removes: list[str], rest
                 ok, why = False, "not a dataset ingredient (dataset only)"
             _evaluate(con, c, fam, withs, spec, marker)
             (allowed.append(c) if ok else part.rejected.append((c.name, why)))
+        if omit.optional(spec, lines):  # salt, a garnish, nuts on top: going without it is an option (adds nothing)
+            allowed.append(omit.grade(Cand(omit.NAME, "omit", list(part.roles)), fam, withs))
         part.candidates = sorted(allowed, key=rank)
         if part.candidates:
             part.chosen = part.candidates[min(max(option, 1), len(part.candidates)) - 1]
