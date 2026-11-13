@@ -19,7 +19,7 @@ from .stats import Result
 from .substitute import Result as SubResult
 
 log = logging.getLogger("recipebox")
-ID_RX = re.compile(r"`((?:ar|epi|fn):[^`\s]+)`")
+ID_RX = re.compile(r"(?:`|\]\()((?:ar|epi|fn):[^`\s)]+)(?:`|\))")  # `id` spans and [Title](id) links
 SEARCH_METHOD = ("FTS5 match on title + ingredients; titles containing the exact phrase first, then BM25 (title "
                  "weighted 3x), then id. Hard filters run in SQL on the complete set before ranking.")
 UNVERIFIED_NOTE = ("{n:,} of these have an ingredient that couldn't be verified for an excluded tag (unknown is not "
@@ -69,14 +69,40 @@ def _card(rid, title, source, n_ing, n_steps, chips=(), **extra) -> dict:
 
 
 def _md_cards(cards: list[dict], extra=lambda c: "", top: int = 5) -> list[str]:
-    """Numbered list of the first `top` cards (the Results panel shows them all)."""
+    """Numbered list of the first `top` cards as clickable titles (the Results panel shows them all, with ids)."""
     n = lambda k, word: f"{k} {word}{'' if k == 1 else 's'}"
-    out = [f"{i}. **{c['title'].strip()}** `{c['id']}` — {n(c['n_ingredients'], 'ingredient')} · "
-           f"{n(c['n_steps'], 'step')}{extra(c)}" for i, c in enumerate(cards[:top], 1)]
+    out = [f"{i}. [{c['title'].strip()}]({c['id']}) — " + (extra(c) or f"{n(c['n_ingredients'], 'ingredient')} · "
+                                                          f"{n(c['n_steps'], 'step')}") for i, c in enumerate(cards[:top], 1)]
     return out + ([f"_… {len(cards) - top} more in the Results panel._"] if len(cards) > top else [])
 
 
-def _match_card(con, r) -> dict:
+def _plain(f: str) -> str:
+    """Executor filter string -> words: 'contains garlic AND contains onion' -> 'recipes that contain garlic and onion'."""
+    if f in ("", "all valid recipes"):
+        return "all recipes"
+    if f.endswith("recipes"):
+        return f
+    f = f.replace(" AND contains ", " and ").replace(" AND no ", " but no ").replace(" AND ", " and ")
+    f = re.sub(r"^contains ", "contain ", f).replace("title contains", "have a title containing")
+    return f"recipes {'with' if f.startswith('no ') else 'that'} {f}"
+
+
+def _with(st) -> str:
+    """' with your restrictions (vegan, no peanuts), at most 5 steps' from the session state ('' when none)."""
+    r, extra = st.restrictions(), ([f"containing {', '.join(st.include)}"] if st.include else []) + (
+        [search.steps_label(st.max_steps)] if st.max_steps is not None else [])
+    return (f" with your restrictions ({', '.join(r)})" if r else "") + ("," if r and extra else "") +         (" " + ", ".join(extra) if extra else "")
+
+
+def readable(r, n_have: int) -> str:
+    """Match card line: 'Uses 2 of your 3 ingredients · nothing extra to buy · 3 steps'."""
+    k = len(r.extra)
+    return (f"Uses {len(r.matched)} of your {n_have} ingredients · " +
+            ("nothing extra to buy" if not k else f"{k} extra ingredient{'' if k == 1 else 's'} to buy") +
+            f" · {r.n_steps} step{'' if r.n_steps == 1 else 's'}")
+
+
+def _match_card(con, r, n_have: int = 0) -> dict:
     t, src, n_ing, n_steps = _base(con, [r.id])[r.id]
     chips = [{"kind": "matched", "label": x, "detail": "you have it"} for x in r.matched] + \
             [{"kind": "extra", "label": x, "detail": "extra ingredient needed"} for x in r.extra] + \
@@ -84,7 +110,8 @@ def _match_card(con, r) -> dict:
             [{"kind": "violation" if "short by" in q else "unused" if "not verified" in q else "ok",
               "label": q.split(" (")[0].split(";")[0], "detail": q} for q in r.qty] + \
             [_chip(w) for w in r.warnings]
-    return _card(r.id, t, src, n_ing, n_steps, chips, score=round(r.score, 2), parts=r.parts, staples=r.staples)
+    return _card(r.id, t, src, n_ing, n_steps, chips, score=round(r.score, 2), parts=r.parts, staples=r.staples,
+                 summary=readable(r, n_have))
 
 
 def _calc(r: Result) -> dict:
@@ -93,42 +120,42 @@ def _calc(r: Result) -> dict:
             "notes": r.notes}
 
 
-def _stats(con, ds: Dataset, res, plan: dict) -> tuple[list[str], dict]:
-    """Markdown + payload for any stats Result(s)."""
+MODE_TEXT = {"strict": "the ingredient itself", "broad": "also its processed forms (powders, salts, pastes)"}
+
+
+def _stats(con, ds: Dataset, res, plan: dict) -> tuple[list[str], list[str], dict]:
+    """(markdown, developer-view lines, payload) for any stats Result(s)."""
     results = res if isinstance(res, list) else [res]
-    r0, md = results[0], []
+    r0, md, what = results[0], [], _plain(results[0].filters)
     payload = {"type": "stats", "op": r0.op, "calc": [_calc(r) for r in results], "cards": [], "rows": []}
     if isinstance(res, list):
-        md.append(f"Recipes where: _{r0.filters}_")
-        md += [f"- **{r.mode}**: **{r.value:,}** of {ds.valid:,} valid recipes = **{100 * r.value / r.denominator:.2f}%**"
-               for r in results]
-        md.append(f"_{ds.header(r0.value)}_")
+        md += [f"{what[0].upper() + what[1:]}, of {ds.valid:,} recipes:"]
+        md += [f"- **{r.value:,}** ({100 * r.value / r.denominator:.2f}%) counting {MODE_TEXT[r.mode]} ({r.mode})"
+               if len(results) > 1 else f"- **{r.value:,}** ({100 * r.value / r.denominator:.2f}%)" for r in results]
     elif r0.op == "rank":
-        base = _base(con, r0.value)
+        base, fld = _base(con, r0.value), plan["stats"]["field"].replace("n_", "")
         payload["cards"] = [_card(rid, *base[rid]) for rid in r0.value]
-        md.append(f"**{len(r0.value)} recipes** ({r0.filters}), {plan['stats']['field'].replace('n_', '')} "
-                  f"{'ascending' if plan['stats']['order'] == 'asc' else 'descending'}:")
+        md.append(f"The **{len(r0.value)}** {what} with the {'fewest' if plan['stats']['order'] == 'asc' else 'most'} "
+                  f"{fld} (out of {r0.n_analyzed:,}):")
         md += _md_cards(payload["cards"])
-        md.append(f"_Analyzed: {ds.header(r0.n_analyzed)}_")
     elif r0.op == "top_ingredients":
         payload["rows"] = [{"name": c, "recipes": n} for c, n in r0.rows]
-        md += [f"Top {len(r0.rows)} ingredients by recipe count ({r0.filters}):"]
+        md += [f"The {len(r0.rows)} most common ingredients in {what} ({r0.n_analyzed:,} recipes):"]
         md += [f"{i}. **{c}** — {n:,} recipes" for i, (c, n) in enumerate(r0.rows, 1)]
-        md.append(f"_Analyzed: {ds.header(r0.n_analyzed)}_")
     else:
-        md.append(f"{r0.op.capitalize()} number of {plan['stats']['field'].replace('n_', '')} ({r0.filters}): "
-                  f"**{r0.value}**")
-        md.append(f"_Analyzed: {ds.header(r0.n_analyzed)}_")
-    if r0.normalization_note:
-        md.append(f"Normalization: {r0.normalization_note}")
-    md += [f"> Note: {n}" for n in r0.notes] + [f"Method: {r0.method}", "_SQL: see the Calculation tab._"]
-    return md, payload
+        md.append(f"The {'median' if r0.op == 'median' else 'average'} number of "
+                  f"{plan['stats']['field'].replace('n_', '')} in {what} is **{r0.value}** ({r0.n_analyzed:,} recipes).")
+    dev = [f"Filters: {r0.filters}", ds.header(r0.value if isinstance(res, list) else r0.n_analyzed)]
+    dev += ([f"Normalization: {r0.normalization_note}"] if r0.normalization_note else []) + \
+        [f"Note: {n}" for n in r0.notes] + [f"Method: {r0.method}"]
+    return md + ["_How it was counted: Calculation tab._"], dev, payload
 
 
 def view(turn: Turn, s: Session) -> tuple[str, dict]:
-    """(reply_md, payload) for one turn."""
-    con, ds, res, intent = s.con, s.ds, turn.result, turn.plan["intent"]
-    md = [f"> {n}" for n in turn.notes]
+    """(reply_md, payload) for one turn. The reply is plain English; raw filter strings, the dataset header with the
+    invalid-records breakdown, methods and score formulas go to payload['dev_md'] (shown only in developer view)."""
+    con, ds, res, intent, st = s.con, s.ds, turn.result, turn.plan["intent"], s.state
+    md, dev = [f"> {n}" for n in turn.notes], []
     if isinstance(res, SearchResult):
         card = lambda h: _card(h.id, h.title, h.source, h.n_ingredients, h.n_steps, map(_chip, h.evidence),
                                evidence=h.evidence)
@@ -138,59 +165,64 @@ def view(turn: Turn, s: Session) -> tuple[str, dict]:
             "label": "search", "value": res.total, "filters": res.filters, "n_analyzed": res.total,
             "denominator": ds.valid, "method": SEARCH_METHOD, "sql": res.sql, "normalization_note": SEARCH_NORM,
             "notes": [UNVERIFIED_NOTE.format(n=n)] if n else []}]}
-        md += [f"**{res.total - n:,} {'fully verified ' if n else ''}recipes** match _{res.filters}_; showing "
-               f"{len(cards)}.", f"_{ds.header(res.total)}_"]
-        md += _md_cards(cards) or ([] if n else ["No recipe satisfies every restriction; none were relaxed."])
+        q = f"'{st.query_text}'" if st.query_text else st.query_label or "any recipe"
+        k = res.total - n
+        md.append(f"**{k:,} {'fully verified ' if n else ''}recipe{'' if k == 1 else 's'}** match{'es' if k == 1 else ''} "
+                  f"{q}{_with(st)} — of {ds.valid:,} recipes.")
+        md += _md_cards(cards) or ([] if n else ["None of your restrictions were relaxed."])
         md += [f"_⚠ {safety.summary(n)}, or show them in the Results panel._"] if n else []
+        dev += [f"Filters: {res.filters}", ds.header(res.total)]
     elif isinstance(res, MatchResult):
-        cards = [_match_card(con, r) for r in res.rows]
-        alts = [{"violates": label, "cards": [_match_card(con, r) for r in rows]} for label, rows in res.alternatives]
+        nh = len(res.have)
+        cards = [_match_card(con, r, nh) for r in res.rows]
+        alts = [{"violates": label, "cards": [_match_card(con, r, nh) for r in rows]} for label, rows in res.alternatives]
         w = res.weights
+        formula = (f"score = {w['m']:g}·matched − {w['e']:g}·extra − {w['s']:g}·steps − {w['q']:g}·short-quantity items; "
+                   "ties: more matched, fewer extra, fewer steps, id")
         payload = {"type": "match", "total": res.total, "cards": cards, "alternatives": alts,
-                   "more_cards": [_match_card(con, r) for r in res.more], "n_unverified": res.n_unverified,
+                   "more_cards": [_match_card(con, r, nh) for r in res.more], "n_unverified": res.n_unverified,
                    "have": [h.term.text for h in res.have], "unknown": res.unknown, "staples": list(res.staples),
                    "dropped": [{"item": h.term.text, "why": why} for h, why in res.dropped],
                    "calc": [{"label": "match", "value": res.total, "filters": "; ".join(res.constraints),
-                             "n_analyzed": res.total, "denominator": ds.valid,
-                             "method": f"score = {w['m']:g}·matched − {w['e']:g}·extra − {w['s']:g}·steps − "
-                                       f"{w['q']:g}·short-quantity items; ties: more matched, fewer extra, fewer "
-                                       "steps, id", "sql": res.sql,
+                             "n_analyzed": res.total, "denominator": ds.valid, "method": formula, "sql": res.sql,
                              "normalization_note": "U = your ingredients (family match), P = pantry staples "
                                                    f"({', '.join(res.staples) or 'off'}), R = recipe's required "
                                                    "ingredients − P. matched = U∩R, unused = U−R, extra = R−U.",
                              "notes": [UNVERIFIED_NOTE.format(n=res.n_unverified)] if res.n_unverified else []}]}
         md.append(f"Your ingredients: **{', '.join(payload['have']) or 'none'}**"
-                  + (f" · staples assumed: {', '.join(res.staples)}" if res.staples else " · no staples assumed"))
+                  + (f" · assuming you have {', '.join(res.staples)}" if res.staples else " · no staples assumed"))
         md += [f"> Not in the dataset vocabulary (ignored): {', '.join(res.unknown)}"] if res.unknown else []
         md += [f"> Removed from your ingredients because '{d['why']}' excludes it: {d['item']}" for d in payload["dropped"]]
-        md.append(f"Hard constraints: _{'; '.join(res.constraints)}_")
         if not res.total:
-            md.append("**No recipe satisfies all hard constraints**")
+            md.append(f"**No recipe uses your ingredients{_with(st)}.**")
             if alts:
-                md.append("> ⚠ **Closest alternatives — these are NOT matches; each violates the named constraint**")
+                md.append("> ⚠ **Closest alternatives — these are NOT matches; each breaks the named constraint**")
                 for a in alts:
-                    md.append(f"_Violates '{a['violates']}':_")
-                    md += _md_cards(a["cards"]) or ["- (none even with this relaxed)"]
+                    md.append(f"_Breaks '{a['violates']}':_")
+                    md += _md_cards(a["cards"], lambda c: c["summary"]) or ["- (none even with this relaxed)"]
         else:
-            md.append(f"**Top {len(cards)}** {'fully verified ' if res.n_unverified else ''}of {ds.header(res.total)}")
-            md += _md_cards(cards, lambda c: f" · score **{c['score']:.2f}** · matched "
-                            f"{sum(x['kind'] == 'matched' for x in c['chips'])}, extra "
-                            f"{sum(x['kind'] == 'extra' for x in c['chips'])}")
+            md.append(f"**Top {len(cards)}** of {res.total:,} {'fully verified ' if res.n_unverified else ''}recipes that "
+                      f"use your ingredients{_with(st)}:")
+            md += _md_cards(cards, lambda c: c["summary"])
             if res.n_unverified:
                 md.append(f"_⚠ {safety.summary(res.n_unverified)}, or show them in the Results panel._")
+        dev += [f"Hard constraints: {'; '.join(res.constraints)}", ds.header(res.total), formula]
+        dev += [f"#{i} {c['title'].strip()}: score {c['score']:.2f} = " + ", ".join(
+            f"{k} {v:+.1f}" for k, v in c["parts"].items()) for i, c in enumerate(cards, 1)]
     elif isinstance(res, SubResult):
         md2, payload = subview.view(con, res)
         md += md2
+        dev += payload.pop("dev_md", [])
     elif intent == "stats" and res is not None:
-        md2, payload = _stats(con, ds, res, turn.plan)
+        md2, dev, payload = _stats(con, ds, res, turn.plan)
         md += md2
     elif intent == "recipe_detail" and isinstance(res, str):
-        r, st = recipe(con, res), s.state
+        r = recipe(con, res)
         terms = lambda ws: [stats.term(w, ds) for w in ws]
         ev = search.evidence(con, res, terms(st.include), terms(st.exclude), st.exclude_tags, st.max_steps)
         payload = {"type": "recipe", "recipe": r, "cards": [_card(r["id"], r["title"], r["source"], r["n_ingredients"],
                                                                   r["n_steps"], map(_chip, ev))]}
-        md += [f"**{r['title'].strip()}** `{r['id']}` — {r['n_ingredients']} ingredients · {r['n_steps']} steps "
+        md += [f"[{r['title'].strip()}]({r['id']}) — {r['n_ingredients']} ingredients · {r['n_steps']} steps "
                "(opened on the right)."] + [f"- {e}" for e in ev]
     else:  # unsupported guard answers, help, errors: the templated text, SQL moved to the Calculation tab
         ref = s.ref_id if intent in ("unsupported", "explain") else None
@@ -198,8 +230,11 @@ def view(turn: Turn, s: Session) -> tuple[str, dict]:
         payload = {"type": "unsupported" if intent == "unsupported" else "text", "cards": cards,
                    "calc": [_calc(r) for r in (res if isinstance(res, list) else [res])] if isinstance(
                        res, (Result, list)) else []}
-        md += [("- " + x.strip()[2:]) if x.strip().startswith("- ") else x.strip()
-               for x in turn.reply.split("\n") if x.strip() and not x.startswith("SQL")]
+        lines = [x.strip() for x in turn.reply.split("\n") if x.strip() and not x.startswith("SQL")]
+        tech = ("Method:", "Normalization:", "Analyzed:", "Denominator:")
+        md += [("- " + x[2:]) if x.startswith("- ") else x for x in lines if not x.startswith(tech)]
+        dev += [x for x in lines if x.startswith(tech)]
+    payload["dev_md"] = dev
     return postcheck("\n".join(md), payload), payload
 
 
@@ -210,7 +245,7 @@ def postcheck(md: str, payload: dict) -> str:
     bad = [i for i in ID_RX.findall(md) if i not in known]
     for i in bad:
         log.warning("post-check: recipe id %s in reply but not in payload; stripped", i)
-        md = md.replace(f"`{i}`", "`[id removed]`")
+        md = md.replace(f"`{i}`", "`[id removed]`").replace(f"]({i})", "](id removed)")
     payload["postcheck"] = {"ids_in_reply": len(ID_RX.findall(md)), "stripped": bad}
     return md
 
