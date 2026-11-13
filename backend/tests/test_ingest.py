@@ -101,3 +101,9 @@ def test_vocab_and_family_filled(con):
     assert one(con, "SELECT COUNT(*) FROM ingredient_lines WHERE canonical IS NOT NULL AND family IS NULL")[0] == 0
     assert one(con, "SELECT family FROM vocab WHERE canonical = 'red onion'") == ("onion",)
     assert one(con, "SELECT recipe_count FROM vocab WHERE canonical = 'salt'") == (5,)  # valid recipes only
+
+
+def test_fresh_build_has_tag_index_analyzed(con):
+    # ix_tags_recipe was first created in place on the full DB; a fresh build must have it, with ANALYZE stats
+    assert one(con, "SELECT sql FROM sqlite_master WHERE name = 'ix_tags_recipe'")[0].endswith("recipe_tags(recipe_id, tag)")
+    assert one(con, "SELECT COUNT(*) FROM sqlite_stat1 WHERE idx = 'ix_tags_recipe'")[0] == 1

@@ -14,7 +14,11 @@
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python *)",
+      "Bash(python -m *)",
+      "Bash(npm *)",
+      "Bash(git log *)"
     ],
     "deny": [
       "Read(./data/raw/**)",
