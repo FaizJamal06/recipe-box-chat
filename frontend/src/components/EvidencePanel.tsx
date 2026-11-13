@@ -67,25 +67,25 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 /** Right panel: Results (cards) · Calculation (filters, N, denominator, method, SQL, normalization) ·
  *  Evidence (per-recipe proof lines; substitution evidence table) · Trace (pipeline steps). */
-export function EvidencePanel({ resp, tab, setTab, dev, onOpen, onStrict }: { resp: ChatResponse | null; tab: Tab;
-  setTab: (t: Tab) => void; dev: boolean; onOpen: (id: string) => void; onStrict: () => void }) {
+export function EvidencePanel({ resp, tab, setTab, dev, onOpen, onStrict, mobile = false }: { resp: ChatResponse | null;
+  tab: Tab; setTab: (t: Tab) => void; dev: boolean; onOpen: (id: string) => void; onStrict: () => void; mobile?: boolean }) {
   const p = resp?.payload;
   const [showMore, setShowMore] = useState(false);
   useEffect(() => { setShowMore(false); }, [resp]);  // fold again for every new answer
   const nUnv = p?.n_unverified ?? 0;
   return (
-    <aside className="flex flex-col border-t border-rule bg-cream/60 min-[900px]:min-h-0 min-[900px]:border-l min-[900px]:border-t-0">
-      <nav className="flex gap-1 overflow-x-auto border-b border-rule px-4 pt-3" role="tablist">
+    <aside className={mobile ? "flex min-h-0 flex-1 flex-col" : "flex min-h-0 flex-col border-l border-rule bg-cream/60"}>
+      <nav className="chip-row flex gap-1 overflow-x-auto border-b border-rule px-4 pt-3 phone:px-2 phone:pt-0" role="tablist">
         {TABS.filter(([t]) => dev || t !== "trace").map(([t, label]) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-                  className={`-mb-px rounded-t-md border-b-2 px-3 pb-2 pt-1 text-[13.5px] cursor-pointer ${tab === t
+                  className={`-mb-px shrink-0 rounded-t-md border-b-2 px-3 pb-2 pt-1 text-[13.5px] cursor-pointer phone:min-h-11 phone:text-[15px] ${tab === t
                     ? "border-tomato font-semibold text-ink" : "border-transparent text-ink-soft hover:text-ink"}`}>{label}</button>
         ))}
       </nav>
-      <div className="scroll-thin space-y-3 p-4 min-[900px]:min-h-0 min-[900px]:flex-1 min-[900px]:overflow-y-auto">
+      <div className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto p-4 phone:p-3 phone:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         {!p && <Empty>Results, calculations and evidence for each answer appear here.</Empty>}
         {p && tab === "results" && <>
-          {p.type === "substitute" && <DiffView p={p} />}
+          {p.type === "substitute" && <DiffView p={p} mobile={mobile} />}
           {p.cards.length > 0 && p.type !== "substitute" && <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] text-ink-soft">{p.total !== undefined ? `${(p.total - nUnv).toLocaleString()} ${nUnv ? "fully verified" : "eligible"} · showing ${p.cards.length}` : `${p.cards.length} shown`}</span>
             <Legend /></div>}
@@ -127,7 +127,7 @@ export function EvidencePanel({ resp, tab, setTab, dev, onOpen, onStrict }: { re
                 <li key={i} className="flex gap-2"><span className={`mt-1 h-2 w-2 shrink-0 rounded-full border ${CHIP_STYLE[ch.kind]}`} />
                   <span><span className="font-medium">{ch.label}</span>{ch.detail !== ch.label && <span className="text-ink-soft"> — {ch.detail}</span>}</span></li>)}</ul>
             </section>))}
-          {p.type === "substitute" && <EvidenceTable p={p} onOpen={onOpen} />}
+          {p.type === "substitute" && <EvidenceTable p={p} onOpen={onOpen} mobile={mobile} />}
         </>}
         {p && dev && tab === "trace" && resp && (
           <ol className="relative space-y-3 border-l-2 border-rule pl-4 text-[13px]">

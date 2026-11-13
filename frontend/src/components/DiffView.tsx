@@ -1,4 +1,5 @@
-import type { Candidate, Payload, Strength, TierCounts } from "../api";
+import { useState } from "react";
+import type { Candidate, Payload, Strength, SubPart, TierCounts } from "../api";
 
 /** Substitution view (PRD 8): the evidence table (Evidence tab) and the side-by-side diff (Results tab).
  *  Every count, lift and id comes from the payload; the only model text is the labelled "Predicted" block. */
@@ -13,7 +14,7 @@ function Badge({ s }: { s: Strength }) {
 
 function IdLink({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
   return <button type="button" onClick={() => onOpen(id)} title={id}
-                 className="rounded bg-grey-soft px-1 font-mono text-[10.5px] hover:text-tomato cursor-pointer">{id.slice(0, 9)}…</button>;
+                 className="rounded bg-grey-soft px-1 font-mono text-[10.5px] hover:text-tomato cursor-pointer phone:min-h-9 phone:px-2 phone:text-[12.5px]">{id.slice(0, 9)}…</button>;
 }
 
 /** The tier that drives the grade (L1 for Strong, L2 for Moderate, else the first tier with any support). */
@@ -25,17 +26,40 @@ function tierOf(c: Candidate): ["L1" | "L2" | "L3", TierCounts] | null {
 
 const rate = (k: number, n: number) => <>{k}/{n}<span className="text-ink-soft"> ({n ? (100 * k / n).toFixed(1) : 0}%)</span></>;
 
-export function EvidenceTable({ p, onOpen }: { p: Payload; onOpen: (id: string) => void }) {
+/** Phone: one card per candidate (name, strength, the counts line, why it was chosen, supporting ids folded). */
+function CandidateCards({ part, onOpen }: { part: SubPart; onOpen: (id: string) => void }) {
+  return <div className="mt-2 space-y-2">{part.candidates.map((c) => {
+    const t = tierOf(c), chosen = c.name === part.chosen;
+    return <div key={c.name} className={`rounded-lg border p-3 text-[14px] ${chosen ? "border-ok/40 bg-ok-soft/40" : "border-rule"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <b className="text-[15.5px]">{c.name}</b>{chosen && <span className="text-[13px] text-ok">✓ chosen</span>}
+        <span className="ml-auto"><Badge s={c.strength} /></span></div>
+      <p className="mt-1 text-[13.5px] text-ink-soft">{c.label}{c.roles.length > 0 && c.kind !== "omit" && !c.label.includes(c.roles[0]) ? ` · ${c.roles.join(", ")}` : ""}
+        {c.conflicting && " · ⚠ conflicting"}</p>
+      <p className="mt-1 text-[14px]">{!t ? "No supporting recipes." : c.kind === "omit"
+        ? <>{t[1].n_without} of {t[1].n_without + t[1].n_with} similar recipes go without it ({t[0]})</>
+        : <>Used by {t[1].support} of {t[1].n_without} recipes without {part.item} vs {t[1].in_with} of {t[1].n_with} with it
+            ({t[0]}{c.explicit.length && t[0] === "L1" ? ", explicit variant" : ""}; lift {t[1].lift})</>}</p>
+      {chosen && part.because && <p className="mt-1 text-[14px]">{part.because}</p>}
+      {c.ids.length > 0 && <details className="mt-1 text-[13px]">
+        <summary className="flex min-h-11 cursor-pointer items-center text-ink-soft">Supporting recipes ({c.ids.length})</summary>
+        <div className="flex flex-wrap gap-1.5 pb-1">{c.ids.map((id) => <IdLink key={id} id={id} onOpen={onOpen} />)}</div>
+      </details>}
+    </div>;
+  })}</div>;
+}
+
+export function EvidenceTable({ p, onOpen, mobile = false }: { p: Payload; onOpen: (id: string) => void; mobile?: boolean }) {
   const tiers = p.tiers ?? {};
   return <>
     <p className="text-[12px] text-ink-soft">{p.l1_note} · L2 {tiers.L2?.toLocaleString()} similar ·
       L3 {tiers.L3?.toLocaleString()} {p.context} recipes. Method: Calculation tab.</p>
     {(p.parts ?? []).map((part) => (
-      <section key={part.item} className="rounded-lg border border-rule bg-paper p-3">
-        <h3 className="font-display text-[14px] font-semibold">Removing {part.item}
+      <section key={part.item} className="rounded-lg border border-rule bg-paper p-3 phone:text-[14px]">
+        <h3 className="font-display text-[14px] font-semibold phone:text-[16px]">Removing {part.item}
           <span className="ml-2 text-[12px] font-normal text-ink-soft">{part.affected.join("; ")} · role: {part.roles.join(", ") ||
             "unknown (model reasoning, not dataset evidence)"}</span></h3>
-        <div className="scroll-thin mt-2 overflow-x-auto">
+        {mobile ? <CandidateCards part={part} onOpen={onOpen} /> : <div className="scroll-thin mt-2 overflow-x-auto">
           <table className="w-full min-w-[40rem] text-left text-[12px]">
             <thead className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">
               <tr>{["Candidate", "Role", "Tier", "Rate without", "Rate with", "Lift", "Strength", "Supporting"].map((h) =>
@@ -57,8 +81,8 @@ export function EvidenceTable({ p, onOpen }: { p: Payload; onOpen: (id: string) 
               </tr>;
             })}</tbody>
           </table>
-        </div>
-        {part.because && <p className="mt-1.5 text-[12px]">{part.because}</p>}
+        </div>}
+        {part.because && !mobile && <p className="mt-1.5 text-[12px]">{part.because}</p>}
         {part.candidates.filter((c) => c.name === part.chosen).flatMap((c) => c.snippets).map((s) =>
           <p key={s.id} className="mt-1.5 text-[12px] text-ink-soft">“{s.text}” <IdLink id={s.id} onOpen={onOpen} /></p>)}
         {part.rejected.length > 0 && <details className="mt-2 text-[12px]">
@@ -70,11 +94,32 @@ export function EvidenceTable({ p, onOpen }: { p: Payload; onOpen: (id: string) 
 }
 
 function Col({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="min-w-0"><h4 className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{title}</h4>
+  return <div className="min-w-0"><h4 className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-soft phone:text-[12px]">{title}</h4>
     <ul className="space-y-1">{children}</ul></div>;
 }
 
-export function DiffView({ p }: { p: Payload }) {
+/** Phone: one column at a time behind an "Original | Adapted" toggle; removed lines struck through in Original,
+ *  added and changed ones highlighted in Adapted. */
+function OneSide({ p }: { p: Payload }) {
+  const a = p.adaptation!;
+  const [side, setSide] = useState<"original" | "adapted">("adapted");
+  const del = "rounded bg-bad-soft px-1 text-bad line-through decoration-bad/70";
+  const add = "rounded bg-ok-soft px-1 text-ok";
+  const orig = side === "original";
+  return <>
+    <div role="group" aria-label="Show recipe" className="grid grid-cols-2 rounded-full border border-rule bg-cream p-1">
+      {(["original", "adapted"] as const).map((k) => <button key={k} type="button" aria-pressed={side === k} onClick={() => setSide(k)}
+        className={`min-h-10 rounded-full text-[15px] capitalize cursor-pointer ${side === k ? "bg-ink font-semibold text-cream" : "text-ink-soft"}`}>{k}</button>)}
+    </div>
+    <Col title={orig ? "Original ingredients" : "Adapted ingredients"}>{a.ingredients.filter((d) => d.op !== (orig ? "add" : "remove")).map((d, i) =>
+      <li key={i}><span className={d.op === "remove" ? del : d.op === "add" ? add : ""}>{d.text}</span></li>)}</Col>
+    <Col title={orig ? "Original steps" : `Adapted steps (${a.source === "model" ? "model, validated" : "deterministic swap"})`}>{a.steps.map((s) =>
+      <li key={s.n}><span className={s.changed ? (orig ? del : add) : ""}>{s.n}. {orig ? s.old : s.text}</span>
+        {!orig && s.changed && s.reason && <div className="text-[13px] text-ink-soft">↳ {s.reason}</div>}</li>)}</Col>
+  </>;
+}
+
+export function DiffView({ p, mobile = false }: { p: Payload; mobile?: boolean }) {
   const a = p.adaptation;
   if (!a) return <section className="rounded-lg border border-dashed border-rule bg-paper p-3 text-[13px]">
     <h3 className="font-display font-semibold">No adaptation</h3>
@@ -83,10 +128,10 @@ export function DiffView({ p }: { p: Payload }) {
   const del = "rounded bg-bad-soft px-1 text-bad line-through decoration-bad/70";
   const add = "rounded bg-ok-soft px-1 text-ok";
   return (
-    <section className="space-y-3 rounded-lg border border-rule bg-paper p-3 text-[12.5px]">
-      <h3 className="font-display text-[14px] font-semibold">Adapted: {p.target?.title}</h3>
+    <section className="space-y-3 rounded-lg border border-rule bg-paper p-3 text-[12.5px] phone:text-[15px]">
+      <h3 className="font-display text-[14px] font-semibold phone:text-[17px]">Adapted: {p.target?.title}</h3>
       {a.caveat && <p className="rounded border border-warn/30 bg-warn-soft px-2 py-1 text-warn">⚠ {a.caveat}</p>}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {mobile ? <OneSide p={p} /> : <div className="grid grid-cols-2 gap-3">
         <Col title="Original ingredients">{a.ingredients.filter((d) => d.op !== "add").map((d, i) =>
           <li key={i}><span className={d.op === "remove" ? del : ""}>{d.text}</span></li>)}</Col>
         <Col title="Adapted ingredients">{a.ingredients.filter((d) => d.op !== "remove").map((d, i) =>
@@ -96,7 +141,7 @@ export function DiffView({ p }: { p: Payload }) {
         <Col title={`Adapted steps (${a.source === "model" ? "model, validated" : "deterministic swap"})`}>{a.steps.map((s) =>
           <li key={s.n}><span className={s.changed ? add : ""}>{s.n}. {s.text}</span>
             {s.changed && s.reason && <div className="text-[11px] text-ink-soft">↳ {s.reason}</div>}</li>)}</Col>
-      </div>
+      </div>}
       {a.prep.length > 0 && <p><b>Prep:</b> {a.prep.join(" ")}</p>}
       <div className="rounded border border-ok/30 p-2"><h4 className="mb-1 font-semibold text-ok">Verified from dataset</h4>
         <ul className="list-disc space-y-0.5 pl-4">{a.verified.map((v, i) => <li key={i}>{v}</li>)}</ul></div>
@@ -105,7 +150,7 @@ export function DiffView({ p }: { p: Payload }) {
       {a.gate.length ? <p className="rounded border-2 border-bad/50 bg-bad-soft p-2 font-semibold text-bad">
         ✗ Not safe for your restrictions: {a.gate.map((g) => `${g.what} (${g.reason})`).join("; ")}</p>
         : (p.restrictions ?? []).length > 0 && <p className="text-ok">✓ Every adapted ingredient verified free of: {p.restrictions!.join(", ")}</p>}
-      {a.safety_line && <p className="text-[11.5px] text-ink-soft">{a.safety_line}</p>}
+      {a.safety_line && <p className="text-[11.5px] text-ink-soft phone:text-[13px]">{a.safety_line}</p>}
     </section>
   );
 }

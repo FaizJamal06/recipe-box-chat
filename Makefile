@@ -1,7 +1,7 @@
 # Every target is one plain command; on Windows run them directly (see README).
 # Activate the venv first: .venv\Scripts\Activate.ps1 (Windows) or . .venv/bin/activate
 # More targets (cli, eval, ui build) are added with their milestones.
-.PHONY: setup data db test coverage cli oracle eval eval-live baseline peek profile ui run docker
+.PHONY: setup data db test coverage cli oracle eval eval-live baseline peek profile ui run docker screenshots mobile-check
 
 setup:
 	python scripts/setup.py
@@ -47,3 +47,9 @@ run:
 
 docker:
 	docker build -t recipe-box . && docker run --rm -p 8000:8000 recipe-box
+
+screenshots:  # needs the server running (make run); desktop set into docs/screenshots
+	node scripts/screenshots.mjs
+
+mobile-check:  # needs the server running; phone screenshots + fails if any view overflows horizontally
+	node scripts/screenshots.mjs --mobile

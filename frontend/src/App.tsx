@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type ChatResponse, type State } from "./api";
 import { ChatPane, type Msg } from "./components/ChatPane";
 import { EvidencePanel, type Tab } from "./components/EvidencePanel";
+import { MobileHeader, Sheet, sheetLabel, useMobile } from "./components/Mobile";
 import { RecipeDrawer } from "./components/RecipeDrawer";
 
 // ?q=...&q=... replays those messages in order on load (demo sessions); ?tab=calc picks the panel tab;
-// ?dev=1 / ?dev=0 forces developer view (screenshots).
+// ?dev=1 / ?dev=0 forces developer view (screenshots). Below 900 px the phone layout renders instead
+// (useMobile): one 100dvh column, results in a bottom sheet.
 const params = new URLSearchParams(location.search);
 const DEV_KEY = "recipebox.devView";
 
@@ -30,6 +32,8 @@ export default function App() {
   const [drawer, setDrawer] = useState<string | null>(null);
   const [health, setHealth] = useState<{ valid: number; llm: string } | null>(null);
   const [dev, setDev] = useDevView();
+  const mobile = useMobile();
+  const [sheet, setSheet] = useState(false);
   const sidRef = useRef<string | null>(null);
 
   useEffect(() => { api.health().then((h) => setHealth({ valid: h.valid, llm: h.llm.status })).catch(() => {}); }, []);
@@ -41,6 +45,7 @@ export default function App() {
     setMessages((m) => [...m, { role: "bot", md: r.reply_md, voice: r.voice, planner: r.planner, trace: r.trace,
                                 suggestions: r.suggestions ?? [], dev: r.payload.dev_md ?? [] }]);
     setDrawer(r.payload.type === "recipe" && r.payload.recipe ? r.payload.recipe.id : null);
+    if (!keepTab) setSheet(false);
     if (!keepTab) setTab(r.payload.cards.length || r.payload.type === "match" ? "results" : r.payload.calc?.length ? "calc" : "results");
   }, []);
 
@@ -60,7 +65,7 @@ export default function App() {
 
   const reset = async () => {
     if (sid) await api.reset(sid).catch(() => {});
-    setMessages([]); setResp(null); setState(null); setDrawer(null);
+    setMessages([]); setResp(null); setState(null); setDrawer(null); setSheet(false);
   };
 
   const replayed = useRef(false);
@@ -72,11 +77,29 @@ export default function App() {
   }, [send]);
 
   const closeDrawer = useCallback(() => setDrawer(null), []);
+  const closeSheet = useCallback(() => setSheet(false), []);
+  const panel = (inSheet: boolean) => <EvidencePanel resp={resp} tab={tab} setTab={setTab} dev={dev} onOpen={setDrawer}
+                                                     mobile={inSheet} onStrict={() => patch("set", "strict_may_contain", true)} />;
+  if (mobile) {
+    const label = sheetLabel(resp?.payload);
+    return (
+      <div className="flex h-[100dvh] flex-col overflow-hidden">
+        <MobileHeader dev={dev} setDev={setDev} onReset={reset} llm={health?.llm ?? "…"} />
+        <ChatPane messages={messages} loading={loading} state={state} dev={dev} mobile onSend={send} onPatch={patch}
+                  onReset={reset} onOpen={setDrawer}
+                  bar={label && !loading ? <button type="button" onClick={() => setSheet(true)} aria-haspopup="dialog"
+                    className="flex min-h-11 w-full items-center justify-between border-t border-rule bg-ink px-4 text-[15px] font-semibold text-cream cursor-pointer">
+                    {label}<span aria-hidden>▲</span></button> : null} />
+        {sheet && <Sheet onClose={closeSheet}>{panel(true)}</Sheet>}
+        <RecipeDrawer id={drawer} onClose={closeDrawer} mobile />
+      </div>
+    );
+  }
   return (
-    <div className="flex min-h-full flex-col min-[900px]:h-full">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-rule bg-paper/60 px-4 py-2.5 sm:px-6">
-        <h1 className="font-display text-[22px] font-bold tracking-tight sm:text-[24px]">Recipe <span className="text-tomato">Box</span></h1>
-        <p className="hidden text-[13px] text-ink-soft sm:block">grounded answers from {health ? health.valid.toLocaleString() : "…"} recipes</p>
+    <div className="flex h-full flex-col">
+      <header className="flex items-center gap-3 border-b border-rule bg-paper/60 px-6 py-2.5">
+        <h1 className="font-display text-[24px] font-bold tracking-tight">Recipe <span className="text-tomato">Box</span></h1>
+        <p className="text-[13px] text-ink-soft">grounded answers from {health ? health.valid.toLocaleString() : "…"} recipes</p>
         <div className="ml-auto flex items-center gap-3">
           {dev && <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-soft" title="LLM planner status">
             <span className={`h-2 w-2 rounded-full ${health?.llm === "ready" ? "bg-ok" : health?.llm === "warming up" ? "bg-amber" : "bg-grey"}`} />
@@ -91,10 +114,9 @@ export default function App() {
           </label>
         </div>
       </header>
-      <main className="flex-1 min-[900px]:grid min-[900px]:min-h-0 min-[900px]:grid-cols-[3fr_2fr] min-[900px]:overflow-hidden">
+      <main className="grid min-h-0 flex-1 grid-cols-[3fr_2fr]">
         <ChatPane messages={messages} loading={loading} state={state} dev={dev} onSend={send} onPatch={patch} onReset={reset} onOpen={setDrawer} />
-        <EvidencePanel resp={resp} tab={tab} setTab={setTab} dev={dev} onOpen={setDrawer}
-                       onStrict={() => patch("set", "strict_may_contain", true)} />
+        {panel(false)}
       </main>
       <RecipeDrawer id={drawer} onClose={closeDrawer} />
     </div>

@@ -11,8 +11,8 @@ function inline(text: string, onOpen: (id: string) => void): ReactNode[] {
   // _italic_ only at word edges, so tag names like may_contain stay literal
   return text.split(/(\[[^\]]+\]\((?:ar|epi|fn):[^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`|(?<!\w)_[^_]+_(?!\w))/g).map((part, i) => {
     const link = part.match(/^\[([^\]]+)\]\(((?:ar|epi|fn):[^)\s]+)\)$/);  // [Title](recipe id): opens the drawer
-    if (link) return <button key={i} type="button" onClick={() => onOpen(link[2])} title="Open recipe"
-                             className="font-semibold text-ink underline decoration-tomato/40 underline-offset-2 hover:text-tomato cursor-pointer text-left">{link[1]}</button>;
+    if (link) return <a key={i} href={`#${link[2]}`} onClick={(e) => { e.preventDefault(); onOpen(link[2]); }} title="Open recipe"
+                        className="font-semibold text-ink underline decoration-tomato/40 underline-offset-2 hover:text-tomato">{link[1]}</a>;  // inline, so a long title wraps like text
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
     if (part.startsWith("`") && part.endsWith("`")) {
       const code = part.slice(1, -1);

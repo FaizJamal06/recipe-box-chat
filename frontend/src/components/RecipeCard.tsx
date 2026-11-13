@@ -16,7 +16,7 @@ export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" :
 export function ChipView({ chip }: { chip: Chip }) {
   return (
     <span title={chip.detail}
-          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11.5px] leading-4 ${CHIP_STYLE[chip.kind]}`}>
+          className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11.5px] leading-4 phone:text-[13px] phone:leading-5 ${CHIP_STYLE[chip.kind]}`}>
       {PREFIX[chip.kind]}{chip.label}
     </span>
   );
@@ -66,20 +66,20 @@ export function RecipeCard({ card, rank, onOpen, flagged, warned, dev = false }:
   onOpen: (id: string) => void; flagged?: boolean; warned?: boolean; dev?: boolean }) {
   return (
     <article onClick={() => onOpen(card.id)}
-             className={`group min-w-0 cursor-pointer break-words rounded-lg border bg-paper p-3.5 shadow-[0_1px_0_rgba(43,36,32,0.06)] transition
+             className={`group min-w-0 cursor-pointer break-words rounded-lg border bg-paper p-3.5 phone:p-3 shadow-[0_1px_0_rgba(43,36,32,0.06)] transition
                          hover:-translate-y-px hover:shadow-md ${flagged ? "border-bad/40" : warned ? "border-warn/40" : "border-rule hover:border-tomato/40"}`}>
       <div className="flex items-start gap-2">
         {rank !== undefined && <span className="font-display text-lg leading-6 text-tomato">{rank}</span>}
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-[17px] font-semibold leading-snug text-ink group-hover:text-tomato">
+          <h3 className="font-display text-[17px] font-semibold leading-snug text-ink group-hover:text-tomato phone:text-[16.5px]">
             {card.title.trim()}</h3>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-soft">
-            <IdPill id={card.id} onOpen={onOpen} />
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-soft phone:text-[13.5px]">
+            <span className={dev ? "" : "phone:hidden"}><IdPill id={card.id} onOpen={onOpen} /></span>
             <SourceBadge source={card.source} />
             <span>{plural(card.n_ingredients, "ingredient")}</span><span aria-hidden>·</span><span>{plural(card.n_steps, "step")}</span>
             {dev && card.score !== undefined && <span className="ml-auto font-mono text-ink">score {card.score.toFixed(2)}</span>}
           </div>
-          {card.summary && <p className="mt-1 text-[13px] text-ink">{card.summary}</p>}
+          {card.summary && <p className="mt-1 text-[13px] text-ink phone:text-[15px]">{card.summary}</p>}
         </div>
       </div>
       {card.chips.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1">
