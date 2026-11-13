@@ -10,7 +10,7 @@ import logging
 import re
 import sqlite3
 
-from . import safety, search, stats, subview
+from . import safety, search, stats, subview, voice
 from .db import Dataset
 from .match import MatchResult
 from .search import SearchResult
@@ -76,17 +76,6 @@ def _md_cards(cards: list[dict], extra=lambda c: "", top: int = 5) -> list[str]:
     return out + ([f"_… {len(cards) - top} more in the Results panel._"] if len(cards) > top else [])
 
 
-def _plain(f: str) -> str:
-    """Executor filter string -> words: 'contains garlic AND contains onion' -> 'recipes that contain garlic and onion'."""
-    if f in ("", "all valid recipes"):
-        return "all recipes"
-    if f.endswith("recipes"):
-        return f
-    f = f.replace(" AND contains ", " and ").replace(" AND no ", " but no ").replace(" AND ", " and ")
-    f = re.sub(r"^contains ", "contain ", f).replace("title contains", "have a title containing")
-    return f"recipes {'with' if f.startswith('no ') else 'that'} {f}"
-
-
 def _with(st) -> str:
     """' with your restrictions (vegan, no peanuts), at most 5 steps' from the session state ('' when none)."""
     r, extra = st.restrictions(), ([f"containing {', '.join(st.include)}"] if st.include else []) + (
@@ -126,7 +115,7 @@ MODE_TEXT = {"strict": "the ingredient itself", "broad": "also processed forms l
 def _stats(con, ds: Dataset, res, plan: dict) -> tuple[list[str], list[str], dict]:
     """(markdown, developer-view lines, payload) for any stats Result(s)."""
     results = res if isinstance(res, list) else [res]
-    r0, md, what = results[0], [], _plain(results[0].filters)
+    r0, md, what = results[0], [], voice.plain_filters(results[0].filters)
     payload = {"type": "stats", "op": r0.op, "calc": [_calc(r) for r in results], "cards": [], "rows": []}
     if isinstance(res, list):
         md += [f"{what[0].upper() + what[1:]}, out of {ds.valid:,}:"]

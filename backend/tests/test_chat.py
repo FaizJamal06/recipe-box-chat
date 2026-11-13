@@ -112,3 +112,29 @@ def test_conversation_smalltalk_explain_conflict_spelling_followups(eng):
     assert correct("chiken pot pie", ds.vocab) == "chicken pot pie"
     t = Session(con, ds, use_llm=False).respond("find a chiken pot pie recipe")
     assert "spelling corrected" in t.reply and t.result.total >= 1
+
+
+def test_voice_gets_plain_facts_and_rejects_internal_tokens(monkeypatch, tmp_path):
+    """The leak seen live: 'with the active filter dish set to penne pasta'. Facts are plain English (no keys, codes
+    or ids); a reply with an internal token is rejected and the template is shown instead."""
+    from app import llm
+    st = SessionState(query_text="penne pasta", exclude_tags=["tree_nut", "dairy"], max_steps=5)
+    card = {"id": "ar:9mPiUMSt/0wx", "title": "Pat's Simple Penne", "n_ingredients": 5, "n_steps": 4, "chips": [
+        {"kind": "ok", "label": "no tree_nut", "detail": "no tree_nut: 0 tree_nut-tagged lines, all 5 lines verified"},
+        {"kind": "may_contain", "label": "no dairy", "detail": "no dairy: 'margarine' may contain dairy"}]}
+    payload = {"type": "search", "total": 81, "n_unverified": 3, "cards": [card]}
+    f = voice.facts("find penne", payload, st, ["Kept your restrictions (no tree nuts, no dairy)."])
+    assert "_" not in f and "=" not in f and "ar:" not in f and "unverified" not in f
+    assert "Their restrictions: no tree nuts, no dairy, at most 5 steps" in f and "penne pasta" in f
+    ok = "I found 78 penne recipes with no tree nuts or dairy; Pat's Simple Penne has 5 ingredients and 4 steps."
+    assert voice.check(ok, f) == ok
+    for bad in ("With the active filter dish set to penne pasta, I found 78 recipes.", "78 recipes have no tree_nut.",
+                "Pat's Simple Penne may_contain dairy.", "3 more recipes are unverified.", "I set dish=penne pasta."):
+        with pytest.raises(ValueError, match="internal token"):
+            voice.check(bad, f)
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.setattr(llm, "LLM_CACHE", tmp_path / "cache.sqlite")
+    monkeypatch.setattr(llm, "_remote", lambda *a, **k: ('{"reply": "With the active filter dish set to penne pasta, '
+                                                         'I found 78 recipes."}', {}))
+    text, calls, status = voice.speak("find penne", payload, st, [])
+    assert text is None and status == "template (invalid)" and calls[0].error == "invalid"

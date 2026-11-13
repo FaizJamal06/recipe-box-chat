@@ -138,7 +138,7 @@ def _response(sid: str, e: Entry, turn, text: str = "") -> dict:
     used = len(turn.info.calls)  # cache hits count too: at most 2 LLM answers per turn (llm.MAX_PER_TURN)
     llm_ok = s.use_llm and llm.available() and turn.info.source != "rule" and not any(c.error for c in turn.info.calls)
     if llm_ok and used < 2 and text:  # <= 2 LLM calls per turn, planner (+cuisine) first
-        voice_text, vcalls, vstatus = voice.speak(text, payload, s.state.chips(), turn.notes)
+        voice_text, vcalls, vstatus = voice.speak(text, payload, s.state, turn.notes)
     elif llm_ok and text:
         vstatus = "template (LLM call budget used)"
     tr = web.trace(turn, s, payload, e.prev_total, vcalls, vstatus)
