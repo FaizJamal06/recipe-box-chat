@@ -8,7 +8,8 @@
 #   no_match, alternatives_flagged, dropped, all_results_lack_ingredient_broad, match_has_qty_chip, refusal, reply_contains, state_tags_include,
 #   state_tags_exclude, sub_strength_in, sub_chosen_not, sub_rejected, sub_cited_ids_valid, sub_dataset_only,
 #   sub_steps_valid, sub_gate_fails, sub_gate_passes, sub_question, sub_adapted, llm_calls_le, state_eq,
-#   state_diets_exclude, suggestions_ge, suggestion_contains, reply_lacks, sub_chosen_eq, sub_steps_lack
+#   state_diets_exclude, suggestions_ge, suggestion_contains, reply_lacks, sub_chosen_eq, sub_steps_lack,
+#   match_count_verified
 # (checks live in eval/checks.py)
 
 - id: demo1_refine
@@ -53,7 +54,8 @@
   name: "Demo 5: pantry match, no peanuts, at most 6 steps, then exclude eggs"
   turns:
     - say: I have eggs, onions, tomatoes, and rice. Suggest five recipes using as many as possible, no peanuts, at most six steps, fewest additional ingredients.
-      expect: {type: match, n_cards_ge: 1, ids_exist: true, max_steps_le: 6, all_results_lack_tag: peanut}
+      expect: {type: match, n_cards_ge: 1, ids_exist: true, max_steps_le: 6, all_results_lack_tag: peanut,
+               match_count_verified: true}
     - say: Exclude eggs too.
       expect: {type: match, max_steps_le: 6, all_results_lack_tag: peanut, all_results_lack_ingredient: egg}
 

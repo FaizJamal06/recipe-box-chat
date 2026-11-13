@@ -168,6 +168,9 @@ class Checker:
             bad = [f"step {s['n']}" for s in a["steps"] if rx.search(s["text"])]
             bad += [d["text"] for d in a["ingredients"] if d["op"] != "remove" and rx.search(d["text"])]
             return "" if not bad else f"still mentions {v}: {bad[:3]}"
+        if key == "match_count_verified":  # 'Top 5 of N fully verified': N excludes the unverified ones
+            want = f"of {p['total'] - p.get('n_unverified', 0):,} "
+            return "" if want in r["reply_md"] else f"reply lacks '{want.strip()}'"
         return f"unknown assertion {key}"
 
     def cited(self, parts) -> str:

@@ -190,7 +190,7 @@ def view(turn: Turn, s: Session) -> tuple[str, dict]:
                     md.append(f"_Breaks '{a['violates']}':_")
                     md += _md_cards(a["cards"], lambda c: c["summary"]) or ["- (none even with this relaxed)"]
         else:
-            md.append(f"**Top {len(cards)}** of {res.total:,} {'fully verified ' if res.n_unverified else ''}recipes that "
+            md.append(f"**Top {len(cards)}** of {res.total - res.n_unverified:,} {'fully verified ' if res.n_unverified else ''}recipes that "
                       f"use your ingredients{_with(st)}:")
             md += _md_cards(cards, lambda c: c["summary"])
             if res.n_unverified:
