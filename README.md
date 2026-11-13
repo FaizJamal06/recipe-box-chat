@@ -1,99 +1,168 @@
-# Recipe Box chatbot
+# Recipe Box
 
-Status: **M4 done** (web UI + API: chat, constraint chips, Results / Calculation / Evidence / Trace panel,
-recipe drawer; demos 1–6 run in the browser and as CLI sessions, transcripts in `demos/transcripts/`).
-Spec: [PRD.md](PRD.md). Data findings: [docs/DATA_PROFILE.md](docs/DATA_PROFILE.md).
+A chatbot over 125,164 scraped recipes that answers from the database, not from the model: every count, recipe id and
+ingredient claim is computed by code and checkable in the UI. The LLM only turns your message into a plan and
+rewords the result.
 
-## Run it locally
+**Live:** `https://<railway-domain>.up.railway.app` (set after the Railway deploy; `/api/health` shows counts and the
+build fingerprint) · Spec: [PRD.md](PRD.md) · Decisions: [DECISIONS.md](DECISIONS.md)
 
+## Quickstart
+
+Needs Python 3.12 and Node 22. The data (~200 MB zip) is downloaded, never committed. `GEMINI_API_KEY` is optional:
+without it the rule parser plans every turn and the answers stay the same (copy `.env.example` to `.env` to set it).
+
+Windows (PowerShell):
+```powershell
+python scripts/setup.py                       # .venv, pip install, npm ci
+.\.venv\Scripts\Activate.ps1
+python scripts/download.py; python -m backend.app.ingest   # data/raw + data/recipes.db (~7 min, peak RSS ~330 MB)
+cd frontend; npm run build; cd ..
+python -m uvicorn app.api:app --app-dir backend --port 8000   # http://127.0.0.1:8000
 ```
-python -m backend.app.ingest                      # once: build data/recipes.db (needs data/raw, see make data)
-cd frontend; npm ci; npm run build; cd ..         # build the UI into frontend/dist
+
+macOS / Linux:
+```bash
+python3 scripts/setup.py
+. .venv/bin/activate
+python scripts/download.py && python -m backend.app.ingest
+(cd frontend && npm run build)
 python -m uvicorn app.api:app --app-dir backend --port 8000
 ```
-Open http://127.0.0.1:8000. The UI talks to `/api/*` on the same server. For UI work with hot reload, keep the
-server running and use `cd frontend; npm run dev` (http://localhost:5173, proxies `/api`).
-A link like `/?q=Find+a+penne+pasta+recipe&q=I+cannot+have+dairy` replays those messages on load.
 
-## Commands
+Docker (what Railway builds; the DB is built inside the image):
+`docker build -t recipe-box . && docker run --rm -p 8000:8000 -e GEMINI_API_KEY=$GEMINI_API_KEY recipe-box`
 
-Each `make` target is one command you can run directly (no `make` needed; PowerShell shown, Python 3.12).
+Checks: `python -m pytest -q` (from `backend/`), `python eval/oracle.py`, `python eval/run.py --replay`. All
+commands: [RUNBOOK.md](RUNBOOK.md) and the `Makefile`.
 
-| make target | Run directly | What it does |
+## Architecture
+
+```mermaid
+flowchart LR
+  U[message] --> G{guard<br/>unsupported field?}
+  G -- nutrition, cook time, cuisine --> GA[labelled answer / proxy]
+  G -- no --> P[planner<br/>rule parser first,<br/>else Gemini JSON plan]
+  P --> S[sticky state<br/>restrictions persist,<br/>request filters per task]
+  S --> E[executors<br/>search · match · stats · substitute]
+  E --> DB[(SQLite + FTS5<br/>recipes, ingredient_lines,<br/>recipe_tags, unverified)]
+  E --> T[templated reply<br/>+ payload]
+  T --> V[voice: Gemini rewording,<br/>numbers/ids validated]
+  T --> UI[React UI: chat + Results ·<br/>Calculation · Evidence · Trace]
+```
+
+Ingest (`backend/app/ingest.py`) parses every ingredient line once: quantity, unit, canonical name, family, allergen
+tags (`lexicon/*.yaml`), and the lines it couldn't verify. At runtime nothing is re-parsed and the LLM never sees the
+data, only the plan schema. At most 2 LLM calls per turn; any failure falls back to the deterministic rule parser.
+
+## What it does
+
+- **Search (T1).** FTS5 BM25 on title + ingredients, with every restriction as a SQL filter on the full set before
+  ranking (never a post-filter on a top-k). Restrictions are about the person and persist; the dish, step limit,
+  have-list and must-include filters belong to one request and clear on a new dish or task, with a "Restore previous
+  filters" chip. Diet words inside a dish ("vegetarian biryani", "veg", "eggless") become filters. Zero results relax
+  only the search words (synonyms, then modifiers, then the head dish), and the reply says what was relaxed.
+- **Match (T2).** "I have eggs, onions and rice": ranks recipes by how much of your pantry they use (formula below),
+  with quantities checked when you give them, and flagged one-constraint alternatives when nothing qualifies.
+- **Stats.** Counts, percentages, top ingredients, mean/median, rankings; each one reported strict and broad, with the
+  SQL and the denominator in the Calculation tab.
+- **Substitution (T3).** "Remove the eggs from this banana bread": candidates graded by evidence from similar recipes,
+  safety-checked against your restrictions, then an adapted recipe (ingredient diff + rewritten steps + a final
+  safety gate).
+- **Honest refusals.** No nutrition, cook time, servings, ratings, category or cuisine fields exist: the guard says so,
+  or runs a clearly labelled title-keyword proxy (cuisine, category).
+
+## Counting and normalization
+
+- N is always out of the **122,933 valid** recipes (title + ≥ 1 real ingredient line + instructions); the 2,231
+  invalid records and their reasons are read from the DB at startup.
+- Steps = non-empty newline steps; when the instructions are one paragraph of 2+ sentences, sentences are counted.
+- Each ingredient line maps to a canonical (`2 cloves garlic, minced` → `garlic`) and a family. **Strict** = the family
+  (fresh garlic forms); **broad** = plus processed forms (garlic powder, garlic salt) from `lexicon/families.yaml`.
+- An "or" alternative alone doesn't count as containing an item. Ties break by steps, then ingredients, then id.
+- `eval/oracle.py` recomputes demos 2 and 3 from the raw JSON in pure Python and must agree with the app.
+
+## Safety model
+
+- Tags: dairy, egg, peanut, tree_nut, gluten, soy, sesame, meat, pork, poultry, fish, shellfish, gelatin, honey, alcohol,
+  root_veg. Presets (vegan, vegetarian, Jain, halal, nut allergy, …) are compositions of tags, shown as one chip.
+- **Unknown is not safe.** A recipe passes "no dairy" silently only if every line is verified: a known canonical, or
+  a phrase the scanner cleared ("dairy-free"). Otherwise it is shown after every verified recipe with ⚠ naming the
+  line (about 30% of recipes have such a line for a given tag).
+- **may_contain**: label-dependent products (chocolate, margarine, cake mix) warn instead of passing.
+- **Strict mode** (a chip) excludes may_contain and unverified recipes too. Substitutes and adapted recipes go through
+  the same checks; an adapted recipe that still fails is called "not safe", never "dairy-free".
+
+## Match score
+
+`score = 2·matched − 1·extra − 0.1·steps − 0.5·short-quantity items`, where U = your ingredients, P = pantry staples
+assumed (salt, black pepper, water; "no staples" turns them off), R = recipe ingredients − P, matched = U∩R,
+extra = R−U. "As many as possible" → 3·matched, "fewest additional" → 1.5·extra, "fewest steps" → 0.5·steps. Ties:
+more matched, fewer extra, fewer steps, id. Weights: `WEIGHTS` and `PREF_WEIGHTS` in `backend/app/match.py`.
+
+## Substitution evidence
+
+- Tiers: **L1** = recipes whose title has the most specific dish phrase with ≥ 10 recipes, ≥ 3 of them without the
+  item ("tomato cream sauce" → "cream sauce" → "pasta"); **L2** = same dish context, ingredient Jaccard ≥ 0.35;
+  **L3** = the whole context. For each candidate: how often recipes *without* the item use it vs recipes *with* it.
+- **Strong** = favoured in L1 with ≥ 3 supporting recipes (or an explicit "eggless …" variant + ≥ 2), never a staple;
+  **Moderate** = ≥ 3 in L2; **Weak** = any support (adapted, labelled "Weak evidence: based on n recipes").
+- **Widening**: if no candidate is Strong or Moderate, L1 widens to the next less specific phrase, and the reply says so.
+- **Omit**: for seasonings and optional items (salt, pepper, garnishes, herbs, nuts on top) "omit it" is a candidate,
+  graded by how many same-dish recipes go without it ("8 of 18 broiled chicken recipes have no salt"); the line is
+  removed and the steps adjusted.
+- A defining ingredient (egg whites in a meringue) asks before adapting. Every cited recipe id is re-checked.
+
+## Evaluation
+
+`eval/cases.yaml`: 35 cases, 66 turns, programmatic assertions only (results re-checked with independent SQL, stats
+against the oracle). Latest results, latency and the full table: [eval/REPORT.md](eval/REPORT.md).
+
+| | result |
+|---|---|
+| Live (Gemini, one run) | **35 / 35**; 22 of its LLM calls failed (free-tier 429s / 503s) and fell back |
+| Replay (the live run's cached answers, final code) | **35 / 35**; p50 143 ms / p90 592 ms per turn (engine only) |
+| LLM off entirely (rule parser only) | **35 / 35** |
+| Oracle (demo 2 and 3 numbers, pure Python) | 9 / 9 |
+| Unit tests | 243 |
+
+Raw-Gemini baseline (same questions, no tools, `eval/baseline_oneshot.py`):
+
+| question | raw Gemini | Recipe Box |
 |---|---|---|
-| `make setup` | `python scripts/setup.py` | create `.venv`, install `requirements.txt` (+ `npm ci` once `frontend/` exists) |
-| `make data` | `python scripts/download.py` | download + unzip the dataset into `data/raw/` |
-| `make db` | `python -m backend.app.ingest` | build `data/recipes.db` (~3.5 min, peak RSS ~330 MB; prints peak memory) |
-| `make test` | `python -m pytest -q -x` | unit tests + a DB build from `backend/tests/fixtures/mini.json` |
-| `make coverage` | `python scripts/coverage.py ; python scripts/audit_tags.py` | normalization report (rewrites the coverage section of `docs/DATA_PROFILE.md`) + family-tag consistency audit (members whose tags differ from their family) |
-| — | `python scripts/llm_audit.py canonicals \| sample \| report` | offline LLM audit of the allergen rules (cached, resumable); writes `docs/tag_audit.md` |
-| — | `python eval/explore.py` | exploratory run of `eval/explore.txt` through the API; transcripts in `eval/explore_transcripts/` |
-| `make cli` | `python -m backend.app.cli` (or `--ask "..."`, `--session demos/demo1_refine.txt`, `--no-llm`) | chat in the terminal; one sticky session; prints planner (LLM / rule parser + why), LLM calls and latency per turn |
-| `make oracle` | `python eval/oracle.py` | recompute demos 2 and 3 from the raw JSON in pure Python and check the CLI answers (~2.5 min) |
-| — | `python scripts/determinism.py` | build the DB twice (different hash seeds) and compare fingerprints (~6 min alone) |
-| `make peek` | `python scripts/peek.py --n 3` | print 3 truncated records per file (never open `data/raw/` directly) |
-| `make profile` | `python scripts/profile_data.py` | write `docs/DATA_PROFILE.md` |
-| `make ui` | `cd frontend; npm ci; npm run build` | build the React UI into `frontend/dist` (served by FastAPI) |
-| `make run` | `python -m uvicorn app.api:app --app-dir backend --port 8000` | serve the UI + API on http://127.0.0.1:8000 (`/api/health` for counts, fingerprint, LLM status) |
-| `make docker` | `docker build -t recipe-box . ; docker run --rm -p 8000:8000 -e GEMINI_API_KEY=... recipe-box` | the image Railway builds: node stage builds the UI, builder stage builds the DB (listens on `$PORT`, default 8000) |
+| recipes with garlic and onion | "45,210, about 36.1%" | 16,065 strict (13.07%) / 23,068 broad (18.76%), oracle-equal |
+| a dairy-free penne recipe id | `epi:241470` (doesn't exist) | 10 real ids, each verified dairy-free |
+| eggs, onions, tomatoes, rice: five recipes | 5 ids, none exist | 5 real ids with the score breakdown |
+| valid recipe count | only the record count | 122,933 valid of 125,164 |
+| five tomato recipes with fewest steps | declined | the oracle's 5 ids |
 
-Activate the venv before `run`: `.\.venv\Scripts\Activate.ps1` (Windows) or `. .venv/bin/activate`.
-API: `POST /api/chat {session_id, message}` → `{reply_md, payload, state, trace, planner}`; `GET /api/recipe/{id}`;
-`PATCH /api/session/{id}/state {op: remove|set, field, value}` (re-runs the active task); `POST /api/session/{id}/reset`;
-`GET /api/health`. Sessions are in memory (30 min TTL), 10 messages/min per session.
+## Tag audit (honest summary)
 
-Counting rules every answer states: N of the **valid** recipes (title + at least one real ingredient line + instructions; the
-record total and invalid breakdown are read from the DB at startup). Steps = effective `n_steps` (newline steps;
-sentences when the instructions are one paragraph). Ingredient presence is reported **strict** (the family, e.g.
-fresh garlic forms) and **broad** (plus the family's `broad` list in `backend/app/lexicon/families.yaml`).
-Rankings break ties by n_steps, then n_ingredients, then id. Tag stats ("how many are dairy-free") report
-lenient (only `contains` counts) and strict (`may_contain` and unverified recipes count too).
+Gemini audited the rules offline, never at runtime ([docs/tag_audit.md](docs/tag_audit.md)): 3,000 most common
+canonicals plus a fixed sample of 150 recipes. The first pass found 497 "contains vs nothing" disagreements; the real
+misses were fixed (wine names, cheese brands, cuts of meat, …), the LLM errors were kept with reasons. On the sample,
+the one real silent miss (claret, alcohol) is fixed, so the measured miss rate is 0, but 150 recipes give few
+positives per tag: that is evidence, not proof. Known gaps are in [docs/lexicon_todo.md](docs/lexicon_todo.md).
 
-Allergens and diets. Tags: dairy, egg, peanut, tree_nut, gluten, soy, sesame, meat, pork, poultry, fish,
-shellfish, gelatin, honey, alcohol, root_veg (`lexicon/tags.yaml`). Presets are compositions of tags, shown in the
-reply and as one chip (`lexicon/diets.yaml`): vegetarian, vegan, pescatarian, halal (pork + alcohol; the
-slaughter method can't be verified from text), Jain (no meat/fish/egg/gelatin, onion, garlic or root
-vegetables), lactose intolerant → dairy, celiac / wheat → gluten, nut allergy → peanut + tree_nut; kosher is
-stated as not verifiable from recipe text and filters nothing.
-**Unknown is not safe** (`backend/app/safety.py`): an ingredient counts as verified free of a tag only if its
-canonical is known (≥ 5 valid recipes, not via the suffix fallback) or the line scanner explicitly cleared that
-tag ("dairy-free", "rice noodles"); an "or" option only counts if it is itself verified. Otherwise the recipe is
-shown with ⚠ "1 ingredient couldn't be verified: '…'" and excluded in strict mode. About 30% of valid recipes have
-such an ingredient for a given tag (29.1% dairy … 33.6% peanut): that is the price of not guessing.
-The rules decide at runtime; an LLM audited them offline (`python scripts/llm_audit.py`, cached): 3,000
-canonicals and a fixed sample of 150 recipes. Results, per-tag miss rates and every fix: [docs/tag_audit.md](docs/tag_audit.md).
+## Known limitations
 
-LLM: Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`, thinking `minimal`) only turns text into a JSON
-plan; at most 2 requests per turn (the 2nd only to retry invalid JSON); responses cached in
-`data/llm_cache.sqlite`; prompt/thought tokens are printed per turn. High-confidence phrasings (a have-list,
-"the second one", short restriction-only messages like "also no garlic") skip the LLM and use the rule parser
-directly. No key, a 429, a network error or no answer within 6 s → the rule parser, flagged in the reply.
-The 6 s limit is client-side (the API rejects deadlines under 10 s); google-genai's ~6 s cold import is paid
-at startup (`llm.warm()`), not inside a turn.
+- The lexicon is the ceiling: an ingredient it doesn't know is "unverified", so ~30% of recipes carry a ⚠ for any
+  given tag. Open items: [docs/lexicon_todo.md](docs/lexicon_todo.md).
+- Deliberate shortcuts (`ponytail:` comments): one lock around the shared SQLite connection; FIFO (not LRU) evidence
+  cache; search reads every eligible row once instead of COUNT + LIMIT; the FTS safety net's safe phrases are
+  per recipe; observed amounts use a 300-recipe sample; the step rewriter guesses an unknown role inside its one call.
+- Free-tier Gemini is flaky (503s, timeouts): one live eval run saw 18 LLM errors in 40 turns. Every failure falls
+  back to the deterministic rule parser or the templated reply; a grey dot marks those turns.
+- No cuisine, category, nutrition or time fields: proxies are labelled, and dishes not named that way are missed.
+- Sessions live in memory (30 min TTL), one worker.
 
-Voice (LLM call #2, UI only): after the executor runs, the LLM writes a 2–4 sentence friendly reply from the
-payload's facts only (counts, titles, IDs, filters, score parts). Every number, number word and recipe ID in it
-must appear in those facts, otherwise the templated answer is shown alone (4 s cap, cached, skipped when the
-planner used both calls). The templated "exact answer", the cards and the Calculation tab are unchanged.
-Conversation: greetings / thanks / "what can you do" / off-topic get short fixed replies; "why that one?" is
-answered from the score breakdown or ranking evidence; a contradiction ("vegan chicken curry") gets one short
-question; each answer offers 2–3 follow-up chips. Cuisine questions (no cuisine field) run a labelled
-title-keyword proxy (`lexicon/cuisines.yaml` + optional LLM dish names), honest count even when zero.
-Nutrition, cook time, servings, ratings and categories have no field: the guard answers those without the LLM (category → a labelled
-title-keyword proxy; cook time → durations mentioned in the instructions).
+## AI tools used
 
-Matching (T2): U = your ingredients, P = pantry staples assumed available (salt, black pepper, water; say "no
-staples" to turn off), R = the recipe's required ingredients − P. matched = U∩R, unused = U−R, extra = R−U.
-Eligible = no excluded ingredient/tag, n_steps ≤ limit, ≥ 1 matched. Score = 2·matched − 1·extra −
-0.1·steps − 0.5·(items short on quantity); "as many as possible" → 3·matched, "fewest additional" → 1.5·extra,
-"fewest steps" → 0.5·steps. Quantities are compared only within one unit family (volume or mass; counts
-with the same unit), never volume↔mass. If nothing is eligible the reply says "No recipe satisfies all hard
-constraints" and lists flagged alternatives, each relaxing one named constraint.
+Claude Code implemented this codebase milestone by milestone under my PRD. I wrote the PRD and made and reviewed the
+design, the counting and safety rules, the evidence grading and the evaluation decisions; every milestone ended with
+my review and fixes. At runtime Gemini (`gemini-3.5-flash-lite`) is the planner (message → JSON plan), the voice
+(rewording validated against the computed facts) and the step rewriter for substitutions (validated, with a
+deterministic fallback). Offline, Gemini audited the allergen tags.
 
-## Deploy to Railway
-
-Push the repo to GitHub → Railway → New Project → Deploy from GitHub repo (it detects the `Dockerfile`) →
-Settings → Networking → Generate Domain; set the healthcheck path to `/api/health`. Railway injects `$PORT`;
-the container honours it (default 8000, one worker). Trial plan = 0.5 GB RAM, so the runtime budget is <400 MB.
-The Dockerfile is multi-stage: a builder stage downloads the data and builds `recipes.db`; the final image contains only
-the code and `recipes.db` (no raw JSON or zip). `/api/health` returning counts proves it worked.
+More: [DECISIONS.md](DECISIONS.md) · [docs/interview-notes.md](docs/interview-notes.md) ·
+[docs/DATA_PROFILE.md](docs/DATA_PROFILE.md) · [docs/FINAL.md](docs/FINAL.md)
