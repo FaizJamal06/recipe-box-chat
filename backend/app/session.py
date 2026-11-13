@@ -78,7 +78,11 @@ class Session:
         return Turn(reply, p, res, PlanInfo("ui"), round((time.perf_counter() - t0) * 1000), self.notes)
 
     def respond(self, text: str) -> Turn:
-        """Answer one message and update the state."""
+        """Answer one message and update the state, within one LLM budget (api.chat's, if it opened one)."""
+        with llm.turn():
+            return self._respond(text)
+
+    def _respond(self, text: str) -> Turn:
         t0, self.notes, self.ref_id, self.extra_calls, self.conflict = time.perf_counter(), [], None, [], None
         self.drop_conflicts = self.state.offer_restore = False
         attr = guard.check(text)

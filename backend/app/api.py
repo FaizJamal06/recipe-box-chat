@@ -135,7 +135,7 @@ def _response(sid: str, e: Entry, turn, text: str = "") -> dict:
     s = e.session
     md, payload = web.view(turn, s)
     voice_text, vcalls, vstatus = None, [], "template (LLM not used this turn)"
-    used = sum(not c.cached for c in turn.info.calls)
+    used = len(turn.info.calls)  # cache hits count too: at most 2 LLM answers per turn (llm.MAX_PER_TURN)
     llm_ok = s.use_llm and llm.available() and turn.info.source != "rule" and not any(c.error for c in turn.info.calls)
     if llm_ok and used < 2 and text:  # <= 2 LLM calls per turn, planner (+cuisine) first
         voice_text, vcalls, vstatus = voice.speak(text, payload, s.state.chips(), turn.notes)
@@ -166,7 +166,7 @@ def chat(body: ChatIn):
     if len(e.times) >= RATE:
         return JSONResponse({"error": f"Slow down: at most {RATE} messages per minute per session."}, 429)
     e.times.append(now)
-    with ENGINE:
+    with ENGINE, llm.turn():  # one LLM budget for planner, executor and voice (at most 2 answers)
         turn = e.session.respond(body.message.strip())
         return _response(sid, e, turn, body.message.strip())
 

@@ -37,7 +37,8 @@ def _counts(res, item: str, c) -> str:
 
 
 def because(p) -> str:
-    """'Chosen because: Strong, not conflicting, 2/13 L1 recipes without eggs use it; next: applesauce (Strong, 1/13).'"""
+    """'Chosen because 2 of 13 same-dish recipes without eggs use it (Strong evidence); next best: applesauce (Strong,
+    1 of 13).' Plain words for the chat; the lift and the tiers are in the evidence table."""
     c, i = p.chosen, p.candidates.index(p.chosen)
     if c.kind == "user":
         return "Chosen because you named it."
@@ -45,13 +46,13 @@ def because(p) -> str:
         return f"Chosen because you picked option {i + 1}."
     a = c.tiers["L1"]
     nxt = next((x for x in p.candidates if x is not c), None)
-    if c.kind == "omit":  # 'Chosen because: Strong, 8 of 18 'broiled chicken' recipes have no salt.'
-        return f"Chosen because: {c.strength}, {a.n_without} of {a.n_with + a.n_without} L1 recipes have no {p.item}" + (
-            f"; next: {nxt.name} ({nxt.strength})." if nxt else "; nothing else qualified.")
-    return (f"Chosen because: {c.strength}, {'conflicting (so is every option)' if c.conflicting else 'not conflicting'}, "
-            f"{a.support}/{a.n_without} L1 recipes without {p.item} use it (lift {fmt_lift(a.lift)})" +
-            (f"; next: {nxt.name} ({nxt.strength}{', conflicting' if nxt.conflicting else ''}, "
-             f"{nxt.tiers['L1'].support}/{a.n_without})." if nxt else "; the only usable option."))
+    if c.kind == "omit":  # 'Chosen because 8 of 18 same-dish recipes have no salt (Strong evidence).'
+        return f"Chosen because {a.n_without} of {a.n_with + a.n_without} same-dish recipes have no {p.item} " \
+               f"({c.strength} evidence)" + (f"; next best: {nxt.name} ({nxt.strength})." if nxt else ".")
+    return (f"Chosen because {a.support} of {a.n_without} same-dish recipes without {p.item} use it ({c.strength} evidence"
+            + (", though the evidence conflicts, as it does for every option)" if c.conflicting else ")") +
+            (f"; next best: {nxt.name} ({nxt.strength}{', conflicting' if nxt.conflicting else ''}, "
+             f"{nxt.tiers['L1'].support} of {a.n_without})." if nxt else "; the only usable option."))
 
 
 def _l1(res) -> str:

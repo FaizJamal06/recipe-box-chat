@@ -1,8 +1,8 @@
 # Evaluation report
 
-Mode: **replay (LLM cache only)** · 2026-11-13 05:18 · commit `bb55d27` · DB fingerprint `{"comma_splits": 4006, "garlic_family_recipes": 32826, "ingredient_lines": 1347635, "onion_family_recipes": 31304, "rare_remapped": 37499, "recipe_tags": 484224, "unverified_alcohol": 39212, "unverified_dairy": 35112, "unverified_egg": 38620, "unverified_fish": 39931, "unverified_gelatin": 40370, "unverified_gluten": 35480, "unverified_honey": 40444, "unverified_meat": 36725, "unverified_peanut": 40710, "unverified_pork": 39272, "unverified_poultry": 39553, "unverified_root_veg": 37207, "unverified_sesame": 40696, "unverified_shellfish": 40187, "unverified_soy": 39303, "unverified_tree_nut": 40089, "vocab_sha1": "81ac30178734", "vocab_size": 20206}`
+Mode: **replay (LLM cache only)** · 2026-11-13 22:42 · commit `5045193` · DB fingerprint `{"comma_splits": 4006, "garlic_family_recipes": 32826, "ingredient_lines": 1347635, "onion_family_recipes": 31304, "rare_remapped": 37499, "recipe_tags": 484224, "unverified_alcohol": 39212, "unverified_dairy": 35112, "unverified_egg": 38620, "unverified_fish": 39931, "unverified_gelatin": 40370, "unverified_gluten": 35480, "unverified_honey": 40444, "unverified_meat": 36725, "unverified_peanut": 40710, "unverified_pork": 39272, "unverified_poultry": 39553, "unverified_root_veg": 37207, "unverified_sesame": 40696, "unverified_shellfish": 40187, "unverified_soy": 39303, "unverified_tree_nut": 40089, "vocab_sha1": "81ac30178734", "vocab_size": 20206}`
 
-**24 / 24 cases pass** (40 turns). Every check is programmatic (eval/cases.yaml, eval/run.py): results are re-checked with independent SQL, stats against eval/oracle.py's pure-Python recount.
+**35 / 35 cases pass** (66 turns). Every check is programmatic (eval/cases.yaml, eval/run.py): results are re-checked with independent SQL, stats against eval/oracle.py's pure-Python recount.
 
 | case | result | what failed |
 |---|---|---|
@@ -30,6 +30,17 @@ Mode: **replay (LLM cache only)** · 2026-11-13 05:18 · commit `bb55d27` · DB 
 | Vegan preset: no meat, fish, shellfish, dairy, egg, honey or gelatin in results | ✅ pass |  |
 | Cuisine: no cuisine field, so a labelled title-keyword proxy | ✅ pass |  |
 | At most 2 LLM calls per turn, even on a long conversation | ✅ pass |  |
+| A0.1 'Actually I'm not vegan anymore, just no peanuts': vegan removed, peanuts the only restriction, dish kept | ✅ pass |  |
+| A0.1 removal phrasings: 'I can eat dairy now', 'I'm no longer vegetarian' | ✅ pass |  |
+| A0.1 a message nothing can parse: one short question with chips, the dish is not overwritten | ✅ pass |  |
+| A0.2 'make it vegetarian' after a chicken biryani search: a filter (chicken dropped, and said), not a search word | ✅ pass |  |
+| A0.2 'veg biryani': veg = the vegetarian filter, the search is 'biryani' | ✅ pass |  |
+| A0.2 zero results: the search words are relaxed (and named), the restriction never is | ✅ pass |  |
+| A0.3 a new dish clears request filters (step limit) and keeps person restrictions; a chip restores them | ✅ pass |  |
+| A0.3 a have-list doesn't leak into the next dish search | ✅ pass |  |
+| A0.4 a seasoning gets an 'omit it' option graded by same-dish recipes without it; line removed, steps adjusted | ✅ pass |  |
+| A0.5 the kept-restrictions note names presets ('vegan, no peanuts'), not their tags | ✅ pass |  |
+| The 'No step limit?' chip ('remove the step limit') clears the limit; it isn't a substitution | ✅ pass |  |
 
 ## Latency and LLM calls
 
@@ -37,12 +48,12 @@ Server-side wall time per turn (TestClient, same process), measured after the st
 
 | run | all turns p50 / p90 | substitution turns p50 / p90 | LLM calls per turn (mean / max) | LLM errors |
 |---|---|---|---|---|
-| this run (replay) | 308 / 1,131 ms (n=40) | 436 / 842 ms (n=7) | 0.85 / 2 | 0 |
-| last live run, 2026-11-13 01:48 | 3,926 / 15,378 ms (n=40) | 2,870 / 6,678 ms (n=7) | 1.23 / 2 | 18 |
+| this run (replay) | 166 / 592 ms (n=66) | 270 / 479 ms (n=8) | 0.98 / 2 | 0 |
+| last live run, 2026-11-13 22:37 | 541 / 3,724 ms (n=66) | 2,250 / 2,896 ms (n=8) | 1.27 / 3 | 22 |
 
 In a replay every LLM answer comes from the cache (0 ms), so replay latency is the engine alone.
 
-Slowest turns this run: demo5_match #1 4,429 ms (rule parser · high-confidence pattern); quantity_sufficiency #1 3,367 ms (rule parser · high-confidence pattern); demo5_match #2 2,750 ms (rule parser · high-confidence pattern); vegan_preset #1 1,148 ms (LLM · gemini-3.5-flash-lite); demo3_rank #1 980 ms (LLM · gemini-3.5-flash-lite)
+Slowest turns this run: a03_match_to_search #1 2,833 ms (rule parser · high-confidence pattern); demo5_match #1 2,674 ms (rule parser · high-confidence pattern); quantity_sufficiency #1 2,114 ms (rule parser · high-confidence pattern); demo5_match #2 1,597 ms (rule parser · high-confidence pattern); demo6_no_match #1 639 ms (rule parser · high-confidence pattern)
 
 ## Baseline: the same questions to raw Gemini, no tools
 
@@ -59,38 +70,37 @@ Slowest turns this run: demo5_match #1 4,429 ms (rule parser · high-confidence 
 
 ## Notes (hand-written)
 
-**What the pass rate does and doesn't show.** 24 cases, 40 turns, all assertions programmatic. Result ids are
-re-checked with independent SQL (`recipe_tags`, `ingredient_lines`, `unverified`), demo 2/3 numbers are compared with
-eval/oracle.py's pure-Python recount, and substitution citations are re-checked recipe by recipe. What it doesn't
-cover: ranking *quality* (only constraints and ids), and the wording of replies beyond a few required phrases.
+**What the pass rate does and doesn't show.** 35 cases, 66 turns, all assertions programmatic (checks in
+`eval/checks.py`). Result ids are re-checked with independent SQL (`recipe_tags`, `ingredient_lines`, `unverified`),
+demo 2/3 numbers are compared with eval/oracle.py's pure-Python recount, and substitution citations are re-checked
+recipe by recipe. What it doesn't cover: ranking *quality* (only constraints and ids), and the wording of replies
+beyond a few required phrases.
 
-**Failures found while building the eval, and fixed** (all have regression tests):
-- "Which recipes … use applesauce instead of eggs?" was parsed as a *substitution* by a high-confidence rule, so even
-  the live LLM was skipped. A question asking for recipes is now never a substitution.
-- "show me the frist one" only worked through the LLM; common ordinal typos are now rule-level.
-- Demo 6: marshmallows passed "no sugar". The `sugar` family's broad list now includes marshmallows, caramel and
-  candy (query time, no rebuild), so marshmallow is dropped from the pantry with the reason shown.
-- The oracle values file was being overwritten by the test suite (a test calls `oracle.check()` on a fixture); only
-  the CLI run writes it now.
+**M6 part 2: the 11 new cases came from live testing** (A0.1–A0.5 and the step-limit chip). All 11 failed before the
+fixes and pass now, in replay and in the one live run:
+- "Actually I'm not vegan anymore, just no peanuts" kept vegan and searched for the dish "actually not anymore".
+- "make it vegetarian" after a chicken biryani search asked "which recipe?"; the LLM path searched "vegetarian biryani".
+- A new dish kept the old step limit and have-list; the kept-restrictions note listed eight tags instead of "vegan".
+- "remove the salt" had no answer: salt has no curated substitute. Now "omit it" is an option (8 of 18 broiled
+  chicken recipes have no salt).
+- The "No step limit?" suggestion chip sent "remove the step limit", which the substitution parser took as an edit.
 
-**Demo 6 deviates from the PRD wording, on purpose.** The PRD expects an explicit no-match for "saffron and
-marshmallows, no sugar, at most 2 steps". With marshmallows correctly dropped (they are sugar), the dataset has 35
-saffron recipes with ≤ 2 steps and no sugar, so a no-match would be false. The case asserts the honest behaviour
-(marshmallow dropped, every result ≤ 2 steps and sugar-free, broad), and a second case ("at most 1 step") asserts the
-explicit no-match with alternatives flagged by the constraint they break.
+**The live run (one, to save quota) hit the free tier's limits:** 22 LLM errors in 66 turns, mostly 429 quota
+exhaustion near the end of the run, plus 503s and one voice reply withheld by the validator ("number word nine not
+in facts"). Every failed call fell back to the rule parser or the templated reply, and all 35 cases still passed.
 
-**A slowdown the replay caught, after the live run.** The M6 rebuild ends with `ANALYZE`. With those statistics, the per-result evidence query (`recipe_tags` joined by recipe_id, which had only a `tag` index) became a ~30k-row scan per result: 'I cannot have dairy' took 11.6 s and 'Find a vegan curry recipe' (7 tags) 55 s. Fixed with an index on `recipe_tags(recipe_id, tag)` (in ingest.py, and created in place on the current DB: 0.9 s, no rebuild): the same turns now take 0.24 s. A test pins the query plan. **The live latency row predates this fix**; its slow search turns are part of its p90. The replay row is the current engine.
+**A finding from the live run, fixed after it:** one turn made 3 LLM requests (planner, then a voice call that hit a
+503 and retried on the fallback model). The PRD allows 2. The cap is now enforced in one place (`llm.turn()` /
+`MAX_PER_TURN`), counting retries, fallbacks and cache hits, with a regression test. The live row below predates this
+fix and the plain-English "chosen because" wording; the replay re-runs every case on the final code with the live
+run's cached answers (a cache miss behaves like an outage, so some turns replay through the rule parser).
 
-**Latency.** The live run hit a bad Gemini hour: 18 LLM errors in 40 turns (503 overloaded, timeouts). Each failed
-call costs its full timeout before the rule fallback answers; with the search slowdown above, that pushes the
-all-turn p90 to ~15 s. The
-fallback model (gemini-3.5-flash) was tried where the budget allowed and was overloaded too. Substitution turns:
-p50 2.9 s / p90 6.7 s live; the engine part alone is 0.3–0.7 s after the startup warm-up (the step rewrite has a
-deliberate 12 s cap). Replay latency = engine only.
+**With the LLM off entirely** (`GEMINI_API_KEY=` empty, rule parser for every turn, no voice) all 35 cases pass too:
+all turns p50 146 / p90 593 ms.
 
-**The live run is from before three fixes** (the recipe_tags index, the question-vs-substitution guard, filler words
-in the keyword fallback). The replay re-runs every case on the current code; the LLM answers it replays are the
-live run's, from the cache.
+**Latency.** Replay latency is the engine alone (cache hits cost 0 ms). Live substitution turns: p50 2.3 s / p90 2.9 s;
+all turns p50 0.5 s / p90 3.7 s, down from 3.9 s / 15.4 s in the M6 part 1 run (the recipe_tags index fix landed
+after that run).
 
 **Baseline fairness.** The raw model gets the dataset's sources, size and id format in its prompt (so the record
 count in question 1 is given away; the question checks the *valid* count). It is asked for JSON with every number and

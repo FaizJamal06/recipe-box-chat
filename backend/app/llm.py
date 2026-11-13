@@ -2,7 +2,8 @@
 
 The LLM only turns user text into a plan; it never produces dataset facts. Structured output uses
 generate_content with response_mime_type='application/json' + response_json_schema (google-genai docs,
-checked Nov 2026). At most 2 requests per call: the second only if the first is not a valid plan.
+checked Nov 2026). At most 2 requests per call: the second only if the first is not a valid plan, and at most
+MAX_PER_TURN (2) LLM answers per conversation turn across planner, executor and voice (begin_turn / _spend).
 Only validated responses are cached, keyed by sha256(model, system, prompt, schema), so eval replays are
 reproducible and cost no quota. Any failure (no key, 429, network, > TIMEOUT_MS, invalid twice) raises LLMError.
 """
@@ -14,6 +15,7 @@ import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from .config import LLM_CACHE
@@ -24,6 +26,31 @@ FALLBACK_MIN_MS = 2_500  # below this much budget left, a second model can't ans
 TIMEOUT_MS = 6_000  # past this the turn falls back to the rule parser (a slow free-tier reply is worse than rules)
 log = logging.getLogger("recipebox.llm")
 THINKING = "minimal"  # lowest level gemini-3.5-flash-lite supports (it cannot be fully off); docs checked Nov 2026
+MAX_PER_TURN = 2  # PRD: at most 2 LLM answers per turn, retries, fallbacks and cache hits included
+_turn = threading.local()  # one API request = one thread (planner, executor and voice), so the budget is per turn
+
+
+@contextmanager
+def turn():
+    """One conversation turn's LLM budget. Nested use is a no-op, so api.chat's block (planner + executor + voice)
+    contains Session.respond's; outside any turn (tests, scripts) nothing is counted."""
+    if getattr(_turn, "n", None) is not None:
+        yield
+        return
+    _turn.n = 0
+    try:
+        yield
+    finally:
+        _turn.n = None
+
+
+def _spend(calls: list) -> None:
+    """Take one LLM answer from the turn's budget, or raise LLMError when it is used up."""
+    n = getattr(_turn, "n", None)
+    if n is not None and n >= MAX_PER_TURN:
+        raise LLMError(f"turn budget: {MAX_PER_TURN} LLM calls already used", calls)
+    if n is not None:
+        _turn.n = n + 1
 
 
 class LLMError(RuntimeError):
@@ -133,6 +160,7 @@ def _request_once(system, prompt, schema, budget: int, t0: float, calls: list, l
     left. Appends a Call per request; raises LLMError (with the calls) when nothing answered."""
     for name in (None, fallback_model()):
         t, ms = time.perf_counter(), max(1, round(budget - (time.perf_counter() - t0) * 1000))
+        _spend(calls)
         try:
             text, usage = _remote(system, prompt, schema, ms, name) if name else _remote(system, prompt, schema, ms)
         except LLMError as e:
@@ -140,7 +168,8 @@ def _request_once(system, prompt, schema, budget: int, t0: float, calls: list, l
                               label=label + (" (fallback)" if name else "")))
             log.warning("LLM %s call failed: %s (%s)", label, error_kind(str(e)), e)
             left = budget - (time.perf_counter() - t0) * 1000
-            if name or not ("503" in str(e) or "504" in str(e)) or left < FALLBACK_MIN_MS or not fallback_model():
+            if name or not ("503" in str(e) or "504" in str(e)) or left < FALLBACK_MIN_MS or not fallback_model() \
+                    or (getattr(_turn, "n", None) or 0) >= MAX_PER_TURN:
                 raise LLMError(str(e), calls) from e
             continue
         calls.append(Call(False, round((time.perf_counter() - t) * 1000), label=label + (" (fallback)" if name else ""),
@@ -159,6 +188,7 @@ def generate_json(system: str, prompt: str, schema: dict, validate, timeout_ms: 
     try:
         row = con.execute("SELECT response FROM cache WHERE key = ?", (key,)).fetchone()
         if row:
+            _spend([])
             return validate(json.loads(row[0])), [Call(True, 0, label=label)]
         if os.environ.get("LLM_REPLAY"):  # eval --replay: cache only, never the network
             raise LLMError("replay: not in the LLM cache")

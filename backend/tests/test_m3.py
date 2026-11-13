@@ -226,3 +226,28 @@ def test_503_retries_once_on_the_fallback_model(monkeypatch, tmp_path):
     with pytest.raises(llm.LLMError):
         llm.generate_json("s", "q", {"type": "object"}, lambda d: d, timeout_ms=1000, attempts=1, label="t")
     assert seen == [None]
+
+
+def test_at_most_two_llm_answers_per_turn(monkeypatch, tmp_path):
+    """Planner + voice, a 503 fallback, an invalid-JSON retry and cache hits all draw on one budget of 2 per turn."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.setattr(llm, "LLM_CACHE", tmp_path / "cache.sqlite")
+    seen = []
+
+    def remote(system, prompt, schema, timeout_ms=None, model_name=None):
+        seen.append(prompt)
+        if model_name is None and prompt == "planner":
+            raise llm.LLMError("HTTP 503 UNAVAILABLE")
+        return '{"x": 1}', {}
+    monkeypatch.setattr(llm, "_remote", remote)
+    with llm.turn():
+        llm.generate_json("s", "planner", {"type": "object"}, lambda d: d, timeout_ms=6000, attempts=1)  # 503 + fallback
+        with pytest.raises(llm.LLMError, match="turn budget"):
+            llm.generate_json("s", "voice", {"type": "object"}, lambda d: d, attempts=1)
+    assert seen == ["planner", "planner"]
+    with llm.turn():  # a new turn: the cached planner answer counts as one, the voice gets the second
+        llm.generate_json("s", "planner", {"type": "object"}, lambda d: d, attempts=1)
+        llm.generate_json("s", "voice", {"type": "object"}, lambda d: d, attempts=1)
+        with pytest.raises(llm.LLMError, match="turn budget"):
+            llm.generate_json("s", "third", {"type": "object"}, lambda d: d, attempts=1)
+    llm.generate_json("s", "outside", {"type": "object"}, lambda d: d, attempts=1)  # outside a turn: not counted
