@@ -174,25 +174,6 @@ def target(t: str) -> dict | None:
     return None
 
 
-def confident(text: str, plan: dict, known=lambda w: True) -> bool:
-    """Rule plans trusted without asking the LLM (the faster, deterministic path):
-    a have-list ('I have ...'); 'the Nth one' with a detail word; a short message (<= 8 words, no question)
-    that only adds/removes restrictions ('I cannot have dairy', 'also no garlic', 'exclude eggs too',
-    'dairy is fine now', 'at most 1 step') whose words are all tags or known ingredients (`known`)."""
-    intent = plan.get("intent")
-    if intent == "substitute":  # a bare 'yes' / 'go ahead' may answer something else: let the LLM read the history
-        return not (plan["substitution"]["force"] and "anyway" not in text.lower())
-    if intent in ("match", "smalltalk", "explain", "restore") or (intent == "clarify" and plan.get("question")):
-        return True
-    if intent == "recipe_detail":
-        return plan["target"]["kind"] == "result_index"
-    p = plan.get("state_patch") or {}
-    if intent != "search" or p.get("query_text") or "?" in text:
-        return False
-    words = p.get("exclude_add", []) + p.get("exclude_remove", [])
-    return len(re.findall(r"[a-z']+", text.lower())) <= 8 and all(known(w) for w in words)
-
-
 _TALK = (("greeting", r"^(?:hi+|hello+|hey+|hiya|yo|namaste|hola|good (?:morning|afternoon|evening))\b[\s!.,?a-z']{0,22}$"),
          ("thanks", r"^(?:ok(?:ay)?,? )?(?:thanks|thank you|thank u|thx|ty|cheers|awesome|perfect|great|nice|cool)\b.{0,25}$"),
          ("bye", r"^(?:bye|goodbye|see you|good night|cya)\b"),

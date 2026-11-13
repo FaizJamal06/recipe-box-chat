@@ -227,7 +227,8 @@ def test_session_resolves_the_dish_states_the_pick_and_switches_option(eng):
 
 
 def test_detail_and_bare_yes_are_not_forced_into_a_substitution():
-    from app.rules import confident, rule_plan
+    from app.planner import confident
+    from app.rules import rule_plan
     assert rule_plan("show me the first one")["intent"] == "recipe_detail"
     assert not confident("yes", rule_plan("yes"))  # may answer another question: the LLM reads the history
     assert confident("adapt it anyway", rule_plan("adapt it anyway"))

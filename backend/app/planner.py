@@ -5,11 +5,12 @@ fixed enums (invalid -> one retry inside llm.generate_json, then the rule planne
 429, network, invalid JSON twice) falls back to rules.rule_plan and the reply shows "rule parser".
 """
 import json
+import re
 from dataclasses import dataclass, field
 
 from . import llm
 from . import rules
-from .rules import confident, keyword_plan, rule_plan
+from .rules import keyword_plan, rule_plan
 
 INTENTS = ["search", "recipe_detail", "stats", "match", "substitute", "unsupported", "clarify", "smalltalk",
            "explain", "offtopic"]
@@ -61,6 +62,25 @@ stats: ingredients as plain words in all_of/any_of/none_of; "dairy-free" -> tags
 "fewest steps" -> op rank, field n_steps, order asc.
 target: "the second one" -> result_index "2"; last -> "-1"; this/that/it -> selected; else recipe_id or title.
 """
+
+
+def confident(text: str, plan: dict, known=lambda w: True) -> bool:
+    """Rule plans trusted without asking the LLM (the faster, deterministic path):
+    a have-list ('I have ...'); 'the Nth one' with a detail word; a short message (<= 8 words, no question)
+    that only adds/removes restrictions ('I cannot have dairy', 'also no garlic', 'exclude eggs too',
+    'dairy is fine now', 'at most 1 step') whose words are all tags or known ingredients (`known`)."""
+    intent = plan.get("intent")
+    if intent == "substitute":  # a bare 'yes' / 'go ahead' may answer something else: let the LLM read the history
+        return not (plan["substitution"]["force"] and "anyway" not in text.lower())
+    if intent in ("match", "smalltalk", "explain", "restore") or (intent == "clarify" and plan.get("question")):
+        return True
+    if intent == "recipe_detail":
+        return plan["target"]["kind"] == "result_index"
+    p = plan.get("state_patch") or {}
+    if intent != "search" or p.get("query_text") or "?" in text:
+        return False
+    words = p.get("exclude_add", []) + p.get("exclude_remove", [])
+    return len(re.findall(r"[a-z']+", text.lower())) <= 8 and all(known(w) for w in words)
 
 
 @dataclass
