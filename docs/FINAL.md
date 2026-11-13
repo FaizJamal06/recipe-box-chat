@@ -72,6 +72,29 @@ Taken by `node scripts/screenshots.mjs` (headless Chrome, `?q=` replay) against 
 | Stats + Calculation (demo 2) | ![](screenshots/stats-1440-clean.png) | ![](screenshots/stats-1440-dev.png) | ![](screenshots/stats-390-clean.png) | ![](screenshots/stats-390-dev.png) |
 | Substitution (demo 7) | ![](screenshots/substitute-1440-clean.png) | ![](screenshots/substitute-1440-dev.png) | ![](screenshots/substitute-390-clean.png) | ![](screenshots/substitute-390-dev.png) |
 
+## Mobile pass (follow-up)
+
+Below 900 px the phone layout renders instead of the desktop one (`useMobile` in `frontend/src/components/Mobile.tsx`;
+desktop markup unchanged):
+- **Layout:** one 100dvh column. The results panel is a bottom sheet opened by a "View N results ▲" bar above the
+  input; it shows the panel's tabs and closes on tap, ▼, Escape or a swipe down, with the chat still visible behind it.
+- **Header:** the logo and a ⋯ menu holding developer view, reset and the LLM status.
+- **Input:** fixed at the bottom with `env(safe-area-inset-bottom)` padding, 16 px text (no iOS zoom) and an icon send
+  button. Messages scroll above it.
+- **Chips:** constraint and suggestion chips sit in one sideways-scrolling row each, every tap target ≥ 44 px.
+- **Empty state:** the demo prompts are a vertical list of rows.
+- **Cards:** full width, ids hidden unless developer view is on, 15–16 px text.
+- **Drawer:** full screen with a sticky title bar.
+- **Substitution:** an Original | Adapted toggle, and one card per candidate in the evidence view.
+- **Wrapping:** `overflow-wrap: anywhere` and `viewport-fit=cover`.
+
+Verification: `node scripts/screenshots.mjs --mobile` (or `make mobile-check`) captures 9 views at 360, 390, 430 and
+768 px into `docs/screenshots/mobile/`. Each view must have `scrollWidth <= clientWidth` and no element past the
+viewport edge outside an intentional sideways scroller; all 36 pass. Two bugs this pass found:
+- The match reply said "Top 5 of 50,353 fully verified", but 14,884 of those were unverified (now 35,469, and an eval
+  check pins it).
+- The drawer showed raw tag codes ("root_veg").
+
 ## Decisions I made without you
 
 1. **Food word** = in the ingredient vocabulary, or in ≥ 1 title per 10k recipes (10 on the full data: "biryani" 23,

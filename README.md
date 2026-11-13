@@ -34,7 +34,8 @@ python -m uvicorn app.api:app --app-dir backend --port 8000
 Docker (what Railway builds; the DB is built inside the image):
 `docker build -t recipe-box . && docker run --rm -p 8000:8000 -e GEMINI_API_KEY=$GEMINI_API_KEY recipe-box`
 
-Checks: `python -m pytest -q` (from `backend/`), `python eval/oracle.py`, `python eval/run.py --replay`. All
+Checks: `python -m pytest -q` (from `backend/`), `python eval/oracle.py`, `python eval/run.py --replay`, and with the
+server running `node scripts/screenshots.mjs --mobile` (phone views at 360–768 px; fails on horizontal overflow). All
 commands: [RUNBOOK.md](RUNBOOK.md) and the `Makefile`.
 
 ## Architecture
