@@ -7,7 +7,9 @@
 #   strict_results_lack_tag, verified_before_unverified, recipe_is_result, stat_equals_oracle, rank_equals_oracle,
 #   no_match, alternatives_flagged, dropped, all_results_lack_ingredient_broad, match_has_qty_chip, refusal, reply_contains, state_tags_include,
 #   state_tags_exclude, sub_strength_in, sub_chosen_not, sub_rejected, sub_cited_ids_valid, sub_dataset_only,
-#   sub_steps_valid, sub_gate_fails, sub_gate_passes, sub_question, sub_adapted, llm_calls_le
+#   sub_steps_valid, sub_gate_fails, sub_gate_passes, sub_question, sub_adapted, llm_calls_le, state_eq,
+#   state_diets_exclude, suggestions_ge, suggestion_contains, reply_lacks, sub_chosen_eq, sub_steps_lack
+# (checks live in eval/checks.py)
 
 - id: demo1_refine
   name: "Demo 1: penne, then no dairy, the second one's steps, no garlic"
@@ -188,3 +190,106 @@
       expect: {llm_calls_le: 2}
     - say: show me the steps for the second one
       expect: {llm_calls_le: 2}
+
+# --- M6 part 2: bugs from live testing (A0.1-A0.5) ---
+- id: a01_not_vegan_anymore
+  name: "A0.1 'Actually I'm not vegan anymore, just no peanuts': vegan removed, peanuts the only restriction, dish kept"
+  turns:
+    - say: Find a vegan pasta recipe
+      expect: {type: search, state_tags_include: [dairy, egg, meat]}
+    - say: Actually I'm not vegan anymore, just no peanuts
+      expect: {type: search, total_gt: 0, state_tags_include: [peanut], state_diets_exclude: [vegan],
+               state_tags_exclude: [dairy, egg, meat, fish, shellfish, gelatin, honey], state_eq: {query_text: pasta},
+               all_results_lack_tag: peanut}
+
+- id: a01_removal_phrasings
+  name: "A0.1 removal phrasings: 'I can eat dairy now', 'I'm no longer vegetarian'"
+  turns:
+    - say: I'm vegetarian and I cannot have dairy. Find a lasagna recipe
+      expect: {type: search, state_tags_include: [dairy, meat]}
+    - say: I can eat dairy now
+      expect: {type: search, state_tags_exclude: [dairy], state_tags_include: [meat], state_eq: {query_text: lasagna}}
+    - say: I'm no longer vegetarian
+      expect: {type: search, state_tags_exclude: [meat, fish], state_diets_exclude: [vegetarian],
+               state_eq: {query_text: lasagna}}
+
+- id: a01_low_confidence
+  name: "A0.1 a message nothing can parse: one short question with chips, the dish is not overwritten"
+  turns:
+    - say: Find a penne pasta recipe
+      expect: {type: search}
+    - say: hmm, not sure, maybe later
+      expect: {type: text, suggestions_ge: 2, state_eq: {query_text: penne pasta}}
+
+- id: a02_make_it_vegetarian
+  name: "A0.2 'make it vegetarian' after a chicken biryani search: a filter (chicken dropped, and said), not a search word"
+  turns:
+    - say: Find a chicken biryani recipe
+      expect: {type: search, total_gt: 0}
+    - say: make it vegetarian
+      expect: {type: search, total_gt: 0, state_tags_include: [meat, fish], all_results_lack_tag: [meat, fish],
+               state_eq: {query_text: biryani}, reply_contains: [chicken]}
+
+- id: a02_veg_word
+  name: "A0.2 'veg biryani': veg = the vegetarian filter, the search is 'biryani'"
+  turns:
+    - say: Find a veg biryani recipe
+      expect: {type: search, total_gt: 0, state_tags_include: [meat, fish], state_eq: {query_text: biryani},
+               all_results_lack_tag: meat}
+
+- id: a02_relax
+  name: "A0.2 zero results: the search words are relaxed (and named), the restriction never is"
+  turns:
+    - say: Find a spicy coconut biryani recipe, vegetarian
+      expect: {type: search, total_gt: 0, all_results_lack_tag: [meat, fish], state_tags_include: [meat],
+               reply_contains: [relaxed, spicy]}
+
+- id: a03_task_switch
+  name: "A0.3 a new dish clears request filters (step limit) and keeps person restrictions; a chip restores them"
+  turns:
+    - say: Find a penne pasta recipe
+      expect: {type: search}
+    - say: at most 5 steps
+      expect: {max_steps_le: 5}
+    - say: I'm allergic to peanuts
+      expect: {state_tags_include: [peanut]}
+    - say: Find a curry recipe
+      expect: {type: search, state_tags_include: [peanut], state_eq: {max_steps: null}, suggestion_contains: restore}
+    - say: restore previous filters
+      expect: {type: search, state_eq: {max_steps: 5, query_text: curry}, max_steps_le: 5, state_tags_include: [peanut]}
+
+- id: a03_match_to_search
+  name: "A0.3 a have-list doesn't leak into the next dish search"
+  turns:
+    - say: I have eggs, rice and onions
+      expect: {type: match}
+    - say: Find a banana bread recipe
+      expect: {type: search, total_gt: 0, state_eq: {have: []}}
+
+- id: a04_omit_salt
+  name: "A0.4 a seasoning gets an 'omit it' option graded by same-dish recipes without it; line removed, steps adjusted"
+  turns:
+    - say: Find a broiled chicken recipe
+      expect: {type: search}
+    - say: show me the first one
+      expect: {type: recipe}
+    - say: remove the salt
+      expect: {type: substitute, sub_chosen_eq: omit it, sub_adapted: true, sub_steps_lack: salt}
+
+- id: a05_kept_note_presets
+  name: "A0.5 the kept-restrictions note names presets ('vegan, no peanuts'), not their tags"
+  turns:
+    - say: Find a vegan pasta recipe
+      expect: {type: search}
+    - say: I'm allergic to peanuts
+      expect: {state_tags_include: [peanut]}
+    - say: Find a curry recipe
+      expect: {type: search, reply_contains: ["vegan, no peanuts"], reply_lacks: [honey]}
+
+- id: step_limit_chip
+  name: "The 'No step limit?' chip ('remove the step limit') clears the limit; it isn't a substitution"
+  turns:
+    - say: Find a penne pasta recipe with at most 3 steps
+      expect: {type: search, max_steps_le: 3}
+    - say: remove the step limit
+      expect: {type: search, state_eq: {max_steps: null}}
