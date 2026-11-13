@@ -397,7 +397,7 @@ README.md  DECISIONS.md  PRD.md  CLAUDE.md  Makefile  Dockerfile  requirements.t
 backend/app/{config,db,normalize,ingest,search,stats,match,substitute,llm,planner,session,compose,api,cli}.py
 backend/app/lexicon/{units,synonyms,families,tags,roles,candidates}.yaml
 backend/tests/{test_normalize,test_stats,test_match,test_substitute,test_session}.py  tests/fixtures/mini.json
-frontend/ (Vite React TS Tailwind)      scripts/{download,peek,profile_data}.py  scripts/git-hooks/commit-msg
+frontend/ (Vite React TS Tailwind)      scripts/{download,peek,profile_data}.py
 eval/{cases.yaml,run.py,oracle.py,baseline_oneshot.py,REPORT.md}   docs/DATA_PROFILE.md
 ```
 Makefile targets: `setup` (venv + npm ci), `data`, `db`, `test`, `eval`, `run` (build UI + uvicorn),

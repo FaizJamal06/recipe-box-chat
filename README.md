@@ -4,12 +4,20 @@ A chatbot over 125,164 scraped recipes that answers from the database, not from 
 ingredient claim is computed by code and checkable in the UI. The LLM only turns your message into a plan and
 rewords the result.
 
+<p align="center">
+  <img src="docs/screenshots/substitute-1440-clean.png" alt="Desktop: removing eggs from a banana bread, with the adapted recipe and its evidence" width="72%">
+  <img src="docs/screenshots/mobile/search-sheet-390.png" alt="Phone: search results in the bottom sheet" width="21%">
+</p>
+
 **Live:** https://recipe-box-chat-production.up.railway.app (`/api/health` shows counts and the build fingerprint) ·
 Spec: [PRD.md](PRD.md) · Decisions: [DECISIONS.md](DECISIONS.md)
 
+Data: the [Recipe Box dataset](https://eightportions.com/datasets/Recipes/) from eightportions.com (AllRecipes,
+Epicurious and Food Network recipes), downloaded at build time.
+
 ## Quickstart
 
-Needs Python 3.12 and Node 22. The data (~200 MB zip) is downloaded, never committed. `GEMINI_API_KEY` is optional:
+Needs Python 3.12, Node 22 and ~1.3 GB free disk. The data (~200 MB zip) is downloaded, never committed. `GEMINI_API_KEY` is optional:
 without it the rule parser plans every turn and the answers stay the same (copy `.env.example` to `.env` to set it).
 Tested on Windows (a fresh clone, these exact steps); the macOS/Linux steps are the standard equivalents.
 
@@ -36,7 +44,7 @@ Docker (what Railway builds; the DB is built inside the image):
 
 Checks: `python -m pytest -q` (from `backend/`), `python eval/oracle.py`, `python eval/run.py --replay`, and with the
 server running `node scripts/screenshots.mjs --mobile` (phone views at 360–768 px; fails on horizontal overflow). All
-commands: [RUNBOOK.md](RUNBOOK.md) and the `Makefile`.
+commands: [docs/COMMANDS.md](docs/COMMANDS.md) and the `Makefile`.
 
 ## Architecture
 

@@ -18,8 +18,6 @@ the current milestone names. Don't re-read the whole PRD.
 - End each milestone with: what's done, what's skipped (`shortcut:` comments), how to verify (1–3 commands).
 
 ## Git
-- Commits are authored by Faiz only. Do NOT add `Co-Authored-By`, "Generated with Claude Code", or any AI
-  trailer/footer to commit messages or PR descriptions.
 - Small, conventional commits (`feat(match): …`, `fix(normalize): …`). Commit at the end of each milestone,
   and mid-milestone when tests are green.
 
