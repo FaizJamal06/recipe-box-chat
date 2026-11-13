@@ -7,7 +7,7 @@ Fixes from your live testing, presentation polish, docs and ship checks. Nothing
 
 | | |
 |---|---|
-| Unit tests | **243 passed** (`python -m pytest -q` from `backend/`), up from 232 |
+| Unit tests | **244 passed** (`python -m pytest -q` from `backend/`), up from 232 |
 | Eval, live (Gemini, one run) | **35 / 35** cases (66 turns). 22 of its LLM calls failed (free-tier 429 quota, 503s) and fell back |
 | Eval, replay (final code, the live run's cached answers) | **35 / 35**; p50 143 / p90 592 ms per turn; at most 2 LLM answers per turn |
 | Eval, LLM off entirely | **35 / 35** (rule parser on every turn) |
@@ -98,7 +98,7 @@ Taken by `node scripts/screenshots.mjs` (headless Chrome, `?q=` replay) against 
     denominator and the SQL are developer view.
 12. **Fresh clone:** GitHub has no unpushed commits, so I cloned GitHub and fast-forwarded the clone with the local
     commits (what GitHub will hold after your push), then followed the README in that folder.
-13. **The README's live URL is a placeholder:** I don't know the Railway domain.
+13. **Live URL:** https://recipe-box-chat-production.up.railway.app (from you, after this report was first written).
 14. **No second live run** after the budget fix: the free tier was already returning 429s, and you asked for one. The
     replay re-checks every case on the final code.
 15. **No frontend-design skill** is available in this environment, so I kept the existing visual identity by hand.
@@ -106,20 +106,24 @@ Taken by `node scripts/screenshots.mjs` (headless Chrome, `?q=` replay) against 
 
 ## Not done, or worth knowing
 
-- **Live URL, Railway redeploy and the demo recording:** not done (the deploy needs your push and the domain).
-- **The live eval row predates two fixes** (the turn budget and the "chosen because" wording); replay covers them.
-- **Voice wording:** Gemini sometimes echoes state labels ("with the active filter dish set to penne pasta"), because
-  its prompt includes the chips string. Passing `state.restrictions()` instead would read better, but it changes the
-  voice prompt and invalidates its cache, so I left it for after the deploy.
-- **`web.py` (288), `substitute.py` (297), `normalize.py` (298)** are close to the 300-line limit; the next feature
-  in those files should start by moving something out (`web.trace` is the obvious candidate).
+- **Railway redeploy and the demo recording:** not done (the redeploy needs your push).
+- **The live eval row predates three fixes** (the turn budget, the "chosen because" wording, the voice facts block);
+  replay covers them.
+- **Voice label leak (fixed in a follow-up):** Gemini echoed state labels ("with the active filter dish set to penne
+  pasta") because its prompt carried the chips string and JSON keys. It now gets a plain-English facts block
+  (restrictions by name, no keys, codes or ids), and the validator rejects internal tokens ("dish set to", "active
+  filter", "may_contain", "unverified", underscores, raw tag names, key=value), falling back to the template; test in
+  `tests/test_chat.py`. The new prompt misses the voice cache once, so a replay shows template replies until the next
+  live run fills it.
+- **`substitute.py` (297) and `normalize.py` (298)** are close to the 300-line limit; the next feature
+  in those files should start by moving something out (e.g. `substitute._discovered` into evidence.py).
 - **Still open from earlier:** 11 recipes with a junk "for lining"-style canonical (next rebuild), and the lexicon items
   in `docs/lexicon_todo.md`.
 
 ## Commands to verify
 
 ```bash
-cd backend && python -m pytest -q            # 243 passed
+cd backend && python -m pytest -q            # 244 passed
 cd .. && python eval/run.py --replay         # 35/35, rewrites eval/REPORT.md (no quota)
 python eval/oracle.py                        # 9 x PASS (~3 min)
 git log --format='%an <%ae>%n%b' | grep -i -E 'claude|anthropic'   # prints nothing

@@ -4,13 +4,14 @@ A chatbot over 125,164 scraped recipes that answers from the database, not from 
 ingredient claim is computed by code and checkable in the UI. The LLM only turns your message into a plan and
 rewords the result.
 
-**Live:** `https://<railway-domain>.up.railway.app` (set after the Railway deploy; `/api/health` shows counts and the
-build fingerprint) · Spec: [PRD.md](PRD.md) · Decisions: [DECISIONS.md](DECISIONS.md)
+**Live:** https://recipe-box-chat-production.up.railway.app (`/api/health` shows counts and the build fingerprint) ·
+Spec: [PRD.md](PRD.md) · Decisions: [DECISIONS.md](DECISIONS.md)
 
 ## Quickstart
 
 Needs Python 3.12 and Node 22. The data (~200 MB zip) is downloaded, never committed. `GEMINI_API_KEY` is optional:
 without it the rule parser plans every turn and the answers stay the same (copy `.env.example` to `.env` to set it).
+Tested on Windows (a fresh clone, these exact steps); the macOS/Linux steps are the standard equivalents.
 
 Windows (PowerShell):
 ```powershell
@@ -47,7 +48,7 @@ flowchart LR
   S --> E[executors<br/>search · match · stats · substitute]
   E --> DB[(SQLite + FTS5<br/>recipes, ingredient_lines,<br/>recipe_tags, unverified)]
   E --> T[templated reply<br/>+ payload]
-  T --> V[voice: Gemini rewording,<br/>numbers/ids validated]
+  T --> V[voice: Gemini rewording of<br/>plain facts, validated]
   T --> UI[React UI: chat + Results ·<br/>Calculation · Evidence · Trace]
 ```
 
@@ -124,7 +125,7 @@ against the oracle). Latest results, latency and the full table: [eval/REPORT.md
 | Replay (the live run's cached answers, final code) | **35 / 35**; p50 143 ms / p90 592 ms per turn (engine only) |
 | LLM off entirely (rule parser only) | **35 / 35** |
 | Oracle (demo 2 and 3 numbers, pure Python) | 9 / 9 |
-| Unit tests | 243 |
+| Unit tests | 244 |
 
 Raw-Gemini baseline (same questions, no tools, `eval/baseline_oneshot.py`):
 
@@ -161,7 +162,8 @@ positives per tag: that is evidence, not proof. Known gaps are in [docs/lexicon_
 Claude Code implemented this codebase milestone by milestone under my PRD. I wrote the PRD and made and reviewed the
 design, the counting and safety rules, the evidence grading and the evaluation decisions; every milestone ended with
 my review and fixes. At runtime Gemini (`gemini-3.5-flash-lite`) is the planner (message → JSON plan), the voice
-(rewording validated against the computed facts) and the step rewriter for substitutions (validated, with a
+(rewords a plain-English facts block; every number and id must be in it and no internal word may appear, else the
+template is shown) and the step rewriter for substitutions (validated, with a
 deterministic fallback). Offline, Gemini audited the allergen tags.
 
 More: [DECISIONS.md](DECISIONS.md) · [docs/interview-notes.md](docs/interview-notes.md) ·
