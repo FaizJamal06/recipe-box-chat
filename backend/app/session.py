@@ -10,11 +10,11 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 
-from . import compose, guard, llm, match, search, stats, subflow, talk
+from . import apply, compose, guard, llm, match, search, stats, subflow, talk
 from . import normalize as nz
 from .db import Dataset
 from .planner import PlanInfo, finish, plan as make_plan
-from .rules import DIETS, TAG_LABEL, TAG_WORDS, diets_in, rule_plan, target as rule_target
+from .rules import TAG_WORDS, rule_plan, target as rule_target
 from .state import SessionState  # noqa: F401 (re-exported)
 
 HELP = ("I can answer, for example: 'How many recipes contain garlic and onion?', 'Among recipes containing "
@@ -52,8 +52,7 @@ class Turn:
                 f"{llm_ms} ms{tok} | turn {self.ms} ms]")
 
 
-def _key(w: str) -> tuple:
-    return tuple(nz.normalize(w))
+_key = apply.key
 
 
 class Session:
@@ -66,6 +65,7 @@ class Session:
         self.last_res = None  # last search/match/rank result, for "why did you pick this one?"
         self.extra_calls: list = []  # LLM calls made inside the executor (cuisine dish names)
         self.conflict: tuple | None = None  # (tag, dish word) when the request contradicts a restriction
+        self.drop_conflicts = False  # 'make it vegetarian' after a chicken biryani search: drop 'chicken', say so
 
     def rerun(self) -> Turn:
         """Re-run the active task on the current state (after a chip removal / toggle in the UI)."""
@@ -80,6 +80,7 @@ class Session:
     def respond(self, text: str) -> Turn:
         """Answer one message and update the state."""
         t0, self.notes, self.ref_id, self.extra_calls, self.conflict = time.perf_counter(), [], None, [], None
+        self.drop_conflicts = self.state.offer_restore = False
         attr = guard.check(text)
         if attr:
             p = finish({"intent": "cuisine"} if attr == "cuisine" else
@@ -88,6 +89,8 @@ class Session:
         else:
             known = lambda w: w.lower() in TAG_WORDS or (_key(w) or ("",))[0] in self.ds.vocab
             p, info = make_plan(text, self.state, self.use_llm, known)
+            if info.source == "rule":
+                p = self._unsure(p)
         try:
             reply, res = self._run(text, p)
         except stats.UnknownIngredient as e:
@@ -95,6 +98,20 @@ class Session:
         info.calls += self.extra_calls
         self.state.history = (self.state.history + [(text, reply.split("\n")[0][:150])])[-6:]
         return Turn(reply, p, res, info, round((time.perf_counter() - t0) * 1000), self.notes)
+
+    def _unsure(self, p: dict) -> dict:
+        """The LLM failed and the rule parser guessed: dish words with no food word in them ('actually not anymore')
+        are not a dish, so the previous dish stays; if nothing else is left to do, ask one short question."""
+        d = p["state_patch"]
+        if p["intent"] == "search" and d["query_text"] and not search.has_food(self.con, self.ds, d["query_text"]):
+            d["query_text"], d["mode"], d["reset"] = None, "refine", False
+            if p["keyword"] or not any(d[k] for k in ("exclude_add", "exclude_remove", "exclude_tags_add",
+                                                       "exclude_tags_remove", "diets_add", "diets_remove",
+                                                       "max_steps", "prefs_add", "include_add")):
+                return finish({"intent": "clarify", "question": talk.ASK})
+        if p["intent"] == "clarify" and not p["question"]:
+            return finish({"intent": "clarify", "question": talk.ASK})
+        return p
 
     def _resolve(self, tg: dict, text: str) -> str | None:
         """Target -> a recipe id from last_results / selected only (never a planner-invented id)."""
@@ -114,56 +131,8 @@ class Session:
         return None
 
     def _apply(self, d: dict, text: str = "") -> list[str]:
-        """Merge a state_patch into the sticky state; returns notes for the reply. Diet presets named in the
-        plan or the text (rules.diets_in) add their tags, and the reply states each expansion once."""
-        s, notes = self.state, []
-        if d["mode"] == "new" and (d["query_text"] or d["have_set"] or d.get("reset")):
-            kept = s.exclude_tags + s.exclude + ([f"max {s.max_steps} steps"] if s.max_steps is not None else [])
-            if kept and not s.kept_note:
-                notes.append(f"Kept your restrictions ({', '.join(kept)}): they're about you, not the dish. Say e.g. "
-                             "'dairy is fine now' to drop one.")
-                s.kept_note = True
-            s.query_text, s.include, s.query_any, s.query_label = None, [], [], None
-        if d["query_text"]:
-            s.query_text = d["query_text"]
-        for k in ("exclude_add", "include_add"):  # executor-side check of the planner's words
-            for w in [w for w in d[k] if w.lower() not in TAG_WORDS]:
-                if not _key(w):
-                    notes.append(f"I couldn't read '{w}' as an ingredient, so that restriction was NOT added.")
-                    d[k] = [x for x in d[k] if x != w]
-                elif _key(w)[0] not in self.ds.vocab:
-                    notes.append(f"'{w}' isn't a known ingredient name here; the restriction matches that exact "
-                                 "name only.")
-        tags = d["exclude_tags_add"] + [t for w in d["exclude_add"] if w.lower() in TAG_WORDS for t in TAG_WORDS[w.lower()]]
-        s.exclude += [w for w in d["exclude_add"] if w.lower() not in TAG_WORDS and _key(w) not in map(_key, s.exclude)]
-        s.include += [w for w in d["include_add"] if _key(w) not in map(_key, s.include)]
-        s.exclude_tags += [t for t in tags if t not in s.exclude_tags]
-        gone = set(map(_key, d["exclude_remove"]))
-        rm_tags = d["exclude_tags_remove"] + [t for w in d["exclude_remove"] if w.lower() in TAG_WORDS
-                                              for t in TAG_WORDS[w.lower()]]
-        removed = [x for x in s.exclude if _key(x) in gone] + [t for t in s.exclude_tags if t in rm_tags]
-        s.exclude = [x for x in s.exclude if _key(x) not in gone]
-        s.exclude_tags = [t for t in s.exclude_tags if t not in rm_tags]
-        if removed:
-            notes.append(f"Removed restriction(s): {', '.join(removed)}.")
-        for name in dict.fromkeys([*d.get("diets_add", []), *diets_in(text)]):
-            tags = DIETS[name]["tags"]
-            if set(tags) & set(rm_tags):  # 'vegan is fine now'
-                continue
-            s.exclude_tags += [t for t in tags if t not in s.exclude_tags]
-            if name not in s.diets:
-                notes.append(f"{name[0].upper() + name[1:]} → " + (f"no {', '.join(TAG_LABEL.get(t, t) for t in tags)}."
-                             if tags else "no filter.") + (f" {DIETS[name]['note']}" if DIETS[name].get("note") else ""))
-                s.diets += [name] if tags else []
-        s.diets = [n for n in s.diets if set(DIETS[n]["tags"]) <= set(s.exclude_tags)]  # a removed tag ends the preset
-        if d["max_steps"]:
-            s.max_steps = None if d["max_steps"] < 0 else d["max_steps"]
-        if d["have_set"]:
-            s.have, s.prefs, s.limit = list(d["have_set"]), [], None
-        s.prefs += [x for x in d["prefs_add"] if x not in s.prefs]
-        if d["limit"]:
-            s.limit = d["limit"]
-        return notes
+        """Merge a state_patch into the sticky state (apply.py); returns notes for the reply."""
+        return apply.apply(self, d, text)
 
     def _run(self, text: str, p: dict) -> tuple[str, object]:
         """Dispatch one plan; returns (reply, executor result)."""
@@ -215,11 +184,13 @@ class Session:
         if intent == "substitute":
             self.notes = self._apply(p["state_patch"], text)
             return subflow.handle(self, text, p, self.notes)
+        if intent == "restore":  # the 'Restore previous filters' chip: back to the cleared request filters, re-run
+            pre, intent = apply.restore(s), s.active_task or "search"
         if intent not in ("search", "match"):
             return HELP, None
         if not d["query_text"] and not d["have_set"] and s.active_task and not p["keyword"] and not d.get("reset"):
             intent = s.active_task  # a bare restriction re-runs the current task
-        notes = self.notes = pre + self._apply(d, text)
+        notes = self.notes = self.notes + pre + self._apply(d, text)
         if intent == "substitute":  # 'I'm also allergic to tree nuts' re-grades the current substitution
             return subflow.handle(self, text, finish({"intent": "substitute"}), notes)
         if p["keyword"]:
@@ -228,6 +199,11 @@ class Session:
         terms = lambda ws: [stats.term(w, ds) for w in ws]
         s.active_task = intent
         self.conflict = self._conflict() if intent == "search" else None
+        while self.conflict and self.drop_conflicts and len((s.query_text or "").split()) > 1:
+            tag, word = self.conflict  # 'make it vegetarian' asked for the version without it
+            s.query_text = " ".join(w for w in s.query_text.split() if w != word)
+            notes.append(f"Dropped '{word}' from the dish: it contains {tag}, which your restrictions exclude.")
+            self.conflict = self._conflict()
         if self.conflict:  # 'vegan chicken curry': ask one short question instead of guessing
             tag, word = self.conflict
             return (f"“{s.query_text}” clashes with your restriction “no {tag}” ({word} contains {tag}). Should I "
@@ -248,7 +224,16 @@ class Session:
                 notes.append(f"No recipes match '{s.query_text}', so I'm showing results for '{fixed}' "
                              "(spelling corrected).")
                 s.query_text, res = fixed, res2
-            elif p["keyword"] and not res.total:
+            elif not res.total and s.query_text and not p["keyword"]:  # relax the words, never the restrictions
+                for q, what in search.relaxations(s.query_text):
+                    if (res2 := run(q)).total:
+                        kept = s.restrictions() + ([search.steps_label(s.max_steps)] if s.max_steps is not None else [])
+                        notes.append(f"No recipes match '{s.query_text}'" + (f" with {', '.join(kept)}" if kept else "")
+                                     + f", so I relaxed the search words: {what}. Showing '{q}'"
+                                     + (". Your restrictions were not relaxed." if kept else "."))
+                        s.query_text, res = q, res2
+                        break
+            if p["keyword"] and not res.total:
                 notes.append("No recipe matches those words, and without the language model I can't tell what you "
                              "meant. I can only help with recipes: try 'find a pasta recipe' or 'I have eggs and rice'.")
             rows = res.hits + res.more  # display order: fully verified first

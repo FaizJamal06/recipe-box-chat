@@ -54,6 +54,38 @@ def correct(query: str, vocab: frozenset) -> str:
     return " ".join(fix(w) for w in re.findall(r"[a-z]+", (query or "").lower()))
 
 
+_TITLE_N: dict[str, int] = {}
+SYNONYMS = {"veg": "vegetable", "veggie": "vegetable", "veggies": "vegetables", "aubergine": "eggplant",
+            "courgette": "zucchini", "capsicum": "bell pepper", "prawn": "shrimp", "prawns": "shrimp",
+            "coriander": "cilantro", "rocket": "arugula", "biriyani": "biryani", "spag": "spaghetti"}
+
+
+def has_food(con: sqlite3.Connection, ds, text: str) -> bool:
+    """Does the text name any food: a word of the ingredient vocab, or a word in >= 1 title per 10k recipes (10 on the
+    full data: 'biryani' 23, 'actually' 3)? ('actually not anymore' never becomes a dish.) Filler words never count."""
+    from .rules import STOP
+    words, need = set(_vocab_words(ds.vocab)), max(1, min(10, ds.valid // 10_000))
+    for w in (w for w in re.findall(r"[a-z]+", (text or "").lower()) if w not in STOP and len(w) > 2):
+        if w not in _TITLE_N:
+            _TITLE_N[w] = con.execute("SELECT COUNT(*) FROM (SELECT 1 FROM recipes_fts WHERE recipes_fts MATCH ? "
+                                      "LIMIT 10)", (f'title : "{w}"',)).fetchone()[0]
+        if w in words or _TITLE_N[w] >= need:
+            return True
+    return False
+
+
+def relaxations(query: str):
+    """Looser versions of a query that found nothing, in order, with what changed: synonyms (veg -> vegetable), then
+    modifiers dropped from the front until only the head dish is left ('spicy coconut biryani' -> 'coconut biryani'
+    -> 'biryani'). Only the words relax; the caller keeps every hard restriction."""
+    ws = query.lower().split()
+    syn = [SYNONYMS.get(w, w) for w in ws]
+    if syn != ws:
+        yield " ".join(syn), "synonyms (" + ", ".join(f"{a} → {b}" for a, b in zip(ws, syn) if a != b) + ")"
+    for i in range(1, len(syn)):
+        yield " ".join(syn[i:]), "dropped " + ", ".join(f"'{w}'" for w in syn[:i])
+
+
 def _fts(text: str) -> str:
     """Plain words -> an FTS5 query that ANDs quoted tokens (no FTS syntax from user text)."""
     return " ".join(f'"{w}"' for w in re.findall(r"[a-z0-9]+", (text or "").lower()))

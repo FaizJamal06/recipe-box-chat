@@ -24,7 +24,16 @@ class SessionState:
     selected_recipe_id: str | None = None
     history: list = field(default_factory=list)  # (user text, first reply line), last 6
     kept_note: bool = False
+    prev_request: dict | None = None  # request-level constraints the last task switch cleared (for 'restore')
+    offer_restore: bool = False  # this turn cleared them: suggest the 'Restore previous filters' chip
     sub: dict | None = None  # the current substitution (recipe, removed items, option, ...), see subflow.py
+
+    def restrictions(self) -> list[str]:
+        """Person-level restrictions in words, presets by name: ['vegan', 'no peanuts'], not the eight tags."""
+        from .rules import DIETS, TAG_LABEL  # rules is heavier; state stays importable on its own
+        covered = {t for n in self.diets for t in DIETS[n]["tags"]}
+        return [*self.diets, *(f"no {TAG_LABEL.get(t, t)}" for t in self.exclude_tags if t not in covered),
+                *(f"no {x}" for x in self.exclude)]
 
     @property
     def last_titles(self) -> list[tuple[str, str]]:

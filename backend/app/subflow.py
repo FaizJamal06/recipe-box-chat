@@ -73,6 +73,10 @@ def handle(ses, text: str, p: dict, notes: list[str]) -> tuple[str, object]:
             return ses._run(text, finish({"intent": "recipe_detail",
                                           "target": {"kind": "result_index", "value": str(sb["option"])}}))
         return ses._run(text, finish({"intent": "clarify"}))
+    if sb["remove_tags"] and not sb["remove"] and not prev and not st.selected_recipe_id and \
+            st.active_task in ("search", "match"):  # 'make it vegetarian' after a search: a filter on that search
+        ses.drop_conflicts = True  # (restrictions already applied); 'chicken biryani' -> 'biryani', said in the reply
+        return ses._run(text, finish({"intent": st.active_task}))
     if new:
         sub = {"removes": sb["remove"], "remove_tags": sb["remove_tags"], "replace_with": sb["replace_with"] or None,
                "dish": sb["dish"], "dataset_only": sb["dataset_only"], "option": sb["option"] or 1, "force": sb["force"],

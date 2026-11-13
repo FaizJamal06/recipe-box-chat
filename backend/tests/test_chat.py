@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from app import guard, planner, voice
+from app import guard, planner, talk, voice
 from app import normalize as nz
 from app.db import connect, load_dataset
 from app.planner import finish
@@ -48,7 +48,7 @@ def test_keyword_fallback_when_nothing_matches(eng):
     t = Session(con, ds, use_llm=False).respond("tomato wala kuch batao")
     assert "keyword search" in t.reply and "ran as keyword search" in t.meta()
     t = Session(con, ds, use_llm=False).respond("whats the weather like today")
-    assert "can only help with recipes" in t.reply  # zero hits: say so instead of an empty list
+    assert t.plan["intent"] == "clarify" and t.reply == talk.ASK  # no food word: one question, not a guessed search
 
 
 def test_cuisine_proxy_is_labelled_with_honest_count(eng):

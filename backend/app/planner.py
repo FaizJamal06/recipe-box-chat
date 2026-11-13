@@ -77,8 +77,9 @@ def finish(plan: dict) -> dict:
     st = plan.get("stats") or {}
     patch = {"mode": p.get("mode") or "refine", "query_text": p.get("query_text") or None}
     for k in ("include_add", "exclude_add", "exclude_remove", "exclude_tags_add", "exclude_tags_remove",
-              "have_set", "prefs_add", "diets_add"):
+              "have_set", "prefs_add", "diets_add", "diets_remove"):
         patch[k] = [str(x).strip() for x in p.get(k) or [] if str(x).strip()]
+    patch["only"] = bool(p.get("only"))  # 'just no peanuts' (rule parser; session.py also reads the text)
     patch["max_steps"] = p.get("max_steps") or None  # 0 / None = unchanged
     patch["limit"] = p.get("limit") or None
     # a fresh request with no dish words ('something vegan for dinner'): drop the old dish, keep restrictions

@@ -70,6 +70,10 @@ def explain(res, rid: str, query: str | None) -> str | None:
 def suggestions(st, payload: dict, plan: dict, conflict: tuple | None = None) -> list[dict]:
     """2-3 follow-up chips from the current state; each message is one the rule parser handles."""
     t, cards, out = payload["type"], payload.get("cards", []), []
+    if st.offer_restore:  # a new dish or task just cleared the step limit / have-list: one click brings them back
+        out.append(("Restore previous filters", "restore previous filters"))
+    if plan["intent"] == "clarify" and st.query_text:  # a question instead of a guess: offer the way back first
+        out.append((f"Back to {st.query_text}", f"find a {st.query_text} recipe"))
     if conflict:  # 'vegan chicken curry': offer both ways out
         tag, word = conflict
         rest = " ".join(w for w in (st.query_text or "").split() if w != word)

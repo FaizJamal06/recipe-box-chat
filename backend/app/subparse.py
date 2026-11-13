@@ -33,6 +33,9 @@ _DISH = (re.compile(r"\bthis\s+([a-z][a-z ' -]*?)\s+(?:recipe|dish)\b"),
          re.compile(r"\b(?:from|in|of)\s+(?:this|my|the|that)\s+([a-z][a-z ' -]*?)(?=\s*(?:/|[.?!,]|$|\s+(?:and|but|recipe|"
                     r"without|with|please)\b))"))
 _ASKS_RECIPES = re.compile(r"^(?:which|what|find|show(?: me)?|list|are there|any|search)\b.*\brecipes\b")
+_NOT_EDIT = re.compile(r"\b(?:remove|drop|clear|lift|take out)\s+(?:the\s+|my\s+|all\s+)?(?:step\s+limit|limit|filters?|"
+                       r"restrictions?|(?:vegan|vegetarian|pescatarian|halal|jain|kosher)(?:\s+(?:filter|preset|diet))?\b"
+                       r"|(?:no\s+)?[a-z]+(?:\s+[a-z]+)?\s+(?:restriction|filter|preset)s?\b)")
 _NOT_DISH = {"recipe", "one", "dish", "it", "this", "that", "dataset", "database", "pls", "plz", "please", "too",
              "thing"}
 
@@ -49,6 +52,8 @@ def parse(t: str) -> dict | None:
     """Substitution plan for a lower-cased message, or None."""
     from .rules import DIETS, TAG_WORDS, _restrictions, _words  # rules imports this module lazily
     if _ASKS_RECIPES.search(t):  # 'which banana breads use applesauce instead of eggs?' is a search, not an edit
+        return None
+    if _NOT_EDIT.search(t):  # 'remove the step limit', 'drop vegan', 'remove the dairy restriction' change the filters
         return None
     sub = {"remove": [], "replace_with": "", "dish": dish_of(t) or "", "remove_tags": [], "option": 0, "force": False,
            "dataset_only": not re.search(r"\b(?:outside|beyond|not only|any) (?:the )?(?:dataset|database)\b|"

@@ -19,7 +19,8 @@ TAG_WORDS = {"dairy": ["dairy"], "milk products": ["dairy"], "eggs": ["egg"], "e
              "seafood": ["fish", "shellfish"], "poultry": ["poultry"], "soy": ["soy"], "soya": ["soy"],
              "sesame": ["sesame"], "honey": ["honey"], "gelatin": ["gelatin"], "gelatine": ["gelatin"],
              "alcohol": ["alcohol"], "booze": ["alcohol"], "root vegetables": ["root_veg"]}
-TAG_LABEL = {"tree_nut": "tree nuts", "root_veg": "onion, garlic or root vegetables", "egg": "eggs"}
+TAG_LABEL = {"tree_nut": "tree nuts", "root_veg": "onion, garlic or root vegetables", "egg": "eggs",
+             "peanut": "peanuts"}
 # diet / allergy presets (lexicon/diets.yaml): compositions of tags, shown as one chip with their expansion
 DIETS = yaml.safe_load((Path(__file__).resolve().parent / "lexicon" / "diets.yaml").read_text(encoding="utf-8"))
 for _name, _d in DIETS.items():
@@ -37,6 +38,29 @@ _EXCL = re.compile(r"(?:\bno\s+(?!more\b|longer\b|less\b|than\b)|\bwithout\s+|\b
                    r"\bcan'?t eat\s+|\ballergic to\s+|\bfree of\s+|\bexclude\s+|\bavoid\s+|\bhold the\s+)"
                    r"([a-z ,&'-]+?)(?=\.|,|\?|!|$| please| at most| and at| suggest| using)")
 _FREE = re.compile(r"\b([a-z]+(?: [a-z]+)?)[- ]free\b")
+_LESS = {"eggless": "eggs", "meatless": "meat", "dairyless": "dairy", "sugarless": "sugar"}
+_PRESET = "|".join(sorted(map(re.escape, [*_SAY, *DIETS]), key=len, reverse=True))
+# 'X is fine now', 'allow X', 'not vegan anymore', 'no longer vegetarian', 'I can eat dairy now', 'drop vegan',
+# 'remove the dairy restriction': X stops being a restriction (presets and tags alike)
+_REMOVAL = re.compile(
+    r"(?:^|\b(?:actually|now|ok|okay|so|but)\s+)([a-z ,&'-]+?)\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b"
+    r"|\ballow\s+([a-z ,&'-]+?)(?=[.,?!]|$| again)"
+    r"|\bnot\s+(?:a\s+|an\s+)?([a-z -]+?)\s+any\s?more\b"
+    r"|\bno\s+longer\s+(?:a\s+|an\s+)?([a-z -]+?)(?=[.,?!;]|$|\s+(?:and|but|so|just|only)\b)"
+    r"|\bi\s+can\s+(?:eat|have)\s+([a-z ,&'-]+?)(?=\s+(?:now|again|after all)\b|[.,?!;]|$|\s+(?:but|just|only)\b)"
+    r"|\b(?:drop|remove|clear|lift)\s+(?:the\s+|my\s+)?(?:no\s+)?([a-z -]+?)\s+(?:restriction|filter|preset|diet|rule)s?\b"
+    rf"|\b(?:drop|remove)\s+(?:the\s+)?({_PRESET})\b")
+_ONLY = re.compile(r"\b(?:just|only)\s+(?:no|without|avoid|allergic to)\b|\bonly\s+restriction\b|\bnothing\s+else\b")
+
+
+def removed(t: str) -> list[str]:
+    """Words a message takes off the restrictions ('actually I'm not vegan anymore' -> ['vegan'])."""
+    return [_ALIAS.get(w, w) for g in _REMOVAL.findall(t) for x in g if x for w in _words(x)]
+
+
+def only(t: str) -> bool:
+    """'just no peanuts': the restrictions named in this message replace every earlier one."""
+    return bool(_ONLY.search(t))
 
 
 def _words(s: str) -> list[str]:
@@ -94,7 +118,25 @@ def diets_in(t: str, excl: list[str] | None = None) -> list[str]:
     if excl is None:
         excl = [_ALIAS.get(w, w) for g in _EXCL.findall(t) for w in _words(g)] + _allergies(t) + _FREE.findall(t)
     found = [_SAY[m] for m in _DIET_SAY.findall(t)] + [_AFTER[w] for w in excl if w in _AFTER]
-    return list(dict.fromkeys(found))
+    found += ["vegetarian"] if re.search(r"^(?:find |show |give )?(?:me )?(?:a |some )?veg(?:gie)?\b(?! ?stock| ?broth| ?oil)", t) else []
+    gone = set(removed(t))  # 'not vegan anymore' names vegan to drop it, never to add it
+    return [n for n in dict.fromkeys(found) if n not in gone and not gone & {*DIETS[n].get("say", []),
+                                                                            *DIETS[n].get("after_no", [])}]
+
+
+def dish_filters(q: str | None) -> tuple[str | None, list[str], list[str]]:
+    """Diet and allergy words inside a dish query become filters, not search words: 'vegetarian biryani' ->
+    ('biryani', ['vegetarian'], []), 'veg biryani' -> the same, 'eggless banana bread' -> ('banana bread', [], ['eggs']),
+    'dairy-free pasta' -> ('pasta', [], ['dairy']). Returns (query or None, presets, restriction words)."""
+    if not q:
+        return q, [], []
+    t = " ".join(q.lower().split())
+    presets = diets_in(t)
+    words = [_LESS[w] for w in re.findall(r"\b[a-z]+less\b", t) if w in _LESS] + _FREE.findall(t)
+    words += [w for g in _EXCL.findall(t) for w in _words(g)]
+    t = _EXCL.sub(" ", _FREE.sub(" ", _DIET_SAY.sub(" ", t)))
+    t = re.sub(r"^(?:pure )?veg(?:gie)?\b(?! ?stock| ?broth| ?oil)|\b(?:" + "|".join(_LESS) + r")\b", " ", t)
+    return " ".join(t.split()) or None, list(dict.fromkeys(presets)), list(dict.fromkeys(words))
 
 
 def _restrictions(t: str) -> dict:
@@ -102,22 +144,20 @@ def _restrictions(t: str) -> dict:
     excl = [w for g in _EXCL.findall(t) for w in _words(g)] + _allergies(t)
     excl = [_ALIAS.get(w, w) for w in excl]
     excl += [m for m in _FREE.findall(t) if m in TAG_WORDS]
-    rem =[w for g in re.findall(r"(?:^|\b(?:actually|now)\s+)([a-z ,&'-]+?)\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b"
-                                 r"|\ballow\s+([a-z ,&'-]+?)(?:\.|,|\?|!|$| again)", t) for x in g for w in _words(x)]
+    rem = removed(t)
     prefs = [p for p, rx in (("use_most", r"as many as possible|use as many|most of (?:my|these|them)"),
                              ("fewest_extra", r"fewest (?:additional|extra|other|more|new)|least (?:additional|extra)|"
                                               r"(?:fewer|less) (?:additional |extra )?ingredients"),
                              ("fewest_steps", r"fewest steps|quickest|simplest"),
                              ("no_staples", r"(?:no|without|don't assume|do not assume) (?:pantry )?staples"))
              if re.search(rx, t)]
-    diets = [n for n in diets_in(t, excl)  # 'vegan is fine now' removes the preset, never re-adds it
-             if not set(rem) & {*DIETS[n].get("say", []), *DIETS[n].get("after_no", [])}]
-    rm_tags = {x for w in rem if w in TAG_WORDS for x in TAG_WORDS[w]}
-    return {"exclude_add": sorted({w for w in excl if w not in TAG_WORDS}),
-            "exclude_tags_add": sorted(({x for w in excl if w in TAG_WORDS for x in TAG_WORDS[w]}
-                                        | {x for n in diets for x in DIETS[n]["tags"]}) - rm_tags),
+    diets = diets_in(t, excl)  # 'vegan is fine now' removes the preset, never re-adds it
+    gone = [n for n in DIETS if set(rem) & {n, *DIETS[n].get("say", []), *DIETS[n].get("after_no", [])}]
+    rm_tags = {x for w in rem if w in TAG_WORDS for x in TAG_WORDS[w]} | {x for n in gone for x in DIETS[n]["tags"]}
+    add_tags = {x for w in excl if w in TAG_WORDS for x in TAG_WORDS[w]} | {x for n in diets for x in DIETS[n]["tags"]}
+    return {"exclude_add": sorted({w for w in excl if w not in TAG_WORDS}), "exclude_tags_add": sorted(add_tags),
             "diets_add": diets, "exclude_remove": [w for w in rem if w not in TAG_WORDS],
-            "exclude_tags_remove": sorted(rm_tags),
+            "exclude_tags_remove": sorted(rm_tags - add_tags), "diets_remove": gone, "only": only(t),
             "max_steps": _max_steps(t), "prefs_add": prefs}
 
 
@@ -142,7 +182,7 @@ def confident(text: str, plan: dict, known=lambda w: True) -> bool:
     intent = plan.get("intent")
     if intent == "substitute":  # a bare 'yes' / 'go ahead' may answer something else: let the LLM read the history
         return not (plan["substitution"]["force"] and "anyway" not in text.lower())
-    if intent in ("match", "smalltalk", "explain") or (intent == "clarify" and plan.get("question")):
+    if intent in ("match", "smalltalk", "explain", "restore") or (intent == "clarify" and plan.get("question")):
         return True
     if intent == "recipe_detail":
         return plan["target"]["kind"] == "result_index"
@@ -164,7 +204,10 @@ STOP = set("dataset database ids id a an the and or of for to in on with without
            "would like ki koi batao hai ka ke ko mujhe chahiye what whats how which is are do does there that this it "
            "good nice best also too either just really dinner lunch breakfast tonight today meal meals quick easy "
            "fast simple ideas idea suggest suggestion steps step most least have has got had fewer more less "
-           "ingredient ingredients intolerant intolerance allergic allergy allergies diet please".split())
+           "ingredient ingredients intolerant intolerance allergic allergy allergies diet please not anymore longer "
+           "actually now again fine okay ok whatever different else other instead sure maybe later hmm honestly eat "
+           "only works still anyway though thanks restriction restrictions filter filters remove drop clear limit "
+           "lift".split())
 _DIET = re.compile(r"\b(?:vegan|vegetarian|[a-z]+[- ]free|no [a-z]+|without [a-z]+|allergic to [a-z ]+|"
                    r"[a-z]+ allerg(?:y|ies)|at most \w+ steps?)\b")
 _REF = re.compile(r"^(?:(?:show|open|give)(?: me)? )?(?:the )?(" + "|".join(ORDINALS) + r"|last|\d+(?:st|nd|rd|th))"
@@ -174,7 +217,7 @@ _REF = re.compile(r"^(?:(?:show|open|give)(?: me)? )?(?:the )?(" + "|".join(ORDI
 def leftover(t: str) -> str:
     """Dish words left after removing restriction phrases and filler: 'vegan chicken curry' -> 'chicken curry',
     'I cannot have dairy' / 'dairy is fine now' -> ''."""
-    t = _DIET_SAY.sub(" ", _EXCL.sub(" ", t))
+    t = _DIET_SAY.sub(" ", _EXCL.sub(" ", _REMOVAL.sub(" ", t)))
     t = re.sub(r"[a-z ,&'-]+?\s+(?:is|are)\s+(?:fine|ok|okay|allowed)\b.*|\ballow\s+.*", " ", t)
     t = re.sub(r"as many as possible|use as many|fewest \w+|least \w+|(?:no|without) (?:pantry )?staples", " ", t)
     return " ".join(w for w in re.findall(r"[a-z]+", _DIET.sub(" ", t))
@@ -199,6 +242,8 @@ def rule_plan(text: str) -> dict:
     for kind, rx in _TALK:
         if re.search(rx, t) and (kind == "capabilities" or not _FOODISH.search(t)):
             return {"intent": "smalltalk", "talk": kind}
+    if re.search(r"^(?:please )?(?:restore|bring back|undo)\b.*\b(?:filters?|limits?|previous|last|before)\b|^undo\b", t):
+        return {"intent": "restore"}  # the 'Restore previous filters' chip after a task switch
     if _REF.match(t):  # 'the second one' on its own
         return {"intent": "recipe_detail", "target": target(t)}
     if re.search(r"\b(?:quick|fast|easy|simple|speedy)\b", t) and not leftover(t) and "i have" not in t:
@@ -251,8 +296,8 @@ def rule_plan(text: str) -> dict:
                   r"([a-z ' -]+?)\s+recipes?\b", t)
     if m or any(r.values()):  # a dish request, or restrictions (+ dish words: 'gluten free pasta recipes')
         q = m.group(1).strip() if m else (leftover(t) or None)
-        if q:  # 'dairy-free pasta' -> query 'pasta' + exclude_tags dairy (already in r)
-            q = " ".join(w for w in _FREE.sub(" ", q).split() if w not in ("vegetarian", "vegan")) or None
+        if q:  # 'dairy-free pasta' -> query 'pasta' + exclude_tags dairy (already in r); session.py adds the rest
+            q = dish_filters(q)[0]
         fresh = not q and bool(re.search(r"\b(?:something|anything|ideas?|suggest|recommend)\b", t))
         return {"intent": "search", "state_patch": {"mode": "new" if q or fresh else "refine", "query_text": q,
                                                     "reset": fresh, **r}}
