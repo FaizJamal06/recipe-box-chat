@@ -41,7 +41,7 @@ def _target(ses, sub: dict) -> tuple[str | None, str]:
         return None, f"I couldn't find a {dish} recipe. Which recipe do you mean?"
     tags = list(dict.fromkeys([*st.exclude_tags, *([spec.tag] if spec and spec.tag else [])]))
     hit = next((h for h in pool if _clean(ses, h.id, spec, tags)), None) if spec and tags else None
-    note = f"I picked `{(hit or pool[0]).id}` '{(hit or pool[0]).title.strip()}', the top match for '{dish}'" + (
+    note = f"I picked [{(hit or pool[0]).title.strip()}]({(hit or pool[0]).id}), the top match for '{dish}'" + (
         f" that contains {items[0]}" if include else "")
     if hit:
         note += (f"; apart from the lines being replaced, every line is verified free of {' and '.join(tags)}, so the "

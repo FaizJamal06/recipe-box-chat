@@ -49,12 +49,10 @@ for (const [name, msgs, tab] of VIEWS) {
         if (await evaluate(`document.querySelectorAll('.rounded-tl-sm').length >= ${msgs.length} && !document.querySelector('[aria-live=polite]')`)) break;
       }
       await sleep(800);
-      if (width < 900) {  // full page: the panel stacks under the chat
-        const h = Math.ceil((await send("Page.getLayoutMetrics")).cssContentSize.height);
-        await send("Emulation.setDeviceMetricsOverride", { width, height: h, deviceScaleFactor: 1, mobile: true });
-        await sleep(300);
-      }
-      const shot = await send("Page.captureScreenshot", { format: "png" });
+      // phones: the full page (the panel stacks under the chat), captured beyond the viewport so 100dvh stays 844 px
+      const h = width < 900 ? Math.ceil((await send("Page.getLayoutMetrics")).cssContentSize.height) : height;
+      const shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: width < 900,
+        ...(width < 900 ? { clip: { x: 0, y: 0, width, height: h, scale: 1 } } : {}) });
       const file = join(OUT, `${name}-${width}-${dev ? "dev" : "clean"}.png`);
       writeFileSync(file, Buffer.from(shot.data, "base64"));
       console.log(file);
