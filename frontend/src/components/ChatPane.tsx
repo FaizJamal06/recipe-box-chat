@@ -94,7 +94,7 @@ export function ChatPane({ messages, loading, state, dev, onSend, onPatch, onRes
   const rewriting = state?.active_task === "substitute" || (lastUser?.role === "user" &&
     /\b(remove|replace|substitut\w*|swap|instead of|take out|leave out|make it|adapt)\b/i.test(lastUser.text));
   return (
-    <section className="flex h-[calc(100dvh-52px)] min-h-0 flex-col min-[900px]:h-auto">
+    <section className="flex h-[78dvh] min-h-0 flex-col min-[900px]:h-auto">
       <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
         {messages.length === 0 && (
           <div className="mx-auto mt-6 max-w-2xl">

@@ -73,7 +73,7 @@ export default function App() {
 
   const closeDrawer = useCallback(() => setDrawer(null), []);
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-full flex-col min-[900px]:h-full">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-rule bg-paper/60 px-4 py-2.5 sm:px-6">
         <h1 className="font-display text-[22px] font-bold tracking-tight sm:text-[24px]">Recipe <span className="text-tomato">Box</span></h1>
         <p className="hidden text-[13px] text-ink-soft sm:block">grounded answers from {health ? health.valid.toLocaleString() : "…"} recipes</p>
@@ -91,7 +91,7 @@ export default function App() {
           </label>
         </div>
       </header>
-      <main className="min-h-0 flex-1 overflow-y-auto min-[900px]:grid min-[900px]:grid-cols-[3fr_2fr] min-[900px]:overflow-hidden">
+      <main className="flex-1 min-[900px]:grid min-[900px]:min-h-0 min-[900px]:grid-cols-[3fr_2fr] min-[900px]:overflow-hidden">
         <ChatPane messages={messages} loading={loading} state={state} dev={dev} onSend={send} onPatch={patch} onReset={reset} onOpen={setDrawer} />
         <EvidencePanel resp={resp} tab={tab} setTab={setTab} dev={dev} onOpen={setDrawer}
                        onStrict={() => patch("set", "strict_may_contain", true)} />
