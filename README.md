@@ -168,12 +168,14 @@ positives per tag: that is evidence, not proof. Known gaps are in [docs/lexicon_
 
 ## AI tools used
 
-Claude Code implemented this codebase milestone by milestone under my PRD. I wrote the PRD and made and reviewed the
+Claude Code implemented this codebase milestone by milestone under my PRD. I planned the build as a PRD (drafted with Claude, revised by me) and made and reviewed the
 design, the counting and safety rules, the evidence grading and the evaluation decisions; every milestone ended with
 my review and fixes. At runtime Gemini (`gemini-3.5-flash-lite`) is the planner (message → JSON plan), the voice
 (rewords a plain-English facts block; every number and id must be in it and no internal word may appear, else the
 template is shown) and the step rewriter for substitutions (validated, with a
 deterministic fallback). Offline, Gemini audited the allergen tags.
+
+How I built it and what I found by testing: [docs/PROCESS.md](docs/PROCESS.md)
 
 More: [DECISIONS.md](DECISIONS.md) · [docs/interview-notes.md](docs/interview-notes.md) ·
 [docs/DATA_PROFILE.md](docs/DATA_PROFILE.md) · [docs/FINAL.md](docs/FINAL.md)
