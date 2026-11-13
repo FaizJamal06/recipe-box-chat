@@ -1,6 +1,6 @@
 # Evaluation report
 
-Mode: **replay (LLM cache only)** · 2026-11-13 02:03 · commit `f0fe8d8` · DB fingerprint `{"comma_splits": 4006, "garlic_family_recipes": 32826, "ingredient_lines": 1347635, "onion_family_recipes": 31304, "rare_remapped": 37499, "recipe_tags": 484224, "unverified_alcohol": 39212, "unverified_dairy": 35112, "unverified_egg": 38620, "unverified_fish": 39931, "unverified_gelatin": 40370, "unverified_gluten": 35480, "unverified_honey": 40444, "unverified_meat": 36725, "unverified_peanut": 40710, "unverified_pork": 39272, "unverified_poultry": 39553, "unverified_root_veg": 37207, "unverified_sesame": 40696, "unverified_shellfish": 40187, "unverified_soy": 39303, "unverified_tree_nut": 40089, "vocab_sha1": "81ac30178734", "vocab_size": 20206}`
+Mode: **replay (LLM cache only)** · 2026-11-13 05:18 · commit `bb55d27` · DB fingerprint `{"comma_splits": 4006, "garlic_family_recipes": 32826, "ingredient_lines": 1347635, "onion_family_recipes": 31304, "rare_remapped": 37499, "recipe_tags": 484224, "unverified_alcohol": 39212, "unverified_dairy": 35112, "unverified_egg": 38620, "unverified_fish": 39931, "unverified_gelatin": 40370, "unverified_gluten": 35480, "unverified_honey": 40444, "unverified_meat": 36725, "unverified_peanut": 40710, "unverified_pork": 39272, "unverified_poultry": 39553, "unverified_root_veg": 37207, "unverified_sesame": 40696, "unverified_shellfish": 40187, "unverified_soy": 39303, "unverified_tree_nut": 40089, "vocab_sha1": "81ac30178734", "vocab_size": 20206}`
 
 **24 / 24 cases pass** (40 turns). Every check is programmatic (eval/cases.yaml, eval/run.py): results are re-checked with independent SQL, stats against eval/oracle.py's pure-Python recount.
 
@@ -37,12 +37,12 @@ Server-side wall time per turn (TestClient, same process), measured after the st
 
 | run | all turns p50 / p90 | substitution turns p50 / p90 | LLM calls per turn (mean / max) | LLM errors |
 |---|---|---|---|---|
-| this run (replay) | 194 / 877 ms (n=40) | 297 / 663 ms (n=7) | 0.85 / 2 | 0 |
+| this run (replay) | 308 / 1,131 ms (n=40) | 436 / 842 ms (n=7) | 0.85 / 2 | 0 |
 | last live run, 2026-11-13 01:48 | 3,926 / 15,378 ms (n=40) | 2,870 / 6,678 ms (n=7) | 1.23 / 2 | 18 |
 
 In a replay every LLM answer comes from the cache (0 ms), so replay latency is the engine alone.
 
-Slowest turns this run: demo5_match #1 3,285 ms (rule parser · high-confidence pattern); quantity_sufficiency #1 2,404 ms (rule parser · high-confidence pattern); demo5_match #2 1,769 ms (rule parser · high-confidence pattern); demo6_no_match #1 889 ms (rule parser · high-confidence pattern); demo3_rank #1 767 ms (LLM · gemini-3.5-flash-lite)
+Slowest turns this run: demo5_match #1 4,429 ms (rule parser · high-confidence pattern); quantity_sufficiency #1 3,367 ms (rule parser · high-confidence pattern); demo5_match #2 2,750 ms (rule parser · high-confidence pattern); vegan_preset #1 1,148 ms (LLM · gemini-3.5-flash-lite); demo3_rank #1 980 ms (LLM · gemini-3.5-flash-lite)
 
 ## Baseline: the same questions to raw Gemini, no tools
 
